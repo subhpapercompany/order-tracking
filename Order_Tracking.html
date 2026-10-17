@@ -1981,15 +1981,40 @@ body.print-flash-mode .no-print {
         </button>
         <input type="file" id="dbFileInputHidden" accept=".json" style="display:none;" onchange="handleManualDatabaseFileSelect(event)">
       </div>
-      <button class="btn btn-primary" id="btnMasterExportExcel" onclick="masterExportCurrentSheetToExcel()" title="Download formatted Excel (.xls) with professional company header & styling">
-        <span>📊</span> <span id="exportExcelBtnLabel">Export Excel</span>
+      <!-- 1. Global Print Button -->
+      <button class="btn btn-outline" id="btnGlobalPrint" onclick="globalPrintCurrentView()" title="Print current active report or sheet (Ctrl+P)" style="font-weight: 700; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px;">
+        <span>🖨️</span> <span>Print</span>
       </button>
-      <button class="btn btn-outline" id="btnMasterExportPDF" onclick="masterExportCurrentSheetToPDF()" title="Download / Save as clean A4 Landscape PDF with company letterhead">
-        <span>📄</span> <span id="exportPdfBtnLabel">Export PDF</span>
-      </button>
-      <button class="btn btn-outline" id="btnMasterPrint" onclick="masterPrintCurrentReport()" title="Print current report with professional letterhead in A4 Landscape">
-        <span>🖨️</span> Print
-      </button>
+
+      <!-- 2. Global Download Dropdown Button (PDF / Excel / CSV) -->
+      <div class="global-download-wrap" id="globalDownloadWrap" style="position: relative; display: inline-block;">
+        <button class="btn btn-primary" id="btnGlobalDownloadDropdown" onclick="toggleGlobalDownloadMenu(event)" title="Download current active report (PDF, Excel, or CSV)" style="font-weight: 700; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; background: linear-gradient(135deg, #0284c7, #0369a1); box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4);">
+          <span>📥</span> <span>Download</span> <span style="font-size: 9px; margin-left: 2px;">▼</span>
+        </button>
+        <div class="global-download-menu" id="globalDownloadMenu" style="display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 10px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6); z-index: 99999; min-width: 195px; overflow: hidden; padding: 6px 0;">
+          <a href="javascript:void(0)" onclick="globalDownloadPDF(); closeGlobalDownloadMenu();" style="display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #f8fafc; font-size: 12.5px; font-weight: 600; text-decoration: none; transition: all 0.15s;" onmouseover="this.style.background='rgba(56, 189, 248, 0.18)'; this.style.color='#38bdf8';" onmouseout="this.style.background='transparent'; this.style.color='#f8fafc';">
+            <span style="font-size: 15px;">📄</span>
+            <div>
+              <div style="line-height: 1.2;">PDF Document</div>
+              <div style="font-size: 10px; color: #94a3b8; font-weight: 400;">Formatted (.pdf)</div>
+            </div>
+          </a>
+          <a href="javascript:void(0)" onclick="globalDownloadExcel(); closeGlobalDownloadMenu();" style="display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #f8fafc; font-size: 12.5px; font-weight: 600; text-decoration: none; transition: all 0.15s; border-top: 1px solid rgba(255,255,255,0.06);" onmouseover="this.style.background='rgba(34, 197, 94, 0.18)'; this.style.color='#4ade80';" onmouseout="this.style.background='transparent'; this.style.color='#f8fafc';">
+            <span style="font-size: 15px;">📊</span>
+            <div>
+              <div style="line-height: 1.2;">Excel Spreadsheet</div>
+              <div style="font-size: 10px; color: #94a3b8; font-weight: 400;">Formatted (.xls)</div>
+            </div>
+          </a>
+          <a href="javascript:void(0)" onclick="globalDownloadCSV(); closeGlobalDownloadMenu();" style="display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #f8fafc; font-size: 12.5px; font-weight: 600; text-decoration: none; transition: all 0.15s; border-top: 1px solid rgba(255,255,255,0.06);" onmouseover="this.style.background='rgba(245, 158, 11, 0.18)'; this.style.color='#fbbf24';" onmouseout="this.style.background='transparent'; this.style.color='#f8fafc';">
+            <span style="font-size: 15px;">📑</span>
+            <div>
+              <div style="line-height: 1.2;">CSV Data File</div>
+              <div style="font-size: 10px; color: #94a3b8; font-weight: 400;">Data table (.csv)</div>
+            </div>
+          </a>
+        </div>
+      </div>
       <button class="btn btn-outline" onclick="copyActiveTableToClipboard()" title="Copy active table for direct paste into Excel">
         <span>📋</span> Copy
       </button>
@@ -11982,6 +12007,194 @@ window.addEventListener('beforeprint', () => {
 window.addEventListener('afterprint', () => {
   clearDynamicPrintPageStyle();
 });
+
+/* ==========================================================================
+   GLOBAL PRINT & DOWNLOAD HUB (Context-Aware for all Sheets & Reports)
+   ========================================================================== */
+
+function toggleGlobalDownloadMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('globalDownloadMenu');
+  if (menu) {
+    menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+  }
+}
+
+function closeGlobalDownloadMenu() {
+  const menu = document.getElementById('globalDownloadMenu');
+  if (menu) menu.style.display = 'none';
+}
+
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('globalDownloadWrap');
+  if (wrap && !wrap.contains(e.target)) {
+    closeGlobalDownloadMenu();
+  }
+});
+
+// 1. GLOBAL PRINT ROUTER
+function globalPrintCurrentView() {
+  const sheet = state.activeSheet || 'dashboard';
+  if (state.mode === 'entry') {
+    window.print();
+    return;
+  }
+  if (sheet === 'financials') {
+    if (typeof printFinancialStatement === 'function') {
+      printFinancialStatement();
+    } else {
+      masterPrintCurrentReport();
+    }
+  } else if (sheet === 'flashreport') {
+    if (typeof printDailyFlashReport === 'function') {
+      printDailyFlashReport();
+    } else {
+      masterPrintCurrentReport();
+    }
+  } else if (sheet === 'ranjitbill') {
+    if (typeof printRanjitBill === 'function') {
+      printRanjitBill();
+    } else {
+      masterPrintCurrentReport();
+    }
+  } else {
+    masterPrintCurrentReport();
+  }
+}
+
+// 2. GLOBAL DOWNLOAD PDF ROUTER
+function globalDownloadPDF() {
+  const sheet = state.activeSheet || 'dashboard';
+  if (sheet === 'financials') {
+    if (typeof downloadFinancialsPDF === 'function') {
+      downloadFinancialsPDF();
+    } else {
+      masterExportCurrentSheetToPDF();
+    }
+  } else if (sheet === 'flashreport') {
+    if (typeof exportDailyFlashReportToPDF === 'function') {
+      exportDailyFlashReportToPDF();
+    } else {
+      masterExportCurrentSheetToPDF();
+    }
+  } else if (sheet === 'ranjitbill') {
+    if (typeof exportRanjitBillToPDF === 'function') {
+      exportRanjitBillToPDF();
+    } else {
+      masterExportCurrentSheetToPDF();
+    }
+  } else {
+    masterExportCurrentSheetToPDF();
+  }
+}
+
+// 3. GLOBAL DOWNLOAD EXCEL ROUTER
+function globalDownloadExcel() {
+  const sheet = state.activeSheet || 'dashboard';
+  if (sheet === 'financials') {
+    if (typeof exportFinancialsToExcel === 'function') {
+      exportFinancialsToExcel();
+    } else {
+      masterExportCurrentSheetToExcel();
+    }
+  } else if (sheet === 'flashreport') {
+    if (typeof exportDailyFlashReportToExcel === 'function') {
+      exportDailyFlashReportToExcel();
+    } else {
+      masterExportCurrentSheetToExcel();
+    }
+  } else if (sheet === 'ranjitbill') {
+    if (typeof exportRanjitBillToExcel === 'function') {
+      exportRanjitBillToExcel();
+    } else {
+      masterExportCurrentSheetToExcel();
+    }
+  } else {
+    masterExportCurrentSheetToExcel();
+  }
+}
+
+// 4. GLOBAL DOWNLOAD CSV ROUTER
+function globalDownloadCSV() {
+  const sheet = state.activeSheet || 'dashboard';
+  if (sheet === 'today') {
+    if (typeof exportTodayTransactionsCSV === 'function') {
+      exportTodayTransactionsCSV();
+    } else {
+      exportActiveTableToCSV();
+    }
+  } else if (sheet === 'financials') {
+    exportFinancialsToCSV();
+  } else {
+    exportActiveTableToCSV();
+  }
+}
+
+// 5. DEDICATED FINANCIALS CSV EXPORT
+function exportFinancialsToCSV() {
+  const fin = getFinancialsState();
+  const customer = fin.customer || "Kokuyo Camlin Ltd.";
+  const asOnDate = fin.asOnDate || "11.08.2026";
+  const openAdv = Number(fin.openAdvance) || 0;
+
+  let billsTotal = 0;
+  const billRows = (fin.billDueList || []).map(b => {
+    billsTotal += (Number(b.amount) || 0);
+    return ["UNADJUSTED SALE INVOICE", `"${b.date || ''}"`, `"${b.invoiceNo || ''}"`, Number(b.amount) || 0];
+  });
+  const interimBal = openAdv - billsTotal;
+
+  const payableAmt = Number(fin.payableToParty) || 0;
+  const receivableAmt = Number(fin.receivableFromParty) || 0;
+  const rawMat = Number(fin.rawMaterialVal) || 0;
+  const wipPaper = Number(fin.wipPaperVal) || 0;
+
+  let fgTotal = 0;
+  const fgRows = (fin.finishedGoodsList || []).map(fg => {
+    const val = Number(fg.amount) || (Math.round((Number(fg.kg) || 0) * (Number(fg.rate) || 77)));
+    fgTotal += val;
+    return ["FINISHED GOODS (FIFO PAPER RATE)", `"${fg.barcode || ''}"`, `"${(fg.desc || '').replace(/"/g, '""')}"`, `${fg.kg || 0} Kg @ Rs.${fg.rate || 77}/Kg`, val];
+  });
+
+  const totalPositive = interimBal + payableAmt;
+  const totalNegative = receivableAmt + rawMat + wipPaper + fgTotal;
+  const netDue = Math.abs(totalPositive - totalNegative);
+  const isPartyPayable = totalPositive >= totalNegative;
+
+  const csvRows = [
+    ["SUBH PAPER COMPANY - FINANCIAL ACCOUNTING RECONCILIATION STATEMENT"],
+    [`"Customer / Party: ${customer}"`, `"As on Date: ${asOnDate}"`],
+    [],
+    ["Section", "Particulars / Reference", "Details", "Amount (INR)"],
+    ["OPEN ADVANCE", `"Advance Received from ${customer}"`, "Paper Purchase Advance", openAdv],
+    ...billRows,
+    ["SUBTOTAL", "TOTAL UNADJUSTED SALE INVOICES (BILL DUE)", "", billsTotal],
+    ["INTERIM BALANCE", "BALANCE AFTER BILLS ADJUSTMENT [Open Advance - Bill Outstanding]", isPartyPayable ? "ADVANCE REMAINING" : "BILLS EXCEED ADVANCE", interimBal],
+    ["CREDITORS", `"Less: Unpaid Paper Creditors / Mill Payable (${fin.partyName || 'Emami'})"`, "Paper Mill Creditor", payableAmt],
+    ["CLAIMS", `"Add: Rate Difference Claims Recoverable (${fin.receivablePartyName || 'Satia'})"`, "Claims Recoverable", receivableAmt],
+    ["STOCK - RAW MATERIAL", `"Add: Raw Material (${fin.rmSpec || 'Reels'})"`, "Godown Stock", rawMat],
+    ["STOCK - WIP", `"Add: Paper WIP (${fin.wipSpec || 'Cut Sheets'})"`, "Cut Sheets in Factory", wipPaper],
+    ...fgRows,
+    ["STOCK - FG TOTAL", "TOTAL FINISHED GOODS INVENTORY VALUATION", "", fgTotal],
+    [],
+    ["FINAL RECONCILIATION RESULT", isPartyPayable ? `"PAYABLE TO PARTY (${customer})"` : `"RECEIVABLE FROM PARTY (${customer})"`, "", netDue]
+  ];
+
+  const csvContent = "\uFEFF" + csvRows.map(r => r.join(",")).join("\r\n");
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Kokuyo_Camlin_Financial_Reconciliation_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 200);
+
+  showToast("📑 Financial Reconciliation Statement exported to CSV!");
+}
 
 function masterExportCurrentSheetToExcel() {
   const sheet = state.activeSheet || 'dashboard';

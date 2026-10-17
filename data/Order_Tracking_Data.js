@@ -1,4 +1,4 @@
-/* SUBH PAPER COMPANY - ZERO-CLICK AUTO-LOAD DATABASE COMPANION */
+/* SUBH PAPER COMPANY - AUTO-LOAD DATABASE COMPANION */
 window.ORDER_TRACKING_DATABASE = {
   "system": "Subh Paper Company Order Tracking Enterprise Database",
   "version": "6.0",
