@@ -2019,15 +2019,15 @@ body.print-flash-mode .no-print {
         <span>📋</span> Copy
       </button>
       <button class="btn btn-outline" onclick="openDataManagementModal()" title="Save/Load JSON backups and data management">
-        <span>💾</span> Backup
+        <span>💾</span> Backup & Data
       </button>
-      <button class="btn btn-outline" onclick="cleanAllDemoData()" title="Wipe all demo data & test fresh with clean slate" style="border-color:#f87171; color:#fca5a5; font-weight:700;">
-        <span>🧹</span> Clean Demo
+      <button class="btn btn-secondary" onclick="reloadDatabaseFromDisk(true)" title="Reload latest data from database disk">
+        <span>🔄</span> Refresh Data
       </button>
-      
-      <button class="btn btn-secondary" onclick="resetToExcelData()" title="Reset options">
-        <span>🔄</span> Reset
-      </button>
+      <div id="liveDbStatusBadge" style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #86efac; color:#166534; font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; white-space:nowrap;" title="Database Status">
+        <span style="width:8px; height:8px; border-radius:50%; background:#22c55e; display:inline-block; box-shadow:0 0 6px #22c55e;"></span>
+        <span id="liveDbStatusBadgeText">16 SKUs Active</span>
+      </div>
     </div>
   </div>
 </header>
@@ -6934,6 +6934,77 @@ window.addEventListener('keydown', function(e) {
   }
 });
 
+function hydrateFromDatabaseObject(parsed) {
+  if (!parsed || typeof parsed !== 'object') return;
+  state.activeVendor = 'all'; // Default to all so user always sees all 16 items!
+  state.skus = Array.isArray(parsed.skus) ? parsed.skus : [];
+  state.papersSummary = (parsed.papersSummary && parsed.papersSummary.length > 0) ? parsed.papersSummary : JSON.parse(JSON.stringify(DEFAULT_PAPERS_SUMMARY));
+  state.papersLedger = parsed.papersLedger || [];
+  state.boardSummary = (parsed.boardSummary && parsed.boardSummary.length > 0) ? parsed.boardSummary : JSON.parse(JSON.stringify(DEFAULT_BOARD_SUMMARY));
+  state.boardLedger = parsed.boardLedger || [];
+  state.boardWipByBarcode = parsed.boardWipByBarcode || {};
+  state.consumables = (parsed.consumables && parsed.consumables.length > 0) ? parsed.consumables : JSON.parse(JSON.stringify(DEFAULT_CONSUMABLES));
+  state.todayTransactions = Array.isArray(parsed.todayTransactions) ? parsed.todayTransactions : [];
+  state.poRequests = Array.isArray(parsed.poRequests) ? parsed.poRequests : [];
+  state.poReleases = parsed.poReleases || [];
+  state.poTrackings = parsed.poTrackings || [];
+  state.materialStock = parsed.materialStock || JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK));
+  state.financials = parsed.financials || JSON.parse(JSON.stringify(DEFAULT_FINANCIALS));
+  if (Array.isArray(parsed.dailyFlashReports)) state.dailyFlashReports = parsed.dailyFlashReports;
+  if (Array.isArray(parsed.ranjitMakingEntries)) state.ranjitMakingEntries = parsed.ranjitMakingEntries;
+
+  // Ensure inner and caseQty on all loaded SKUs
+  (state.skus || []).forEach(s => {
+    if (s.inner === undefined || s.inner === null || s.caseQty === undefined || s.caseQty === null) {
+      const isA4 = (s.description && s.description.includes('A4')) || (s.size && s.size.includes('A4'));
+      const p = s.pages || 52;
+      if (s.inner === undefined || s.inner === null) s.inner = isA4 ? (p <= 52 ? 12 : 6) : (p <= 92 ? 12 : 6);
+      if (s.caseQty === undefined || s.caseQty === null) s.caseQty = isA4 ? (p <= 52 ? 120 : (p <= 76 ? 72 : (p <= 100 ? 60 : 36))) : (p <= 56 ? 144 : (p <= 92 ? 96 : 72));
+    }
+  });
+
+  if (parsed.timestamp) {
+    updateSaveStatus(parsed.timestamp);
+  }
+  updateDbStatusPill('data/Order_Tracking_Database.json', true);
+  updateLiveHeaderBadge();
+}
+
+function updateLiveHeaderBadge() {
+  const badge = document.getElementById('liveDbStatusBadgeText');
+  if (badge) {
+    const skuCount = (state.skus || []).length;
+    const txCount = (state.todayTransactions || []).length;
+    badge.textContent = `${skuCount} SKUs Active • ${txCount} Tx Today`;
+  }
+}
+
+async function reloadDatabaseFromDisk(showNotify = false) {
+  let loadedDb = null;
+  if (window.location.protocol.startsWith('http')) {
+    try {
+      const resp = await fetch('data/Order_Tracking_Database.json?_t=' + Date.now());
+      if (resp.ok) {
+        loadedDb = await resp.json();
+      }
+    } catch (e) {
+      console.warn("Fetch DB failed:", e);
+    }
+  }
+  if (!loadedDb && window.ORDER_TRACKING_DATABASE) {
+    loadedDb = window.ORDER_TRACKING_DATABASE;
+  }
+  if (loadedDb) {
+    hydrateFromDatabaseObject(loadedDb);
+    recalculateAllFormulas();
+    renderAllViews();
+    updateLiveHeaderBadge();
+    if (showNotify) {
+      showToast(`✅ Database refreshed! ${state.skus.length} SKUs & latest records active.`);
+    }
+  }
+}
+
 function initApp() {
   initDailyFlashReports();
   initRanjitMakingEntries();
@@ -6953,13 +7024,11 @@ function initApp() {
   });
 
   // Source Selection:
-  // 1. Physical Database Companion from data/Order_Tracking_Data.js
   let masterDb = null;
   if (window.ORDER_TRACKING_DATABASE && typeof window.ORDER_TRACKING_DATABASE === 'object') {
     masterDb = window.ORDER_TRACKING_DATABASE;
   }
 
-  // 2. LocalStorage cache
   const cleanStorageKey = 'subh_order_tracking_clean_master';
   const savedLocal = localStorage.getItem(cleanStorageKey);
   let parsedLocal = null;
@@ -6967,10 +7036,10 @@ function initApp() {
     try { parsedLocal = JSON.parse(savedLocal); } catch (_) {}
   }
 
-  // Compare timestamps:
+  // Smart Selection: Never let an empty localStorage destroy masterDb!
   let selectedSource = masterDb;
-  if (parsedLocal) {
-    if (!masterDb) {
+  if (parsedLocal && Array.isArray(parsedLocal.skus) && parsedLocal.skus.length > 0) {
+    if (!masterDb || !Array.isArray(masterDb.skus) || masterDb.skus.length === 0) {
       selectedSource = parsedLocal;
     } else if (parsedLocal.timestamp && masterDb.timestamp) {
       const tLocal = new Date(parsedLocal.timestamp).getTime();
@@ -6979,50 +7048,20 @@ function initApp() {
         selectedSource = parsedLocal;
       }
     }
+  } else if (masterDb && Array.isArray(masterDb.skus) && masterDb.skus.length > 0) {
+    selectedSource = masterDb;
   }
 
   if (selectedSource) {
     try {
-      const parsed = selectedSource;
-      state.activeVendor = parsed.activeVendor || 'all';
-      state.skus = Array.isArray(parsed.skus) ? parsed.skus : [];
-      state.papersSummary = (parsed.papersSummary && parsed.papersSummary.length > 0) ? parsed.papersSummary : JSON.parse(JSON.stringify(DEFAULT_PAPERS_SUMMARY));
-      state.papersLedger = parsed.papersLedger || [];
-      state.boardSummary = (parsed.boardSummary && parsed.boardSummary.length > 0) ? parsed.boardSummary : JSON.parse(JSON.stringify(DEFAULT_BOARD_SUMMARY));
-      state.boardLedger = parsed.boardLedger || [];
-      state.boardWipByBarcode = parsed.boardWipByBarcode || {};
-      state.consumables = (parsed.consumables && parsed.consumables.length > 0) ? parsed.consumables : JSON.parse(JSON.stringify(DEFAULT_CONSUMABLES));
-      state.todayTransactions = Array.isArray(parsed.todayTransactions) ? parsed.todayTransactions : [];
-      state.poRequests = Array.isArray(parsed.poRequests) ? parsed.poRequests : [];
-      state.poReleases = parsed.poReleases || [];
-      state.poTrackings = parsed.poTrackings || [];
-      state.materialStock = parsed.materialStock || JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK));
-      state.financials = parsed.financials || JSON.parse(JSON.stringify(DEFAULT_FINANCIALS));
-      if (Array.isArray(parsed.dailyFlashReports)) state.dailyFlashReports = parsed.dailyFlashReports;
-      if (Array.isArray(parsed.ranjitMakingEntries)) state.ranjitMakingEntries = parsed.ranjitMakingEntries;
-
-      if (parsed.timestamp) {
-        updateSaveStatus(parsed.timestamp);
-      }
-      updateDbStatusPill('data/Order_Tracking_Database.json', true);
+      hydrateFromDatabaseObject(selectedSource);
     } catch (err) {
       console.warn("Database hydration error, falling back to clean defaults:", err);
       resetStateToDefaults();
     }
   } else {
     resetStateToDefaults();
-    saveState();
   }
-
-  // Ensure inner and caseQty on all loaded SKUs
-  (state.skus || []).forEach(s => {
-    if (s.inner === undefined || s.inner === null || s.caseQty === undefined || s.caseQty === null) {
-      const isA4 = (s.description && s.description.includes('A4')) || (s.size && s.size.includes('A4'));
-      const p = s.pages || 52;
-      if (s.inner === undefined || s.inner === null) s.inner = isA4 ? (p <= 52 ? 12 : 6) : (p <= 92 ? 12 : 6);
-      if (s.caseQty === undefined || s.caseQty === null) s.caseQty = isA4 ? (p <= 52 ? 120 : (p <= 76 ? 72 : (p <= 100 ? 60 : 36))) : (p <= 56 ? 144 : (p <= 92 ? 96 : 72));
-    }
-  });
 
   // Default entry dates initialized blank
   ['ep_date', 'ed_date', 'econ_date', 'epaper_date', 'eboard_date', 'econs_date'].forEach(id => {
@@ -7031,11 +7070,11 @@ function initApp() {
   });
 
   recalculateAllFormulas();
-  setActiveVendor(state.activeVendor || 'all', false);
+  setActiveVendor('all', false); // Always show all records on load!
   switchSheet(state.activeSheet || 'dashboard');
   updateExportButtonLabel();
-  saveState();
   updateSaveStatus();
+  updateLiveHeaderBadge();
 }
 
 function resetStateToDefaults() {
@@ -7058,6 +7097,12 @@ function resetStateToDefaults() {
  * Wipe all demo data & start with fresh clean slate for testing calculations
  */
 function cleanAllDemoData() {
+  if (!confirm("⚠️ CAUTION: Are you sure you want to wipe all records and reset to clean slate? This action cannot be undone.")) {
+    return;
+  }
+  if (!confirm("⚠️ FINAL CONFIRMATION: Type OK to proceed with clearing all data.")) {
+    return;
+  }
   state.skus = [];
   state.todayTransactions = [];
   state.poRequests = [];
@@ -7084,6 +7129,27 @@ function cleanAllDemoData() {
  */
 
 
+let _serverAutoSyncTimer = null;
+function triggerServerAutoSync(payload) {
+  clearTimeout(_serverAutoSyncTimer);
+  _serverAutoSyncTimer = setTimeout(async () => {
+    if (window.location.protocol.startsWith('http')) {
+      try {
+        const resp = await fetch('/api/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+          updateDbStatusPill('Server: ' + window.location.host + ' (Auto-Saved)', true);
+        }
+      } catch (e) {
+        // network fallback
+      }
+    }
+  }, 250);
+}
+
 function saveState() {
   try {
     const payload = getFullEnterpriseStatePayload();
@@ -7091,9 +7157,11 @@ function saveState() {
     try { localStorage.setItem('subh_daily_flash_reports', JSON.stringify(state.dailyFlashReports || [])); } catch(_) {}
     try { localStorage.setItem('subh_ranjit_making_entries', JSON.stringify(state.ranjitMakingEntries || [])); } catch(_) {}
     updateSaveStatus(payload.timestamp);
+    updateLiveHeaderBadge();
     if (window.dbFileHandle) {
       writeDbFileHandle(payload);
     }
+    triggerServerAutoSync(payload);
   } catch (err) {
     console.error('Save state to LocalStorage failed:', err);
   }
@@ -8555,6 +8623,40 @@ function renderDashboardTable() {
     tbody.appendChild(tr);
   });
 
+  if (state.skus.length > 0 && tbody.children.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td colspan="14" style="text-align:center; padding: 32px 16px; background:#fffbeb; border:2px dashed #fde68a;">
+        <div style="font-size:16px; font-weight:700; color:#b45309; margin-bottom:6px;">
+          🔍 No SKUs match current filter: "${activeV}"
+        </div>
+        <div style="font-size:13px; color:#92400e; margin-bottom:14px;">
+          You have ${state.skus.length} active SKUs in Kokuyo Camlin. Click below to display all records.
+        </div>
+        <button type="button" class="btn btn-primary" onclick="setActiveVendor('all', true); renderReportingView();" style="padding:6px 16px; font-size:13px;">
+          Show All ${state.skus.length} SKUs
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  } else if (state.skus.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td colspan="14" style="text-align:center; padding: 32px 16px; background:#fef2f2; border:2px dashed #fca5a5;">
+        <div style="font-size:16px; font-weight:700; color:#dc2626; margin-bottom:6px;">
+          ⚠️ No SKU Records Loaded
+        </div>
+        <div style="font-size:13px; color:#991b1b; margin-bottom:14px;">
+          Your physical database has 16 items ready. Click below to load them directly.
+        </div>
+        <button type="button" class="btn btn-primary" onclick="reloadDatabaseFromDisk(true);" style="padding:6px 16px; font-size:13px;">
+          🔄 Load All 16 SKUs from Database
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
   document.getElementById('totOrder').textContent = sumOrder.toLocaleString();
   document.getElementById('totOld').textContent = sumOld.toLocaleString();
   document.getElementById('totProd').textContent = sumProd.toLocaleString();
@@ -8610,6 +8712,24 @@ function renderOrderSheet() {
     `;
     tbody.appendChild(tr);
   });
+
+  if (filtered.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td colspan="16" style="text-align:center; padding: 32px 16px; background:#fffbeb; border:2px dashed #fde68a;">
+        <div style="font-size:16px; font-weight:700; color:#b45309; margin-bottom:6px;">
+          🔍 No Orders match current filter: "${activeV}"
+        </div>
+        <div style="font-size:13px; color:#92400e; margin-bottom:14px;">
+          Total ${(state.skus || []).length} SKUs are recorded in Kokuyo Camlin. Click below to show all records.
+        </div>
+        <button type="button" class="btn btn-primary" onclick="setActiveVendor('all', true); renderReportingView();" style="padding:6px 16px; font-size:13px;">
+          Show All Orders
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
 
   if (filtered.length > 0) {
     const trFoot = document.createElement('tr');
