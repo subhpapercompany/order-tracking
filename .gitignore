@@ -1,0 +1,12 @@
+# Ignore backup files and scratch artifacts
+*bak*
+*backup*
+*.pre_*
+*scratch*
+*.py
+*.url
+*.bat
+Order_Tracking - Copy.html
+Order_Tracking_patched_payables.html
+Order_Tracking_updated.html
+recovered_user_data.json
