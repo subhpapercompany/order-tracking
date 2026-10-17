@@ -11090,7 +11090,7 @@ function handleOrderBookingSubmit(e) {
   populateCatalogueDatalist();
   recalculateAllFormulas();
   renderAllViews();
-  scrollToTodayTransactions();
+  // Screen stays stable on form without jumping to bottom
 
   // Auto-clear form immediately after save
   resetOrderBookingForm();
@@ -11233,7 +11233,7 @@ function handleProductionLogSubmit(e) {
   const epSelect = document.getElementById('ep_skuSelect');
   if (epSelect) epSelect.value = '';
   onProdSkuChange();
-  scrollToTodayTransactions();
+  // Screen stays stable on form without jumping to bottom
 }
 
 function handleDespatchLogSubmit(e) {
@@ -11296,7 +11296,7 @@ function handleDespatchLogSubmit(e) {
   if (document.getElementById('group_ed_vendor_other')) document.getElementById('group_ed_vendor_other').style.display = 'none';
   if (document.getElementById('group_ed_dest_other')) document.getElementById('group_ed_dest_other').style.display = 'none';
   onDespSkuChange();
-  scrollToTodayTransactions();
+  // Screen stays stable on form without jumping to bottom
 }
 
 function handleConsumptionEntrySubmit(e) {
@@ -11338,7 +11338,7 @@ function handleConsumptionEntrySubmit(e) {
   const econSelect = document.getElementById('econ_skuSelect');
   if (econSelect) econSelect.value = '';
   onConsumptionSkuChange();
-  scrollToTodayTransactions();
+  // Screen stays stable on form without jumping to bottom
 }
 
 function togglePaperEntryMode() {
@@ -11475,7 +11475,7 @@ function handlePaperInwardProcessSubmit(e) {
   });
   if (document.getElementById('epaper_wastage')) document.getElementById('epaper_wastage').value = '0';
   if (document.getElementById('epaper_rate')) document.getElementById('epaper_rate').value = '77';
-  scrollToTodayTransactions();
+  // Screen stays stable on paper entry form without jumping to bottom
 }
 
 function toggleBoardEntryMode() {
@@ -11599,7 +11599,7 @@ function handleBoardMovementSubmit(e) {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  scrollToTodayTransactions();
+  // Screen stays stable on board entry form without jumping to bottom
 }
 
 function toggleConsumableEntryMode() {
@@ -11705,7 +11705,7 @@ function handleConsumablesLogSubmit(e) {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  scrollToTodayTransactions();
+  // Screen stays stable on consumables entry form without jumping to bottom
 }
 
 function quickLogProduction() { switchMode('entry'); switchEntryTab('production'); }
