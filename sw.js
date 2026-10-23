@@ -45,14 +45,27 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;                    // never touch POST (saves)
 
   const url = new URL(req.url);
-  if (url.pathname.indexOf('/api/') === 0) return;     // leave sync API alone
+  const sameOrigin = (url.origin === self.location.origin);
+
+  // ---- LIVE DATA: never intercept, always straight to the server ----
+  // /api/*   -> server.py load/save/version (realtime sync)
+  // /data/*  -> fallback database JSON (must stay fresh, never stale)
+  if (url.pathname.indexOf('/api/') === 0) return;
+  if (url.pathname.indexOf('/data/') === 0) return;
+
+  // ---- Cross-origin: cache ONLY fonts. Anything else (notably the
+  // Google Drive /exec JSON) must always hit the network so cloud sync
+  // never serves a stale copy. ----
+  const isFont = (req.destination === 'font') ||
+                 /\.(woff2?|ttf|otf|eot)$/i.test(url.pathname);
+  if (!sameOrigin && !isFont) return;
 
   const isShell = req.mode === 'navigate' ||
                   url.pathname.endsWith('.html') ||
                   url.pathname === '/' ||
                   url.pathname === '/index.html';
 
-  if (isShell) {
+  if (sameOrigin && isShell) {
     // NETWORK first -> user always gets the newest code when online;
     // CACHE fallback -> app still opens with no internet.
     event.respondWith(
