@@ -4117,7 +4117,8 @@ body.print-flash-mode .no-print {
             <div class="panel-title">Paper Stock Summary (Reel Size-wise & WIP-wise)</div>
             <div class="formula-indicator">Closing WIP = Opening WIP + Slitted - Wastage - Consumed</div>
           </div>
-          <div style="display:flex; gap:10px; align-items:center;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="openPaperWipAuditModal('90x43x57', 'Single Line')" style="font-weight:800; border-color:#1e3a8a; color:#ffffff; background:#1e3a8a;" title="Date-wise Production, Paper Consumed & Stock Left for any Spec + Ruling">📜 Paper WIP Ledger (Spec &amp; Ruling)</button>
             <button class="btn btn-outline" onclick="openPaperOpeningModal()" style="font-weight:700; border-color:#0f766e; color:#0f766e; background:#f0fdfa;">📦 Set Opening Balance (WIP & Reels)</button>
             <button class="btn btn-primary" onclick="quickLogPaper()">+ Add Paper Inward / Process Entry</button>
           </div>
@@ -4226,7 +4227,8 @@ body.print-flash-mode .no-print {
               Click on any Raw Board or WIP Board cell to drill-down into Printer Godowns or Barcodes
             </div>
           </div>
-          <div style="display:flex; gap:10px; align-items:center;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline" onclick="openBoardWipAuditModal()" style="font-weight:800; border-color:#7c2d12; color:#ffffff; background:#9a3412;" title="Date-wise Production, Board Consumed & Stock Left for any Board Size">📜 Board WIP Ledger (Size)</button>
             <button type="button" class="btn btn-outline" onclick="openBoardOpeningModal()" style="font-weight:700; border-color:#b45309; color:#b45309; background:#ffffff;">📦 Set Opening Balance (Board)</button>
             <button type="button" class="btn btn-primary" onclick="quickLogBoard()">+ Add Board Movement Entry</button>
           </div>
