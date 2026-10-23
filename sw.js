@@ -15,7 +15,7 @@
  * for HTML, which already delivers updates immediately when online).
  * ===================================================================== */
 
-const CACHE = 'subh-orders-v1';
+const CACHE = 'subh-orders-v2';
 const SHELL = [
   './',
   './index.html',
