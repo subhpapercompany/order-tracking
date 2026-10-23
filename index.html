@@ -32029,9 +32029,9 @@ function renderPaperWipAuditDetails(spec, rKey) {
   // 2. Build Chronological Movement Entries
   const rawRows = [];
 
-  // Base Opening Entry
+  // Base Opening Entry (dated before period start so it counts as Opening, not Inward)
   rawRows.push({
-    date: '2026-10-01',
+    date: '2026-09-30',
     type: 'Opening Stock Setup',
     code: spec,
     description: `Initial Physical Opening Stock (${spec} ${rKey})`,
