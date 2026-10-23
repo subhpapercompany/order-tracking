@@ -32281,6 +32281,355 @@ function printPaperWipAudit() {
 }
 
 // =========================================================================
+// BOARD WIP STOCK AUDIT & LEDGER (SIZE-WISE, DATE-WISE) - DRILL-DOWN
+// =========================================================================
+function normalizeBoardSizeKey(sizeStr) {
+  return String(sizeStr || '').replace(/\s+/g, '').toLowerCase();
+}
+
+// Match a ledger/summary entry's size against the chosen size
+// (exact compact match + the same fuzzy rules used by Board Master Matrix)
+function boardSizeMatches(entrySize, targetSize) {
+  const e = normalizeBoardSizeKey(entrySize);
+  const t = normalizeBoardSizeKey(targetSize);
+  if (!e || !t) return false;
+  if (e === t) return true;
+  if (t.includes('200') && e.includes('200')) return true;
+  if (t.includes('77x98') && e.includes('77x98')) return true;
+  return false;
+}
+
+function formatBoardSizeLabel(size) {
+  const compact = normalizeBoardSizeKey(size);
+  const labels = {
+    '77x98x190': '77 × 98 × 190 (A5 Regular, 8 ups)',
+    '45.5x91x190': '45.5 × 91 × 190 (A5 Spec)',
+    '45.5x91x200': '45.5 × 91 × 200 (A4 Spec)',
+    '91x91x190': '91 × 91 × 190 (Square)',
+    '46x91x250gsm': '46 × 91 × 250gsm (ITC A4)',
+    '78x98x230gsm': '78 × 98 × 230gsm (ITC A5)',
+    '76x98x230gsm': '76 × 98 × 230gsm (ITC A5 Alt)',
+    '44x1010x250gsm': '44 × 1010 × 250gsm (ITC A4 Alt)'
+  };
+  return labels[compact] || size;
+}
+
+// Collect every board size known to the system (deduped, normalized)
+function collectBoardWipSizes() {
+  const list = [];
+  const push = (s) => {
+    if (!s) return;
+    const k = normalizeBoardSizeKey(s);
+    if (!k) return;
+    if (!list.some(x => normalizeBoardSizeKey(x) === k)) list.push(String(s).trim());
+  };
+  ['77x98x190', '45.5x91x190', '45.5x91x200', '91x91x190'].forEach(push);
+  (state.boardSummary || []).forEach(b => push(b.size));
+  (state.boardLedger || []).forEach(l => push(l.size));
+  (state.skus || []).forEach(s => push(s.boardSpec));
+  return list;
+}
+
+function openBoardWipAuditModal(size, fromDate, toDate) {
+  const modal = document.getElementById('modalBoardWipAudit');
+  if (!modal) return;
+
+  const sizeSelect = document.getElementById('bwa_size_select');
+  if (sizeSelect) {
+    const sizeList = collectBoardWipSizes();
+    sizeSelect.innerHTML = sizeList.map(sz => `<option value="${sz}">${formatBoardSizeLabel(sz)}</option>`).join('');
+    const wanted = size || sizeList[0] || '77x98x190';
+    let match = Array.from(sizeSelect.options).find(o => normalizeBoardSizeKey(o.value) === normalizeBoardSizeKey(wanted));
+    if (!match) {
+      const opt = document.createElement('option');
+      opt.value = wanted;
+      opt.textContent = formatBoardSizeLabel(wanted);
+      sizeSelect.appendChild(opt);
+      match = opt;
+    }
+    sizeSelect.value = match.value;
+  }
+
+  const fromEl = document.getElementById('bwa_fromDate');
+  const toEl = document.getElementById('bwa_toDate');
+  const now = new Date();
+  if (fromEl) fromEl.value = fromDate || '2026-10-01';
+  if (toEl) toEl.value = toDate || now.toISOString().slice(0, 10);
+
+  renderBoardWipAuditDetails(sizeSelect ? sizeSelect.value : '77x98x190');
+  modal.style.display = 'flex';
+}
+
+function closeBoardWipAuditModal() {
+  const modal = document.getElementById('modalBoardWipAudit');
+  if (modal) modal.style.display = 'none';
+}
+
+function onBoardWipFilterChange() {
+  const size = document.getElementById('bwa_size_select')?.value || '77x98x190';
+  renderBoardWipAuditDetails(size);
+}
+
+function renderBoardWipAuditDetails(size) {
+  const selectedVendor = state.activeVendor || 'all';
+  const fromDate = document.getElementById('bwa_fromDate')?.value || '2026-10-01';
+  const toDate = document.getElementById('bwa_toDate')?.value || new Date().toISOString().slice(0, 10);
+
+  // 1. Initial Opening Stock (Our Godown + Printer) for this size
+  let baseOpening = 0;
+  const bSum = (state.boardSummary || []).find(b => boardSizeMatches(b.size, size));
+  if (bSum) {
+    baseOpening = Number(bSum.openingGodownSheets || 0) + Number(bSum.openingPrinterSheets || 0);
+  }
+  if (!baseOpening && state.materialStock && state.materialStock.board) {
+    const mKey = Object.keys(state.materialStock.board).find(k => boardSizeMatches(k, size));
+    if (mKey) baseOpening = Number(state.materialStock.board[mKey] || 0);
+  }
+
+  // 2. Build Chronological Movement Entries
+  const rawRows = [];
+
+  // Base Opening Entry
+  rawRows.push({
+    date: '2026-10-01',
+    type: 'Opening Stock Setup',
+    code: size,
+    description: `Initial Physical Opening Board Stock (${size}) — Godown + Printer`,
+    prodQty: 0,
+    ups: 0,
+    qtyIn: baseOpening > 0 ? baseOpening : 0,
+    qtyOut: baseOpening < 0 ? Math.abs(baseOpening) : 0,
+    info: false
+  });
+
+  // Board Ledger Movements (Inward affects total stock; printer moves are info rows)
+  (state.boardLedger || []).forEach(bl => {
+    if (!boardSizeMatches(bl.size, size)) return;
+    const d = bl.date || '2026-10-01';
+    const challan = bl.inv ? `Challan/Inv: ${bl.inv}` : '';
+    const party = bl.party ? `Party: ${bl.party}` : '';
+    if (Number(bl.inward || 0) > 0) {
+      rawRows.push({
+        date: d,
+        type: 'Board Inward Received',
+        code: bl.barcode || 'MILL-IN',
+        description: `Board sheets received from mill. ${challan} ${party}`.trim(),
+        prodQty: 0, ups: 0,
+        qtyIn: Number(bl.inward || 0), qtyOut: 0,
+        info: false
+      });
+    }
+    if (Number(bl.outPrint || 0) > 0) {
+      rawRows.push({
+        date: d,
+        type: 'Sent to Printer',
+        code: bl.barcode || 'TO-PRINT',
+        description: `Sent for printing (info: total stock unchanged). ${challan} ${party}`.trim(),
+        prodQty: 0, ups: 0,
+        qtyIn: 0, qtyOut: 0,
+        info: true
+      });
+    }
+    if (Number(bl.printedRecd || 0) > 0) {
+      rawRows.push({
+        date: d,
+        type: 'Printed Covers Received',
+        code: bl.barcode || 'PRINT-RECD',
+        description: `Printed covers received back from printer (info: total stock unchanged). ${challan} ${party}`.trim(),
+        prodQty: 0, ups: 0,
+        qtyIn: 0, qtyOut: 0,
+        info: true
+      });
+    }
+  });
+
+  // Production Consumption from SKUs (same matching as Board Master Matrix)
+  (state.skus || []).filter(s => isMatchingVendor(s.vendor, selectedVendor)).forEach(s => {
+    if (!isSkuBoardMatch(s, size)) return;
+    const prodQty = s.production || 0;
+    const ups = s.ups || 3;
+    const consumedSheets = Number(s.boardSheetsRequired) || Math.ceil(prodQty / ups);
+    if (prodQty <= 0 && consumedSheets <= 0) return;
+    rawRows.push({
+      date: s.lastProdDate || '2026-10-15',
+      type: 'Production Consumption',
+      code: s.barcode,
+      description: s.description || s.title || '-',
+      prodQty: prodQty,
+      ups: ups,
+      qtyIn: 0,
+      qtyOut: consumedSheets,
+      info: false
+    });
+  });
+
+  // Sort Chronologically
+  rawRows.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (b.qtyIn - a.qtyIn));
+
+  // Compute Opening, In, Out, Closing for every row
+  let running = 0;
+  const computedRows = rawRows.map(r => {
+    const op = running;
+    running += (r.qtyIn || 0) - (r.qtyOut || 0);
+    return { ...r, openingBal: Number(op.toFixed(2)), closingBal: Number(running.toFixed(2)) };
+  });
+
+  // Period Opening (movements before fromDate) + rows within range
+  let periodOpening = 0;
+  computedRows.forEach(r => {
+    if (r.date < fromDate) periodOpening += (r.qtyIn || 0) - (r.qtyOut || 0);
+  });
+
+  const displayRows = computedRows.filter(r => {
+    if (fromDate && r.date < fromDate) return false;
+    if (toDate && r.date > toDate) return false;
+    return true;
+  });
+
+  let periodInward = 0;
+  let periodConsumed = 0;
+  displayRows.forEach(r => {
+    periodInward += (r.qtyIn || 0);
+    periodConsumed += (r.qtyOut || 0);
+  });
+
+  const periodClosing = periodOpening + periodInward - periodConsumed;
+
+  // Update Title & Header
+  const titleEl = document.getElementById('bwa_title');
+  if (titleEl) {
+    titleEl.textContent = `Board WIP Stock Audit & Ledger — ${size} (${fromDate} to ${toDate})`;
+  }
+
+  // Update KPI Cards
+  if (document.getElementById('bwa_card_opening')) document.getElementById('bwa_card_opening').textContent = `${Math.round(periodOpening).toLocaleString()} Sheets`;
+  if (document.getElementById('bwa_card_inward')) document.getElementById('bwa_card_inward').textContent = `+${Math.round(periodInward).toLocaleString()} Sheets`;
+  if (document.getElementById('bwa_card_consumed')) document.getElementById('bwa_card_consumed').textContent = `-${Math.round(periodConsumed).toLocaleString()} Sheets`;
+
+  const balEl = document.getElementById('bwa_card_balance');
+  const balSubEl = document.getElementById('bwa_card_balance_sub');
+  const balBox = document.getElementById('bwa_card_balance_box');
+  if (balEl && balBox && balSubEl) {
+    const roundBal = Math.round(periodClosing);
+    if (roundBal < 0) {
+      balEl.textContent = `${roundBal.toLocaleString()} Sheets`;
+      balEl.style.color = '#dc2626';
+      balSubEl.textContent = `⚠️ Shortage Deficit (${roundBal.toLocaleString()} Sheets)`;
+      balSubEl.style.color = '#b91c1c';
+      balBox.style.background = '#fef2f2';
+      balBox.style.borderColor = '#fca5a5';
+    } else {
+      balEl.textContent = `${roundBal.toLocaleString()} Sheets`;
+      balEl.style.color = '#15803d';
+      balSubEl.textContent = `✓ In-Stock Available`;
+      balSubEl.style.color = '#15803d';
+      balBox.style.background = '#f0fdf4';
+      balBox.style.borderColor = '#bbf7d0';
+    }
+  }
+
+  // Update Explanation Banner
+  const bannerSize = document.getElementById('bwa_banner_size');
+  const bannerConsumed = document.getElementById('bwa_banner_consumed');
+  const bannerDeficit = document.getElementById('bwa_banner_deficit');
+  if (bannerSize) bannerSize.textContent = `${size}`;
+  if (bannerConsumed) bannerConsumed.textContent = `${Math.round(periodConsumed).toLocaleString()} Sheets`;
+  if (bannerDeficit) bannerDeficit.textContent = `${Math.round(periodClosing).toLocaleString()} Sheets`;
+
+  // Render Table
+  const tbody = document.getElementById('bwa_table_body');
+  const tfoot = document.getElementById('bwa_table_foot');
+  const countEl = document.getElementById('bwa_table_count');
+  if (countEl) countEl.textContent = `Showing ${displayRows.length} movement entries (${fromDate} to ${toDate})`;
+
+  if (tbody) {
+    if (displayRows.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b; font-weight:700;">No movement records found for <strong>${size}</strong> in period <strong>${fromDate}</strong> to <strong>${toDate}</strong>.</td></tr>`;
+      if (tfoot) tfoot.innerHTML = '';
+    } else {
+      let rowsHtml = '';
+      let totProd = 0;
+      let totIn = 0;
+      let totOut = 0;
+
+      displayRows.forEach((r, idx) => {
+        totProd += (r.prodQty || 0);
+        totIn += (r.qtyIn || 0);
+        totOut += (r.qtyOut || 0);
+
+        const isNeg = (r.closingBal < 0);
+        const closeBg = isNeg ? '#fee2e2' : (r.info ? '#f8fafc' : '#fff7ed');
+        const closeCol = isNeg ? '#dc2626' : (r.info ? '#94a3b8' : '#92400e');
+        const rowBg = r.info ? '#fafafa' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc');
+        const rowOpacity = r.info ? 'opacity:0.85;' : '';
+
+        rowsHtml += `
+          <tr style="border-bottom:1px solid #e2e8f0; background:${rowBg}; ${rowOpacity}">
+            <td style="text-align:center; color:#64748b; font-weight:700;">${idx + 1}</td>
+            <td style="text-align:center; font-weight:700; color:#334155; font-size:11.5px;">${r.date || '-'}</td>
+            <td style="font-family:'JetBrains Mono',monospace; font-weight:800; color:#7c2d12;">${r.code}</td>
+            <td style="font-weight:600; color:#0f172a;">${r.description}${r.info ? ' <span style="font-size:10px; background:#e2e8f0; color:#475569; padding:1px 6px; border-radius:8px; font-weight:700;">info</span>' : ''}</td>
+            <td class="num" style="background:#f8fafc; font-weight:700; color:#475569;">${r.openingBal.toLocaleString()} Sh</td>
+            <td class="num" style="color:#059669; font-weight:700;">${r.qtyIn > 0 ? '+' + r.qtyIn.toLocaleString() + ' Sh' : '-'}</td>
+            <td class="num" style="color:#b91c1c; font-weight:800;">${r.qtyOut > 0 ? '-' + r.qtyOut.toLocaleString() + ' Sh' : '-'}</td>
+            <td class="num" style="background:${closeBg}; color:${closeCol}; font-weight:900; font-size:12.5px;">${r.closingBal.toLocaleString()} Sh${isNeg ? ' (Deficit)' : ''}</td>
+            <td class="num" style="font-weight:700; color:#b45309;">${r.prodQty > 0 ? r.prodQty.toLocaleString() : '-'}</td>
+            <td class="num" style="font-family:'JetBrains Mono',monospace; font-size:11px;">${r.ups > 0 ? r.ups : '-'}</td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = rowsHtml;
+
+      if (tfoot) {
+        const finalClose = periodClosing;
+        const isFinNeg = finalClose < 0;
+        tfoot.innerHTML = `
+          <tr style="border-top:2px solid #78350f; background:#f1f5f9;">
+            <td colspan="4" style="text-align:right; font-weight:800; padding:8px 12px;">Period Totals (${fromDate} to ${toDate}):</td>
+            <td class="num" style="font-weight:800; color:#475569;">${Math.round(periodOpening).toLocaleString()} Sh</td>
+            <td class="num" style="font-weight:800; color:#059669;">+${Math.round(totIn).toLocaleString()} Sh</td>
+            <td class="num" style="font-weight:800; color:#b91c1c;">-${Math.round(totOut).toLocaleString()} Sh</td>
+            <td class="num" style="font-weight:900; background:${isFinNeg ? '#fee2e2' : '#fed7aa'}; color:${isFinNeg ? '#dc2626' : '#7c2d12'}; font-size:13px;">${Math.round(finalClose).toLocaleString()} Sh${isFinNeg ? ' (Shortage)' : ''}</td>
+            <td class="num" style="font-weight:900; color:#b45309;">${totProd.toLocaleString()} Pcs</td>
+            <td></td>
+          </tr>
+        `;
+      }
+    }
+  }
+}
+
+function printBoardWipAudit() {
+  const modalBody = document.getElementById('bwa_modal_body');
+  if (!modalBody) return;
+  const size = document.getElementById('bwa_size_select')?.value || '';
+
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Board WIP Audit - ${size}</title>
+        <style>
+          body { font-family: 'Inter', system-ui, sans-serif; padding: 20px; color: #0f172a; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
+          th, td { border: 1px solid #cbd5e1; padding: 6px 8px; }
+          th { background: #78350f; color: #ffffff; }
+          .num { text-align: right; }
+        </style>
+      </head>
+      <body>
+        <h2 style="margin:0;">Subh Paper Company &bull; Board WIP Audit Report</h2>
+        <p style="margin:4px 0 16px 0; font-size:12px; color:#64748b;">Board Size: ${size} &bull; Generated: ${new Date().toLocaleString()}</p>
+        ${modalBody.innerHTML}
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
+}
+
+// =========================================================================
 // FINANCIAL STATEMENT A4 PRINT PREVIEW FUNCTION
 // =========================================================================
 function previewFinancialStatement() {
