@@ -1,0 +1,53 @@
+# =============================================================================
+# SUBH PAPER COMPANY — Git ignore rules
+# LIVE DATA lives on Google Drive (data/Order_Tracking_Database.json) → never committed
+# =============================================================================
+
+# ---- Live data (Google Drive, NOT git) ----
+data/
+
+# ---- Python: keep only the running app server, ignore one-off scripts ----
+*.py
+!server.py
+
+# ---- Batch launchers: keep the app launchers, ignore the rest ----
+*.bat
+!Launch_Software.bat
+!Connect_Mobile.bat
+!Start_Local_Server.bat
+
+# ---- Separate project (own repo later) ----
+Cyber_Cafe_QR_Print_System/
+
+# ---- Backups & old copies ----
+*bak*
+*backup*
+*.pre_*
+*scratch*
+*Copy.html
+*_patched_*.html
+*_updated.html
+index_backup*
+Order_Tracking_backup*
+Order tracking.html
+Order_Tracking.html
+
+# ---- Restored / temp artifacts ----
+recovered_user_data.json
+*_test_script.js
+temp_check.js
+*.url
+*.txt
+
+# ---- Media / print-test outputs ----
+*.png
+*.pdf
+
+# ---- Logs, cache, binaries ----
+*.log
+__pycache__/
+cloudflared.exe
+
+# ---- OS ----
+Thumbs.db
+.DS_Store

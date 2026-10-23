@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mobile Access Center - Subh Paper Company</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-page: #090e17;
+    --bg-card: #111827;
+    --border-card: #1f2937;
+    --primary: #38bdf8;
+    --primary-gradient: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+    --accent-green: #22c55e;
+    --accent-orange: #f59e0b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg-page);
+    color: var(--text-main);
+    min-height: 100vh;
+    padding: 24px 16px 40px;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .hub-header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .brand-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: var(--primary);
+    padding: 6px 14px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+  .hub-title {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 6px;
+  }
+  .hub-subtitle {
+    color: var(--text-muted);
+    font-size: 14.5px;
+  }
+
+  /* Grid of 3 Main Access Modes */
+  .modes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+
+  .mode-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 18px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .mode-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+  .mode-card.featured {
+    border-color: rgba(34, 197, 94, 0.4);
+    background: linear-gradient(180deg, rgba(34, 197, 94, 0.05) 0%, #111827 40%);
+  }
+  .mode-card.global {
+    border-color: rgba(56, 189, 248, 0.4);
+    background: linear-gradient(180deg, rgba(56, 189, 248, 0.05) 0%, #111827 40%);
+  }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+  .mode-pill {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pill-wifi { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+  .pill-4g { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+  .pill-hotspot { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+  .mode-icon {
+    font-size: 26px;
+  }
+  .card-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffffff;
+    margin-bottom: 4px;
+  }
+  .card-desc {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-bottom: 16px;
+    min-height: 35px;
+  }
+
+  /* QR Frame */
+  .qr-box {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 190px;
+    height: 190px;
+    margin: 0 auto 16px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  }
+  .qr-box img {
+    width: 166px;
+    height: 166px;
+    display: block;
+  }
+
+  /* Link Display Box */
+  .url-box {
+    background: #0b111c;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #38bdf8;
+    word-break: break-all;
+    text-align: center;
+    margin-bottom: 14px;
+    user-select: all;
+  }
+
+  /* Actions */
+  .card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+  }
+  .btn-action {
+    flex: 1;
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .btn-copy {
+    background: #1e293b;
+    color: #f8fafc;
+    border: 1px solid #334155;
+  }
+  .btn-copy:hover {
+    background: #334155;
+  }
+  .btn-whatsapp {
+    background: #15803d;
+    color: #ffffff;
+  }
+  .btn-whatsapp:hover {
+    background: #16a34a;
+  }
+  .btn-primary-launch {
+    background: var(--primary-gradient);
+    color: #ffffff;
+  }
+
+  /* Step by Step Guide Card */
+  .guide-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 18px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .guide-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffffff;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .steps-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .step-item {
+    background: #0b111c;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .step-head {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #38bdf8;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .step-text {
+    font-size: 12.5px;
+    color: #cbd5e1;
+    line-height: 1.45;
+  }
+
+  /* Toast Notification */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #22c55e;
+    color: #052e16;
+    padding: 10px 22px;
+    border-radius: 30px;
+    font-weight: 800;
+    font-size: 13px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 9999;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Hub Header -->
+  <div class="hub-header">
+    <div class="brand-badge">
+      <span>🏢</span> SUBH PAPER COMPANY &bull; CONNECTIVITY HUB
+    </div>
+    <h1 class="hub-title">Staff Mobile Access &amp; Multi-Device Center</h1>
+    <p class="hub-subtitle">ऑफिस Wi-Fi, स्टाफ के 4G/5G मोबाइल डेटा, या बिना इंटरनेट हॉटस्पॉट से कनेक्ट करने के सभी लिंक्स</p>
+  </div>
+
+  <!-- 3 Access Cards -->
+  <div class="modes-grid">
+
+    <!-- Card 1: Same Office Wi-Fi -->
+    <div class="mode-card featured">
+      <div class="card-top">
+        <span class="mode-pill pill-wifi">Same Office Wi-Fi</span>
+        <span class="mode-icon">📶</span>
+      </div>
+      <h2 class="card-title">1. ऑफिस के Wi-Fi पर</h2>
+      <p class="card-desc">यदि स्टाफ का फोन और ऑफिस का कंप्यूटर <strong>एक ही Wi-Fi</strong> से जुड़े हैं। यह सबसे फ़ास्ट तरीका है।</p>
+      
+      <div class="qr-box">
+        <img id="qrWifi" src="" alt="Office Wi-Fi QR Code">
+      </div>
+
+      <div class="url-box" id="urlWifi">लोड हो रहा है...</div>
+
+      <div class="card-actions">
+        <button class="btn-action btn-copy" onclick="copyLink('urlWifi')">
+          <span>📋</span> कॉपी लिंक
+        </button>
+        <a class="btn-action btn-primary-launch" id="btnOpenWifi" href="#" target="_blank">
+          <span>🚀</span> ओपन करें
+        </a>
+      </div>
+    </div>
+
+    <!-- Card 2: Mobile Data (4G/5G) -->
+    <div class="mode-card global">
+      <div class="card-top">
+        <span class="mode-pill pill-4g">Mobile Data (4G/5G)</span>
+        <span class="mode-icon">🌐</span>
+      </div>
+      <h2 class="card-title">2. स्टाफ के मोबाइल डेटा से</h2>
+      <p class="card-desc">स्टाफ अपने <strong>Jio / Airtel 4G/5G</strong> से चलाएगा। ऑफिस Wi-Fi की बिल्कुल ज़रुरत नहीं है (Cloudflare Tunnel)।</p>
+      
+      <div class="qr-box">
+        <img id="qrTunnel" src="" alt="Mobile Data 4G QR Code">
+      </div>
+
+      <div class="url-box" id="urlTunnel">लोड हो रहा है...</div>
+
+      <div class="card-actions">
+        <button class="btn-action btn-copy" onclick="copyLink('urlTunnel')">
+          <span>📋</span> कॉपी लिंक
+        </button>
+        <button class="btn-action btn-whatsapp" onclick="shareWhatsApp()">
+          <span>💬</span> WhatsApp भेजें
+        </button>
+      </div>
+    </div>
+
+    <!-- Card 3: Windows Laptop Hotspot (Offline) -->
+    <div class="mode-card">
+      <div class="card-top">
+        <span class="mode-pill pill-hotspot">Offline (No Internet)</span>
+        <span class="mode-icon">⚡</span>
+      </div>
+      <h2 class="card-title">3. लैपटॉप हॉटस्पॉट से (ऑफलाइन)</h2>
+      <p class="card-desc">यदि इंटरनेट बंद हो, तो लैपटॉप का <strong>Mobile Hotspot</strong> ऑन करें। बिना 1kb इंटरनेट के पूरा सिस्टम चलेगा।</p>
+      
+      <div class="qr-box">
+        <img id="qrHotspot" src="" alt="Hotspot QR Code">
+      </div>
+
+      <div class="url-box" id="urlHotspot">http://192.168.137.1:8080/</div>
+
+      <div class="card-actions">
+        <button class="btn-action btn-copy" onclick="copyLink('urlHotspot')">
+          <span>📋</span> कॉपी लिंक
+        </button>
+        <a class="btn-action btn-copy" href="#guide-hotspot">
+          <span>📖</span> सेटिंग देखें
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Step by Step Setup Guide -->
+  <div class="guide-card">
+    <div class="guide-title">
+      <span>💡</span> आपके सवालों के आसान जवाब (Step-by-Step Guide)
+    </div>
+
+    <div class="steps-list">
+      
+      <!-- FAQ 1 -->
+      <div class="step-item">
+        <div class="step-head"><span>📶</span> ऑफिस के Wi-Fi पर स्टाफ कैसे चलाए?</div>
+        <div class="step-text">
+          1. कंप्यूटर को ऑफिस के Wi-Fi से जोड़ें।<br>
+          2. स्टाफ के मोबाइल को भी <strong>उसी ऑफिस Wi-Fi</strong> से जोड़ें।<br>
+          3. ऊपर दिए गए <strong>Card 1 का QR Code</strong> स्टाफ के मोबाइल कैमरे से स्कैन करवाएं (या लिंक Chrome में डालें)।<br>
+          <em>टिप: यदि मोबाइल में लोड न हो, तो Windows में Wi-Fi को "Private Network" सेट करें।</em>
+        </div>
+      </div>
+
+      <!-- FAQ 2 -->
+      <div class="step-item">
+        <div class="step-head"><span>📱</span> स्टाफ अपने 4G/5G डेटा से कैसे चलाए?</div>
+        <div class="step-text">
+          1. ऑफिस के कंप्यूटर में <code>Launch_Software.bat</code> चालू रखें।<br>
+          2. ऊपर दिए गए <strong>Card 2 (WhatsApp भेजें)</strong> बटन पर क्लिक करके लिंक स्टाफ को भेजें।<br>
+          3. स्टाफ चाहे फैक्ट्री में हो, गोदाम में हो या रास्ते में—अपने 4G/5G डेटा से लिंक खोलकर एंट्री कर सकेगा।<br>
+          4. सारा डेटा लाइव आपके इस कंप्यूटर में सुरक्षित जमा होता रहेगा।
+        </div>
+      </div>
+
+      <!-- FAQ 3 -->
+      <div class="step-item" id="guide-hotspot">
+        <div class="step-head"><span>⚡</span> कल ऑफिस के सिस्टम में कैसे शुरू करें?</div>
+        <div class="step-text">
+          1. पेन ड्राइव में इस पूरे फोल्डर (<code>Order tracking HTML</code>) को कॉपी कर लें।<br>
+          2. कल ऑफिस वाले कंप्यूटर में इसे पेस्ट कर दें।<br>
+          3. ऑफिस वाले कंप्यूटर पर <code>Launch_Software.bat</code> पर डबल क्लिक करें।<br>
+          4. सारा डेटा, कैमलिन लेजर, लीव फॉर्म और सब कुछ लाइव खुल जाएगा!
+        </div>
+      </div>
+
+    </div>
+
+    <div style="text-align: center; margin-top: 22px;">
+      <a href="http://localhost:8080/" class="btn-action btn-primary-launch" style="display: inline-flex; padding: 12px 30px; font-size: 14px; border-radius: 10px;">
+        <span>🖥️</span> मुख्य सॉफ्टवेयर (Dashboard) खोलें
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">लिंक कॉपी हो गया!</div>
+
+<script>
+  let activeTunnelUrl = "";
+  let activeWifiUrl = "";
+
+  function getQrUrl(dataText) {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(dataText)}&margin=6`;
+  }
+
+  async function loadNetworkInfo() {
+    try {
+      const res = await fetch('/api/network-info');
+      const data = await res.json();
+      
+      // 1. Wi-Fi
+      activeWifiUrl = data.wifi_url || `http://${window.location.hostname}:8080/`;
+      document.getElementById('urlWifi').textContent = activeWifiUrl;
+      document.getElementById('qrWifi').src = getQrUrl(activeWifiUrl);
+      document.getElementById('btnOpenWifi').href = activeWifiUrl;
+
+      // 2. Tunnel 4G/5G
+      if (data.tunnel_url) {
+        activeTunnelUrl = data.tunnel_url;
+        document.getElementById('urlTunnel').textContent = activeTunnelUrl;
+        document.getElementById('qrTunnel').src = getQrUrl(activeTunnelUrl);
+      } else {
+        document.getElementById('urlTunnel').textContent = "सुरंग (Tunnel) कनेक्ट हो रहा है...";
+        // Retry in 3 seconds
+        setTimeout(loadNetworkInfo, 3000);
+      }
+
+      // 3. Hotspot
+      const hotspotUrl = data.hotspot_url || 'http://192.168.137.1:8080/';
+      document.getElementById('urlHotspot').textContent = hotspotUrl;
+      document.getElementById('qrHotspot').src = getQrUrl(hotspotUrl);
+
+    } catch (err) {
+      // Fallback if opened directly via file://
+      const localHost = window.location.hostname || '192.168.1.4';
+      activeWifiUrl = `http://${localHost}:8080/`;
+      document.getElementById('urlWifi').textContent = activeWifiUrl;
+      document.getElementById('qrWifi').src = getQrUrl(activeWifiUrl);
+      document.getElementById('qrHotspot').src = getQrUrl('http://192.168.137.1:8080/');
+    }
+  }
+
+  function copyLink(elementId) {
+    const text = document.getElementById(elementId).textContent.trim();
+    if (!text || text.includes('हो रहा है')) return;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast("लिंक कॉपी हो गया! अब WhatsApp पर पेस्ट कर सकते हैं।");
+    }).catch(() => {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast("लिंक कॉपी हो गया!");
+    });
+  }
+
+  function shareWhatsApp() {
+    const text = activeTunnelUrl || activeWifiUrl;
+    if (!text) {
+      showToast("लिंक तैयार नहीं है!");
+      return;
+    }
+    const message = encodeURIComponent(`नमस्ते! Subh Paper Company - Order Tracking & Mobile Entry पोर्टल लिंक:\n\n${text}\n\n(इसे अपने मोबाइल ब्राउज़र में खोलें)`);
+    window.open(`https://api.whatsapp.com/send?text=${message}`, '_blank');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  loadNetworkInfo();
+</script>
+</body>
+</html>
