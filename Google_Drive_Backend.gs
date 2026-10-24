@@ -12,12 +12,28 @@
 const FOLDER_NAME = "Subh_Paper_Company_Database";
 const FILE_NAME = "Order_Tracking_Master.json";
 
+// Secret token - app (index.html) isi ke saath request karti hai.
+// DONO jagah SAME rakhein: yahan AUTH_TOKEN aur index.html me GDRIVE_AUTH_TOKEN
+const AUTH_TOKEN = "SPC26-4f7b9a2e5c8d1360";
+
+// Sirf sahi token wali request allow (GET/POST dono) - bina token ke koi bhi
+// URL dhund kar aapka data nahi padh/likh sakta
+function isAuthorized_(e) {
+  return !!(e && e.parameter && e.parameter.token === AUTH_TOKEN);
+}
+
 /**
  * 1. GET Request Handler (Fetch Latest Database)
  * Called by Desktop and Mobile screens to retrieve live data or check versions
  */
 function doGet(e) {
   try {
+    if (!isAuthorized_(e)) {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "error",
+        message: "Unauthorized: invalid or missing token."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
     const data = getOrCreateMasterFile();
     const output = {
       status: "success",
@@ -40,6 +56,14 @@ function doGet(e) {
  * Uses Google LockService to ensure multi-user safety (No two users overwrite each other)
  */
 function doPost(e) {
+  // Security: bina valid token ke koi write nahi (URL leak hone par bhi data safe)
+  if (!isAuthorized_(e)) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: "Unauthorized: invalid or missing token."
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   // Concurrency Lock: If 5 users save at the exact same second, queue them safely
   const lock = LockService.getScriptLock();
   try {

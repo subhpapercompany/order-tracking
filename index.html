@@ -12647,13 +12647,21 @@ function triggerServerAutoSync(payload) {
   }, 250);
 }
 
-const DEFAULT_GDRIVE_API_URL = ""; // Disabled by default to prevent ghost data resurrection
+const DEFAULT_GDRIVE_API_URL = "https://script.google.com/macros/s/AKfycbzQCUtiTzSZwsWf8nop2CUGxx5uaHO6tyWvJ4ERa9UIomMJsiBuU-eNvY8aZvmD_Q17/exec"; // LIVE: owner's Google Drive backend - har device pe app khud connect karegi
+
+// Secret token: har Google Drive request ke saath jaata hai
+// (MUST match AUTH_TOKEN in Google_Drive_Backend.gs - dono ek jaise rakhein)
+const GDRIVE_AUTH_TOKEN = "SPC26-4f7b9a2e5c8d1360";
+function driveUrlWithToken_(u) {
+  if (!u || u.indexOf('token=') !== -1) return u; // pehle se token hai toh dubara mat jodo
+  return u + (u.indexOf('?') !== -1 ? '&' : '?') + 'token=' + encodeURIComponent(GDRIVE_AUTH_TOKEN);
+}
 
 function getActiveGDriveUrl() {
   if (localStorage.getItem('subh_gdrive_disabled') === 'true') return '';
   const custom = localStorage.getItem('subh_google_drive_api_url');
-  if (custom && custom.trim() !== '') return custom.trim();
-  return DEFAULT_GDRIVE_API_URL;
+  const base = (custom && custom.trim() !== '') ? custom.trim() : DEFAULT_GDRIVE_API_URL;
+  return driveUrlWithToken_(base); // secret token har request ke saath auto-attach
 }
 
 let _gDriveAutoSyncTimer = null;
@@ -12672,11 +12680,51 @@ function triggerGoogleDriveAutoSync(payload) {
         body: JSON.stringify(payload)
       });
       updateGDriveStatusBadge("Drive: Live (Synced)", true);
+      scheduleQuietGoogleDriveRepull();
     } catch (err) {
       console.warn("Google Drive Sync error:", err);
       updateGDriveStatusBadge("Drive: Offline", false);
     }
   }, 350);
+}
+
+// ---------------------------------------------------------------------------
+// QUIET RE-PULL (post-save refresh): save ke turant baad Drive se latest data
+// dobara fetch karo — taki dusre staff ki entries kabhi overwrite na hon.
+// Alert nahi dikhata (interrupt nahi karta); sirf agar user typing NAHI kar
+// raha ho tabhi screen refresh karta hai. Warna 4-sec pulse khud cover karega.
+// ---------------------------------------------------------------------------
+let _gDriveQuietRepullTimer = null;
+function scheduleQuietGoogleDriveRepull() {
+  const gDriveUrl = getActiveGDriveUrl();
+  if (!gDriveUrl) return;
+  clearTimeout(_gDriveQuietRepullTimer);
+  _gDriveQuietRepullTimer = setTimeout(async () => {
+    // Agar user abhi kisi field me type kar raha hai toh uska focus/likha hua
+    // data mat udao — pulse (4s) khud latest le aayega.
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT' || activeEl.isContentEditable)) {
+      return;
+    }
+    try {
+      const resp = await fetch(gDriveUrl + (gDriveUrl.includes('?') ? '&' : '?') + '_t=' + Date.now());
+      if (!resp.ok) return;
+      const res = await resp.json();
+      const dbObj = res.database || res.data;
+      if (res && res.status === 'success' && dbObj) {
+        const remoteTs = dbObj.timestamp || res.timestamp;
+        if (remoteTs && remoteTs !== _lastGDriveKnownTimestamp) {
+          _lastGDriveKnownTimestamp = remoteTs;
+          hydrateFromDatabaseObject(dbObj);
+          recalculateAllFormulas();
+          setActiveVendor(state.activeVendor || 'all', false);
+          updateLiveHeaderBadge();
+          updateGDriveStatusBadge("Drive: Live (Synced)", true);
+          console.log("☁️ Post-save quiet re-pull: Drive se latest records sync hue");
+        }
+      }
+    } catch (_) {}
+  }, 2000);
 }
 
 
@@ -12719,7 +12767,9 @@ function openGoogleDriveSyncModal() {
   const modal = document.getElementById('googleDriveSyncModal');
   if (modal) modal.style.display = 'flex';
   const input = document.getElementById('gDriveApiUrlInput');
-  const currentUrl = getActiveGDriveUrl();
+  // Modal me sirf clean Web App URL dikhao - token input field me nahi (user se hide)
+  let currentUrl = getActiveGDriveUrl();
+  if (currentUrl) currentUrl = currentUrl.replace(/([?&])token=[^&]*/, '$1').replace(/[?&]$/, '');
   if (input) input.value = currentUrl;
 }
 
@@ -12745,7 +12795,7 @@ async function testAndSaveGoogleDriveConnection() {
   updateGDriveStatusBadge("Drive: Testing...", null);
 
   try {
-    const testUrl = rawUrl + (rawUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    const testUrl = driveUrlWithToken_(rawUrl + (rawUrl.includes('?') ? '&' : '?') + '_t=' + Date.now());
     const resp = await fetch(testUrl);
     if (!resp.ok) throw new Error("HTTP error " + resp.status);
     const result = await resp.json();
