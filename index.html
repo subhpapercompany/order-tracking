@@ -31216,10 +31216,106 @@ const HUNDI_KNOWN_INVOICE_MAP = {
   }
 };
 
+// =====================================================================
+// HUNDI INVOICE DROPDOWN — naye bills apne aap dropdown me aayein
+// Sources: Financials Bill Due (+ Add Invoice), Daily Despatch Log invoices,
+// Flash Reports bills, PO Tracking bills, purane known invoices + saari hundis
+// =====================================================================
+function getHundiInvoiceSources() {
+  const map = new Map();
+  const add = (no, info) => {
+    const k = String(no || '').trim();
+    if (!k || k === '__CUSTOM__') return;
+    if (!map.has(k)) map.set(k, info || {});
+  };
+
+  // 1) Purane known hundi invoices (amount/date/party ke saath)
+  try {
+    Object.keys(HUNDI_KNOWN_INVOICE_MAP || {}).forEach(k => {
+      const v = HUNDI_KNOWN_INVOICE_MAP[k] || {};
+      add(k, { date: v.date, amount: v.amount, party: v.party });
+    });
+  } catch (_) {}
+
+  // 2) Financials known invoices (FIN list + Flash Reports bills + PO Tracking bills)
+  try {
+    (getFinKnownInvoices() || []).forEach(i => add(i.invoiceNo, { date: i.date, amount: i.amount, party: i.party }));
+  } catch (_) {}
+
+  // 3) Financials → Bill Due list (yahan se ADD KIYA GAYA naya bill)
+  try {
+    (((state.financials || {}).billDueList) || []).forEach(b =>
+      add(b.invoiceNo, { date: b.date, amount: b.amount, party: b.party || '' }));
+  } catch (_) {}
+
+  // 4) Daily Despatch Log ke invoices (naya despatch = naya invoice no)
+  try {
+    (state.todayTransactions || []).forEach(t => {
+      if (String(t.type || '').indexOf('Despatch') < 0) return;
+      const d = t.details || {};
+      add(d.invoice, { date: d.date, amount: 0, party: d.vendor || t.vendor || '' });
+    });
+  } catch (_) {}
+
+  // 5) Saari Hundi entries ki apni invoices (Sumitomo/Mizuho/new sab)
+  try {
+    (((state.commercial || {}).hundis) || []).forEach(h => {
+      (h.invoices || []).forEach(i => add(i.invoiceNo, { date: i.invoiceDate, amount: i.amount, party: h.draweeName }));
+    });
+  } catch (_) {}
+
+  return map;
+}
+
+// 'YYYY-MM-DD' / 'DD.MM.YYYY' / 'DD/MM/YYYY' sabko 'DD-MM-YYYY' me lao
+function hundiNormalizeDate(d) {
+  if (!d) return formatHundiDateDisplay(new Date());
+  const s = String(d).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${String(m[3]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}-${m[1]}`;
+  m = s.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/);
+  if (m) return `${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}-${m[3]}`;
+  return s;
+}
+
+// Dropdown ko sources se dobara bharo (selection bacha ke rakho)
+function populateHundiInvoiceDropdown() {
+  const sel = document.getElementById('hnd_doc_invoiceSelect');
+  if (!sel) return;
+  const current = sel.value;
+  const map = getHundiInvoiceSources();
+
+  // Jo abhi selected hai wo list me na ho to use bhi rakho
+  if (current && current !== '__CUSTOM__' && !map.has(current)) {
+    const h = getActiveHundi();
+    const inv = h && (h.invoices || []).find(i => i.invoiceNo === current);
+    map.set(current, inv ? { date: inv.invoiceDate, amount: inv.amount, party: h.draweeName } : {});
+  }
+
+  const frag = document.createDocumentFragment();
+  map.forEach((info, no) => {
+    const opt = document.createElement('option');
+    opt.value = no;
+    opt.textContent = no + (info && info.party ? ` (${info.party})` : '');
+    frag.appendChild(opt);
+  });
+  const custom = document.createElement('option');
+  custom.value = '__CUSTOM__';
+  custom.textContent = '➕ Enter Custom Invoice...';
+  frag.appendChild(custom);
+
+  sel.innerHTML = '';
+  sel.appendChild(frag);
+  if (current && current !== '__CUSTOM__' && map.has(current)) sel.value = current;
+}
+
 function renderHundiScreen() {
   initHundiModule();
   const h = getActiveHundi();
   if (!h) return;
+
+  // Naye bills (Financials / Despatch / Flash / PO) dropdown me dikhayein
+  populateHundiInvoiceDropdown();
 
   const elBillNo = document.getElementById('hnd_doc_billNo');
   if (elBillNo) elBillNo.value = h.billNo || '084/2026-27';
@@ -31365,9 +31461,18 @@ function onHundiDocInvoiceSelect(invNo) {
     h.draweeCityPin = info.cityPin;
     h.acceptancePlace = info.city;
   } else {
-    h.invoices = [{ invoiceNo: invNo, invoiceDate: formatHundiDateDisplay(new Date()), amount: 0 }];
-    h.amount = 0;
-    h.amountWords = "Rupees Zero Only";
+    // NAYA bill (Financials Bill Due / Despatch / Flash / PO se aaya) —
+    // uska amount, date aur party apne aap bhar jaye
+    const src = getHundiInvoiceSources().get(invNo) || {};
+    let amt = Number(src.amount || 0);
+    if (!(amt > 0)) {
+      const entered = prompt(`Invoice ${invNo} ka amount database me nahi mila.\nEnter Invoice Amount (₹):`, '0');
+      amt = parseFloat(entered) || 0;
+    }
+    h.invoices = [{ invoiceNo: invNo, invoiceDate: hundiNormalizeDate(src.date), amount: amt }];
+    h.amount = amt;
+    h.amountWords = amt > 0 ? numberToIndianWordsRupees(amt).replace(/^Rupees\s+/, '') : "Rupees Zero Only";
+    if (src.party) h.draweeName = src.party;
   }
 
   renderHundiScreen();
