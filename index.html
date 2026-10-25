@@ -2561,6 +2561,26 @@ body.print-flash-mode .no-print {
   .rendering-pdf span.hundi-print-only.hundi-doc-select {
     display: inline-flex !important;
   }
+  /* DOWNLOAD PDF: field ka "box" na chhape — value plain text ki tarah aaye
+     (Bill No / Bill Date / Due Date ki values bill me zaroori hain) */
+  .rendering-pdf .hundi-doc-input,
+  .rendering-pdf .hundi-doc-select {
+    border: none !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+  /* 'auto 90 days' sirf screen ki hint hai — print/PDF me nahi */
+  .rendering-pdf .hundi-auto-tag {
+    display: none !important;
+  }
+  /* Invoice dropdown ka caret (arrow) print/PDF me nahi */
+  .rendering-pdf .hundi-caret {
+    display: none !important;
+  }
 
   /* Print Media Query */
   @page {
@@ -2595,24 +2615,17 @@ body.print-flash-mode .no-print {
     span.hundi-print-only.hundi-doc-select {
       display: inline-flex !important;
     }
-    .hundi-doc-input {
-      border: 1.5px solid #059669 !important;
-      background: #f0fdf4 !important;
-      border-radius: 4px !important;
-      padding: 2px 8px !important;
-      font-family: 'Times New Roman', Georgia, serif !important;
-      font-size: 13.5px !important;
-      font-weight: 800 !important;
-      color: #000000 !important;
-      box-sizing: border-box !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
+    /* PRINT: field ka "box" nahi chhapse — sirf value plain text ki tarah
+       (Bill No / Bill Date / Due Date ki values bill me zaroori hain) */
+    .hundi-doc-input,
     .hundi-doc-select {
-      border: 1.5px solid #059669 !important;
-      background: #f0fdf4 !important;
-      border-radius: 4px !important;
-      padding: 3px 8px !important;
+      border: none !important;
+      background: transparent !important;
+      border-radius: 0 !important;
+      padding: 0 !important;
+      width: auto !important;
+      box-shadow: none !important;
+      outline: none !important;
       font-family: 'Times New Roman', Georgia, serif !important;
       font-size: 13.5px !important;
       font-weight: 800 !important;
@@ -2621,14 +2634,13 @@ body.print-flash-mode .no-print {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
+    /* 'auto 90 days' sirf screen ki hint hai — print/PDF me nahi */
     .hundi-auto-tag {
-      display: inline !important;
-      color: #0d9488 !important;
-      font-family: 'Times New Roman', Georgia, serif !important;
-      font-weight: 700 !important;
-      font-size: 13px !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
+      display: none !important;
+    }
+    /* Invoice dropdown ka caret (arrow) print/PDF me nahi */
+    .hundi-caret {
+      display: none !important;
     }
     .leave-slip-page {
       width: 100% !important;
@@ -6387,7 +6399,7 @@ body.print-flash-mode .no-print {
                     </select>
                     <span id="hnd_doc_invoiceSelect_display" class="hundi-doc-select hundi-print-only" style="width: 90%; max-width: 220px; justify-content: space-between; align-items: center;">
                       <span id="hnd_doc_invoiceSelect_text">SPC/26-27/33</span>
-                      <span style="font-size: 11px; margin-left: 8px; color: #059669;">▾</span>
+                      <span class="hundi-caret" style="font-size: 11px; margin-left: 8px; color: #059669;">▾</span>
                     </span>
                   </td>
                   <td style="text-align: center;" id="hnd_doc_invDateCell">
