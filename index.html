@@ -2012,6 +2012,19 @@ body.print-flash-mode .no-print {
     }
   }
 
+  /* ========================================================
+     RANJIT BILL — SCREEN PREVIEW AS AN A4 PORTRAIT PAGE
+     (Sirf screen par; print/PDF par asli @page rule apply hota hai)
+     A4 = 210mm x 297mm  ->  @96dpi = 794px x 1123px
+     ======================================================== */
+  @media screen {
+    #screen-ranjitbill #ranjitBillPrintContainer {
+      max-width: 794px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  }
+
   /* ======================================================== */
   /* HR & PAYROLL MODULE STYLES                               */
   /* ======================================================== */
@@ -21907,6 +21920,38 @@ function applyDynamicPrintPageStyle(sheet) {
     pageStyleEl.id = 'dynamicPrintPageStyle';
     document.head.appendChild(pageStyleEl);
   }
+
+  /* ================= A4 PORTRAIT FIX (beforeprint override) =================
+     Ye function har print par chalta hai (window 'beforeprint' listener) aur
+     head me sabse aakhri style me `@page { size: A4 landscape !important }`
+     laga deta tha. Uski wajeh se special print modes bhi LANDSCAPE chhape the,
+     chahe unhone print se pehle khud A4 portrait kyun na likh ho:
+       - Ranjit Making Bill  (body.print-ranjit-mode)
+       - Hundi Bill of Exchange (body.print-hundi-mode)
+       - Leave / Advance Slip   (body.printing-leave-slip)
+     Isliye in modes me landscape ki jagah sahi portrait page style inject ho. */
+  const _bc = document.body.classList;
+  if (_bc.contains('print-ranjit-mode')) {
+    _bc.remove('print-legal-mode');
+    pageStyleEl.textContent = `
+      @page {
+        size: A4 portrait !important;
+        margin: 3mm 4mm !important;
+      }
+    `;
+    return;
+  }
+  if (_bc.contains('print-hundi-mode') || _bc.contains('printing-leave-slip')) {
+    _bc.remove('print-legal-mode');
+    pageStyleEl.textContent = `
+      @page {
+        size: A4 portrait !important;
+        margin: 0 !important;
+      }
+    `;
+    return;
+  }
+  /* ================= END A4 PORTRAIT FIX ================= */
 
   if (isLegal) {
     document.body.classList.add('print-legal-mode');
