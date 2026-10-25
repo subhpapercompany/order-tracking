@@ -19797,9 +19797,12 @@ function calcProdLogPreview() {
   if (document.getElementById('ep_indexConsBatch')) document.getElementById('ep_indexConsBatch').value = batchIndex.toLocaleString() + ' Kg';
   document.getElementById('ep_boardConsBatch').value = batchBoard.toLocaleString() + ' Sheets';
 
-  // Batch CFC (Carton) Calculation: addQty / caseQty
+  // Batch CFC (Carton) Calculation: NET qty (produced - rejection) / caseQty
+  // Paper & Board produced qty (gross) par calculate hote hain, par carton
+  // sirf saleable (net) pcs par lagte hain — reject hue pcs pack nahi hote.
   const caseQty = Number(sku.caseQty || sku.caseQuantity || 48);
-  const batchCfc = caseQty > 0 ? Number((addQty / caseQty).toFixed(2)) : 0;
+  const cfcQty = Math.max(0, addQty - rejQtyPv);
+  const batchCfc = caseQty > 0 ? Number((cfcQty / caseQty).toFixed(2)) : 0;
   const cfcName = `${sku.barcode} : CFC`;
 
   if (document.getElementById('ep_caseQty')) document.getElementById('ep_caseQty').value = `${caseQty} Pcs / Box`;
@@ -19812,7 +19815,7 @@ function calcProdLogPreview() {
     formulaText += ` | Index (${selectedIndexSpec}): ${batchIndex.toLocaleString()} Kg`;
   }
   formulaText += ` | Board: ${batchBoard.toLocaleString()} Sheets (Div: ${boardDivisor})`;
-  formulaText += ` | Carton: ${batchCfc.toLocaleString()} Boxes (${cfcName})`;
+  formulaText += ` | Carton: ${batchCfc.toLocaleString()} Boxes (${cfcName})` + (rejQtyPv > 0 ? ` — ${cfcQty.toLocaleString()} net Pcs par` : '');
 
   document.getElementById('ep_formulaNote').textContent = formulaText;
   document.getElementById('ep_previewValue').textContent = `Prod: ${newProd.toLocaleString()} | Due: ${newDue.toLocaleString()}`;
@@ -20958,9 +20961,11 @@ function handleProductionLogSubmit(e) {
   else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) rKey = 'Med. Square';
   else rKey = 'Single Line';
 
-  // Carton / CFC Requirements
+  // Carton / CFC Requirements — sirf NET (produced - rejection) qty par.
+  // Paper/Index/Board ki tarah gross addQty par NAHI: reject hue pack nahi hote.
   const caseQty = Number(sku.caseQty || sku.caseQuantity || 48);
-  const batchCfc = caseQty > 0 ? Number((addQty / caseQty).toFixed(2)) : 0;
+  const cfcQty = Math.max(0, addQty - rejQty);
+  const batchCfc = caseQty > 0 ? Number((cfcQty / caseQty).toFixed(2)) : 0;
   const cfcItemName = `${sku.barcode} : CFC`;
 
   // -------------------------------------------------------------------------
@@ -21026,7 +21031,7 @@ function handleProductionLogSubmit(e) {
             `Aapki production entry accept nahi hogi kyunki Packing Carton (CFC) Stock Negative ho jayega!\n\n` +
             `Item: ${cfcItemName}\n` +
             `Available Stock: ${cfcStock.toLocaleString()} Boxes\n` +
-            `Required for Packing (${addQty.toLocaleString()} Pcs): ${batchCfc.toLocaleString()} Boxes\n` +
+            `Required for Packing (${cfcQty.toLocaleString()} Pcs${rejQty > 0 ? ' — net (produced − rejection)' : ''}): ${batchCfc.toLocaleString()} Boxes\n` +
             `Shortage / Deficit: ${(batchCfc - cfcStock).toLocaleString()} Boxes\n\n` +
             `Kripya pehle Packing Cartons Inward entry karein.`);
       return;
