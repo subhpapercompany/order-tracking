@@ -8874,10 +8874,11 @@ body.print-flash-mode .no-print {
                 </select>
               </div>
 
-              <!-- 4. Produced Quantity -->
+              <!-- 4. Produced Quantity (read-only mirror of Production Log) -->
               <div class="form-group">
-                <label style="font-weight:700;">Produced Quantity</label>
-                <input type="number" id="poreq_producedQty" min="0" style="padding:9px 12px;">
+                <label style="font-weight:700;">Produced Qty <span style="font-weight:600;color:#0f766e;">(auto — Production Log se)</span></label>
+                <input type="number" id="poreq_producedQty" min="0" readonly title="Auto from Daily Production Log — yahan entry nahi hoti" style="padding:9px 12px; background:#f1f5f9; color:#475569; cursor:not-allowed;">
+                <small style="color:#64748b; font-size:11.5px;">Production sirf <b>Daily Production Log</b> se add hoti hai — ye field sirf dikhane ke liye hai.</small>
               </div>
 
               <!-- Spacer -->
@@ -10802,7 +10803,7 @@ body.print-flash-mode .no-print {
         <div class="form-group"><label>Inner Quantity</label><input type="number" id="edit_poreq_inner"></div>
         <div class="form-group"><label>Case Quantity</label><input type="number" id="edit_poreq_case"></div>
         <div class="form-group"><label>Order Quantity</label><input type="number" id="edit_poreq_orderQty" required oninput="calcEditPoReqDue()"></div>
-        <div class="form-group"><label>Produced Quantity</label><input type="number" id="edit_poreq_producedQty" oninput="calcEditPoReqDue()"></div>
+        <div class="form-group"><label>Produced Qty <span style="color:#0f766e;">(auto — Production Log se)</span></label><input type="number" id="edit_poreq_producedQty" readonly oninput="calcEditPoReqDue()" style="background:#f1f5f9; color:#475569; cursor:not-allowed;" title="Auto from Daily Production Log — yahan entry nahi hoti"></div>
         <div id="edit_poreq_calc_msg" style="grid-column: span 3; background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:7px 12px; font-size:12px; color:#14532d; font-weight:600; display:flex; align-items:center; gap:8px;"></div>
         <div class="form-group"><label>Board GSM</label><input type="number" id="edit_poreq_boardGsm" step="1"></div>
         <div class="form-group"><label>Sheet Width (cm)</label><input type="number" id="edit_poreq_boardWidth" step="0.1"></div>
@@ -22274,10 +22275,9 @@ function masterExportCurrentSheetToExcel() {
       const parsedPages = parseInt(last3, 10);
       const pages = (!isNaN(parsedPages) && parsedPages > 0) ? parsedPages : ((sku && sku.pages) || cat.pages || r.noOfPages || 52);
 
-      const allPoReqsForCode = (state.poRequests || []).filter(item => item.productCode === code);
-      const sumReqProduced = allPoReqsForCode.reduce((sum, item) => sum + (parseFloat(item.producedQuantity) || 0), 0);
       const totalOrderQty = parseFloat((sku && (sku.initialOrderQty !== undefined ? sku.initialOrderQty : sku.orderQty)) || r.totalOrderQuantity || r.orderQuantity || 0);
-      const cumulativeProduced = sumReqProduced > 0 ? sumReqProduced : (parseFloat((sku && sku.production) || r.producedQuantity || 0));
+      // OPTION A: Produced = Daily Production Log ka total (PO Requests ka sum nahi)
+      const cumulativeProduced = parseFloat((sku && sku.production) || 0);
       const dueForProduced = Math.max(0, totalOrderQty - cumulativeProduced);
 
       // Board specs
@@ -24705,13 +24705,11 @@ function onPoReqCodeChange(code) {
     if (sku.caseQty && document.getElementById('poreq_case')) document.getElementById('poreq_case').value = sku.caseQty;
 
     // Auto-calculate Rest Order Due Quantity:
-    // Total Booked Order - Cumulative Produced across all prior PO Requests
+    // Total Booked Order - Cumulative Produced (sirf Daily Production Log se)
     const origOrder = parseFloat((sku.initialOrderQty !== undefined && sku.initialOrderQty !== null) 
       ? sku.initialOrderQty 
       : ((sku.orderQty !== undefined && sku.orderQty !== null) ? sku.orderQty : 0));
-    const prevPoReqs = (state.poRequests || []).filter(r => r.productCode === code);
-    const sumReqProduced = prevPoReqs.reduce((sum, r) => sum + (parseFloat(r.producedQuantity) || 0), 0);
-    const prevProducedSoFar = sumReqProduced > 0 ? sumReqProduced : (parseFloat(sku.production) || 0);
+    const prevProducedSoFar = parseFloat(sku.production) || 0;
     const restOrderDue = Math.max(0, origOrder - prevProducedSoFar);
 
     if (document.getElementById('poreq_orderQty')) {
@@ -24720,7 +24718,8 @@ function onPoReqCodeChange(code) {
       document.getElementById('poreq_orderQty').value = (prevProducedSoFar > 0) ? restOrderDue : origOrder;
     }
     if (document.getElementById('poreq_producedQty')) {
-      document.getElementById('poreq_producedQty').value = '';
+      // OPTION A: read-only mirror of Daily Production Log (entry yahan nahi hoti)
+      document.getElementById('poreq_producedQty').value = prevProducedSoFar;
     }
 
     // Dynamic Live Breakdown Banner in Form
@@ -24895,12 +24894,13 @@ function handlePoRequestSubmit(e) {
   if (!state.poRequests) state.poRequests = [];
   state.poRequests.unshift(item);
 
-  // Recalculate cumulative produced quantity across all PO Requests for this product code
-  const cumProdForCode = (state.poRequests || []).filter(r => r.productCode === pCode)
-    .reduce((sum, r) => sum + (parseFloat(r.producedQuantity) || 0), 0);
+  // OPTION A: Production ka single source of truth = Daily Production Log ONLY.
+  // PO Request kabhi sku.production ko overwrite NAHI karta. Yahan rakha
+  // producedQuantity sirf production-log ka mirror (read-only auto-fill) hai.
+  const cumProdForCode = (skuMatch && parseFloat(skuMatch.production)) || 0;
 
   if (skuMatch) {
-    skuMatch.production = cumProdForCode;
+    item.producedQuantity = cumProdForCode; // read-only mirror — typed value ignore
     skuMatch.dueProduction = Math.max(0, (skuMatch.initialOrderQty || skuMatch.orderQty) - cumProdForCode);
   }
 
@@ -25500,13 +25500,11 @@ function renderPoRequestSheet() {
     const innerQty = (sku && (sku.inner !== undefined && sku.inner !== null ? sku.inner : sku.innerQuantity)) || cat.inner || r.innerQuantity || 12;
     const caseQty = (sku && (sku.caseQty !== undefined && sku.caseQty !== null ? sku.caseQty : sku.caseQuantity)) || cat.caseQty || r.caseQuantity || 120;
     
-    // Auto-fetch Order Qty & Produced Qty from live booking & cumulative PO Requests
+    // Auto-fetch Order Qty & Produced Qty from live booking
     const totalOrderQty = parseFloat((sku && (sku.initialOrderQty !== undefined ? sku.initialOrderQty : sku.orderQty)) || r.totalOrderQuantity || r.orderQuantity || 0);
 
-    // Calculate cumulative produced quantity across all PO Requests for this product code
-    const allPoReqsForCode = (state.poRequests || []).filter(item => item.productCode === code);
-    const sumReqProduced = allPoReqsForCode.reduce((sum, item) => sum + (parseFloat(item.producedQuantity) || 0), 0);
-    const cumulativeProduced = sumReqProduced > 0 ? sumReqProduced : (parseFloat((sku && sku.production) || r.producedQuantity || 0));
+    // OPTION A: Produced = Daily Production Log ka total (PO Requests ka sum nahi)
+    const cumulativeProduced = parseFloat((sku && sku.production) || 0);
 
     // Calculate Rest Order Due for Produced
     const dueForProduced = Math.max(0, totalOrderQty - cumulativeProduced);
@@ -26004,12 +26002,13 @@ function openEditPoRequestModal(codeOrIndex) {
   document.getElementById('edit_poreq_ruling').value = item.ruling || sku.ruling || cat.ruling || 'SINGLE LINE';
   document.getElementById('edit_poreq_mrp').value = item.mrp || sku.mrp || cat.mrp || 40;
   document.getElementById('edit_poreq_inner').value = item.innerQuantity || sku.inner || cat.inner || 12;
-  const prevReqs = (state.poRequests || []).filter(r => r.productCode === code);
-  const sumReqProduced = prevReqs.reduce((sum, r) => sum + (parseFloat(r.producedQuantity) || 0), 0);
   const totalOrd = (sku && sku.initialOrderQty !== undefined && sku.initialOrderQty !== null) 
     ? sku.initialOrderQty 
     : ((sku && sku.orderQty !== undefined) ? sku.orderQty : (item.orderQuantity || 0));
-  const effProd = (sumReqProduced > 0) ? sumReqProduced : (sku.production !== undefined ? sku.production : (item.producedQuantity || 0));
+  // OPTION A: Produced mirror = Daily Production Log ka total
+  const effProd = (sku && sku.production !== undefined && sku.production !== null)
+    ? (parseFloat(sku.production) || 0)
+    : (item.producedQuantity || 0);
 
   document.getElementById('edit_poreq_orderQty').value = totalOrd;
   document.getElementById('edit_poreq_producedQty').value = effProd;
@@ -26051,7 +26050,7 @@ function openEditPoRequestModal(codeOrIndex) {
   document.getElementById('edit_poreq_boardTax').value = (item.boardTaxPct !== undefined && item.boardTaxPct !== null) ? item.boardTaxPct : 0;
   document.getElementById('edit_poreq_boardMill').value = item.boardMill || 'ITC';
   const lookedUpConv = lookupCamlinConversionRate(editThirdChar, item.laminationType || cat.lamination, editEffPages, item.ruling || sku.ruling || cat.ruling);
-  document.getElementById('edit_poreq_conv').value = item.conversionRate || lookedUpConv || cat.convRate || 2.50;
+  document.getElementById('edit_poreq_convRate').value = item.conversionRate || lookedUpConv || cat.convRate || 2.50;
   document.getElementById('edit_poreq_kclRate').value = item.kclApprovedRate || cat.kclApprovedRate || 21.50;
 
   document.getElementById('editPoRequestModal').style.display = 'flex';
@@ -26107,7 +26106,7 @@ function savePoRequestEdit(e) {
   item.boardRate = parseFloat(document.getElementById('edit_poreq_boardRate').value) || 55.00;
   item.boardTaxPct = isNaN(parseFloat(document.getElementById('edit_poreq_boardTax').value)) ? 0 : parseFloat(document.getElementById('edit_poreq_boardTax').value);
   item.boardMill = document.getElementById('edit_poreq_boardMill').value;
-  item.conversionRate = parseFloat(document.getElementById('edit_poreq_conv').value) || 2.50;
+  item.conversionRate = parseFloat(document.getElementById('edit_poreq_convRate').value) || 2.50;
   item.kclApprovedRate = parseFloat(document.getElementById('edit_poreq_kclRate').value) || 21.50;
 
   item.currentPaperCost = parseFloat((item.paperRate * (1 + item.paperTaxPct / 100)).toFixed(2));
@@ -26120,8 +26119,10 @@ function savePoRequestEdit(e) {
       sku.initialOrderQty = item.orderQuantity;
     }
     sku.orderQty = item.orderQuantity;
-    sku.production = item.producedQuantity;
-    sku.dueProduction = Math.max(0, (sku.initialOrderQty || sku.orderQty) - item.producedQuantity);
+    // OPTION A: sku.production ko PO Request se kabhi mat badlo —
+    // production sirf Daily Production Log se aata hai.
+    item.producedQuantity = parseFloat(sku.production) || 0;
+    sku.dueProduction = Math.max(0, (sku.initialOrderQty || sku.orderQty) - (parseFloat(sku.production) || 0));
     sku.inner = item.innerQuantity;
     sku.caseQty = item.caseQuantity;
   }
