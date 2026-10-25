@@ -28119,26 +28119,15 @@ function renderRanjitMakingBill() {
 
   let list = (state.ranjitMakingEntries || []).slice();
 
-  // If list is empty and user has active production orders, populate with actual booked orders
-  if (list.length === 0 && (state.skus || []).length > 0) {
-    (state.skus || []).forEach(s => {
-      if (s.production > 0) {
-        list.push({
-          date: new Date().toISOString().slice(0, 10),
-          day: 'Friday',
-          barcode: s.barcode,
-          description: s.description,
-          productionQty: s.production,
-          rejection: 0,
-          netQty: s.production,
-          rate: getRanjitMakingRate(s.barcode),
-          amount: Number((s.production * getRanjitMakingRate(s.barcode)).toFixed(2))
-        });
-      }
-    });
-    if (list.length > 0) {
-      state.ranjitMakingEntries = list.slice();
+  // Bill khali hai to Production Log se asli dates wali rows bana do.
+  // (Purane version me yahan aaj ki date + hardcoded 'Friday' + SKU ka
+  //  cumulative production aata tha — isi se sab rows par ek hi date thi.)
+  if (list.length === 0) {
+    const fresh = buildRanjitEntriesFromProductionLog();
+    if (fresh.length) {
+      state.ranjitMakingEntries = fresh;
       saveRanjitMakingEntries();
+      list = fresh.slice();
     }
   }
 
@@ -28598,7 +28587,9 @@ function saveRanjitMakingEntry(e) {
     rejection: rejVal,
     netQty: netVal,
     rate: rateVal,
-    amount: amtVal
+    amount: amtVal,
+    // User ki apni entry (ya kisi auto row ka edit) — sync ise nahi chhedta
+    source: 'manual'
   };
 
   state.ranjitMakingEntries = state.ranjitMakingEntries || [];
@@ -28632,38 +28623,98 @@ function deleteRanjitMakingEntry(idx) {
 
 /**
  * Sync from Daily Production Log Entries
+ * ---------------------------------------------------------------------------
+ * PURANA BUG: ye function state.transactions (khali array) padhta tha, SKU ke
+ * CUMULATIVE production ko aaj ki date + hardcoded 'Friday' ke saath row bana
+ * deta tha — isliye bill me sab rows par ek hi date (aur galat qty) aati thi.
+ *
+ * AB: Daily Production Log (state.todayTransactions, type = 'Production')
+ *     se ASLI production date (t.date) aur us din ki qty (details.addQty)
+ *     lekar (date + code) ke hisaab se rows banati hii hain, aur weekday bhi
+ *     usi date se nikalta hai. Rejection log me record nahi hota, isliye 0.
+ *
+ * Row ke `source` flag:
+ *   - 'log'    -> auto row, har sync par Production Log se dobara ban jati hai
+ *   - 'manual' -> user ne + Add Making Entry se banayi/edit ki hai, sync nahi
+ *                 chhedta
  */
+function ranjitWeekdayName(isoDate) {
+  const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const d = new Date(String(isoDate) + 'T00:00:00');
+  const i = d.getDay();
+  return isNaN(i) ? '' : names[i];
+}
+
+function buildRanjitEntriesFromProductionLog() {
+  const groups = {};
+
+  (state.todayTransactions || []).forEach(t => {
+    if (String(t.type || '').indexOf('Production') < 0) return;
+    const det = t.details || {};
+    const date = String(t.date || det.date || det.productionDate || '').slice(0, 10);
+    const code = String(t.barcode || '').trim();
+    if (!date || !code || code === '-') return;
+
+    const key = date + '|' + code;
+    if (!groups[key]) {
+      groups[key] = {
+        date: date,
+        barcode: code,
+        description: (t.description && t.description !== '-') ? t.description : '',
+        productionQty: 0,
+        rejection: 0
+      };
+    }
+    groups[key].productionQty += Number(det.addQty) || 0;
+    // Log me rejection ka field abhi nahi hai — aane par ye khud kaam karega
+    groups[key].rejection += Number(det.rejection || det.rejectQty) || 0;
+  });
+
+  return Object.keys(groups).sort().map(key => {
+    const g = groups[key];
+    if (!g.description) {
+      const sku = (state.skus || []).find(s => String(s.barcode).trim() === g.barcode);
+      g.description = sku ? (sku.description || '-') : '-';
+    }
+    const rate = getRanjitMakingRate(g.barcode);
+    const net = Math.max(0, g.productionQty - g.rejection);
+    return {
+      date: g.date,
+      day: ranjitWeekdayName(g.date),   // asli weekday — 'Friday' hardcode nahi
+      barcode: g.barcode,
+      description: g.description,
+      productionQty: g.productionQty,
+      rejection: g.rejection,
+      netQty: net,
+      rate: rate,
+      amount: Number((net * rate).toFixed(2)),
+      source: 'log'
+    };
+  });
+}
+
 function syncRanjitBillFromProductionLog() {
-  const txs = state.transactions || [];
-  let addedCount = 0;
+  const fresh = buildRanjitEntriesFromProductionLog();
+
+  if (!fresh.length) {
+    showToast('⚠️ Production Log me koi Production entry nahi mili — pehle Daily Production Log me production darj karein.');
+    return;
+  }
 
   state.ranjitMakingEntries = state.ranjitMakingEntries || [];
+  // Sirf user ki manual entries chhod do, baaki (purani galat rows samet) rebuild
+  const manual = state.ranjitMakingEntries.filter(e => e && e.source === 'manual');
+  const replaced = state.ranjitMakingEntries.length - manual.length;
 
-  // Check active skus
-  (state.skus || []).forEach(sku => {
-    if (sku.production > 0) {
-      const todayIso = new Date().toISOString().slice(0, 10);
-      const exists = state.ranjitMakingEntries.some(e => e.barcode === sku.barcode && e.date === todayIso);
-      if (!exists) {
-        state.ranjitMakingEntries.push({
-          date: todayIso,
-          day: 'Friday',
-          barcode: sku.barcode,
-          description: sku.description,
-          productionQty: sku.production,
-          rejection: 0,
-          netQty: sku.production,
-          rate: getRanjitMakingRate(sku.barcode),
-          amount: Number((sku.production * getRanjitMakingRate(sku.barcode)).toFixed(2))
-        });
-        addedCount++;
-      }
-    }
-  });
+  state.ranjitMakingEntries = fresh.concat(manual)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
   saveRanjitMakingEntries();
   renderRanjitMakingBill();
-  showToast(addedCount > 0 ? `✅ Synced ${addedCount} production items into Ranjit Making Bill!` : 'All active production entries already synced.');
+
+  const dates = fresh.map(e => e.date).filter((v, i, a) => a.indexOf(v) === i);
+  const totalNet = fresh.reduce((s, e) => s + Number(e.netQty || 0), 0);
+  showToast(`✅ Rebuilt ${fresh.length} rows from Production Log (${dates.length} dates: ${dates.join(', ')}) — ${replaced} purani row replaced, net ${totalNet.toLocaleString()} Pcs`);
 }
 
 /**
