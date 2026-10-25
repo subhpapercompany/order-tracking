@@ -31226,6 +31226,8 @@ function getHundiInvoiceSources() {
   const add = (no, info) => {
     const k = String(no || '').trim();
     if (!k || k === '__CUSTOM__') return;
+    // Sirf SPC/ series ke bills hi dropdown me aayen (jaise SPC/26-27/36)
+    if (!/^SPC\//i.test(k)) return;
     if (!map.has(k)) map.set(k, info || {});
   };
 
