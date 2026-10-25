@@ -8277,6 +8277,13 @@ body.print-flash-mode .no-print {
                 <input type="number" id="ep_addQty" min="1" required oninput="calcProdLogPreview()" placeholder="Enter Qty (e.g. 1000)">
               </div>
 
+              <!-- NAYA FIELD: Rejection Qty — isi ke saath save hota hai aur
+                   Ranjit Making Bill ka Rejection column isi se bhar jata hai -->
+              <div class="form-group">
+                <label>Rejection Qty <span style="font-weight:600; color:#64748b; font-size:11px;">(Rejected Pcs)</span></label>
+                <input type="number" id="ep_rejection" min="0" step="1" value="0" oninput="calcProdLogPreview()" placeholder="0">
+              </div>
+
               <!-- Index Paper Configuration Block -->
               <div class="form-group" style="grid-column: span 3; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 14px; margin: 4px 0;">
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
@@ -20401,7 +20408,7 @@ function renderTodayTransactions(highlightId) {
         <td><strong style="font-family:'JetBrains Mono'; color:#0f172a;">${t.barcode}</strong></td>
         <td><strong>${t.description}</strong></td>
         <td class="num" style="font-weight:700; color:#1e40af;">${t.qty}</td>
-        <td style="font-size:12px; color:#475569;">${t.impact}</td>
+        <td style="font-size:12px; color:#475569;">${t.impact}${(t.type === 'Production' && t.details && Number(t.details.rejection) > 0) ? ` <strong style="color:#ef4444;">| Reject: ${Number(t.details.rejection).toLocaleString()} Pcs</strong>` : ''}</td>
         <td style="font-size:11.5px; color:#64748b;">${t.ref}</td>
         <td style="text-align:center;">
           <button type="button" class="btn btn-secondary" style="padding: 3px 6px; font-size:11px; color:#ef4444;" title="Delete this entry" onclick="deleteTodayTransaction('${t.id}')">🗑️</button>
@@ -20895,6 +20902,14 @@ function handleProductionLogSubmit(e) {
     return;
   }
 
+  // NAYA FIELD: Rejection Qty (0 bhi ho sakta hai)
+  const rejEl = document.getElementById('ep_rejection');
+  const rejQty = Math.max(0, Math.floor(Number(rejEl && rejEl.value) || 0));
+  if (rejQty > addQty) {
+    alert(`⚠️ Rejection Qty (${rejQty.toLocaleString()}) Production Qty (${addQty.toLocaleString()}) se zyada nahi ho sakti!`);
+    return;
+  }
+
   const hasIndexBox = document.getElementById('ep_hasIndex');
   const hasIndex = hasIndexBox ? hasIndexBox.checked : false;
   const indexSpecSelect = document.getElementById('ep_indexSpec');
@@ -21118,7 +21133,7 @@ function handleProductionLogSubmit(e) {
     qty: `+${addQty.toLocaleString()} Pcs Produced`,
     impact: impactDesc,
     ref: `${machine} (${notes || date})`,
-    details: { addQty, batchPaper, paperSpec: sku.paperSpec, batchIndex, indexSpec: selectedIndexSpec, batchBoard }
+    details: { addQty, rejection: rejQty, batchPaper, paperSpec: sku.paperSpec, batchIndex, indexSpec: selectedIndexSpec, batchBoard }
   });
 
   saveState();
@@ -21133,6 +21148,8 @@ function handleProductionLogSubmit(e) {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  const epRej = document.getElementById('ep_rejection');
+  if (epRej) epRej.value = '0';   // Rejection hamesha 0 par reset
   const epSelect = document.getElementById('ep_skuSelect');
   if (epSelect) epSelect.value = '';
   onProdSkuChange();
