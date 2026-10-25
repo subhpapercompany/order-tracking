@@ -8398,6 +8398,7 @@ body.print-flash-mode .no-print {
               <div>
                 <strong class="formula-text">⚡ Output & Material Consumption Impact:</strong>
                 <div style="font-size: 11px; color: #15803d;" id="ep_formulaNote">Select SKU and enter output quantity</div>
+                <div style="font-size: 12px; color: #7c2d12; font-weight: 700; margin-top: 6px; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 10px; display:none;" id="ep_costNote"></div>
               </div>
               <div class="formula-preview-value" id="ep_previewValue">-</div>
             </div>
@@ -8484,6 +8485,16 @@ body.print-flash-mode .no-print {
               <div class="form-group">
                 <label>Quantity Despatched Today *</label>
                 <input type="number" id="ed_addQty" min="1" required oninput="calcDespLogPreview()">
+              </div>
+
+              <div class="form-group">
+                <label>Rate per Pcs (₹) *</label>
+                <input type="number" id="ed_rate" step="any" min="0" oninput="calcDespLogPreview()" placeholder="Auto: PO Released rate">
+              </div>
+
+              <div class="form-group">
+                <label>Despatch Amount (₹)</label>
+                <input type="text" id="ed_amount" readonly style="background:#f0fdf4; font-weight:800; color:#15803d; border-color:#bbf7d0;">
               </div>
 
               <div class="form-group" style="grid-column: span 3;">
@@ -8703,17 +8714,27 @@ body.print-flash-mode .no-print {
 
               <div class="form-group">
                 <label id="label_eboard_inward">Inward Received (Sheets) (Kitna aaya)</label>
-                <input type="number" id="eboard_inward">
+                <input type="number" id="eboard_inward" oninput="previewBoardEntryAmount()">
               </div>
 
               <div class="form-group" id="group_eboard_outPrint">
                 <label id="label_eboard_outPrint">Out for Printing (Sheets) (Printing ko gaya)</label>
-                <input type="number" id="eboard_outPrint">
+                <input type="number" id="eboard_outPrint" oninput="previewBoardEntryAmount()">
               </div>
 
               <div class="form-group">
                 <label id="label_eboard_printedRecd">Printed Board Recd (Sheets) (Printed wapas aaya)</label>
-                <input type="number" id="eboard_printedRecd">
+                <input type="number" id="eboard_printedRecd" oninput="previewBoardEntryAmount()">
+              </div>
+
+              <div class="form-group">
+                <label>Board Rate per Sheet (₹) *</label>
+                <input type="number" id="eboard_rate" step="any" min="0" oninput="previewBoardEntryAmount()" placeholder="Auto-filled from board size">
+              </div>
+
+              <div class="form-group">
+                <label>Entry Amount (₹)</label>
+                <input type="text" id="eboard_amount" readonly style="background:#f0fdf4; font-weight:800; color:#15803d; border-color:#bbf7d0;">
               </div>
 
               <div class="form-group" id="group_eboard_barcode" style="grid-column: span 2;">
@@ -8774,14 +8795,24 @@ body.print-flash-mode .no-print {
 
               <div class="form-group" id="group_econs_item" style="grid-column: span 2;">
                 <label>Consumable Item *</label>
-                <select id="econs_item">
+                <select id="econs_item" onchange="onConsumableItemChange()">
                   <!-- Populated dynamically from 18 items -->
                 </select>
               </div>
 
               <div class="form-group">
+                <label>Rate (₹ per unit) *</label>
+                <input type="number" id="econs_rate" step="any" min="0" oninput="previewConsEntryAmount()" placeholder="Auto-filled from item">
+              </div>
+
+              <div class="form-group">
+                <label>Amount (₹)</label>
+                <input type="text" id="econs_amount" readonly style="background:#f0fdf4; font-weight:800; color:#15803d; border-color:#bbf7d0;">
+              </div>
+
+              <div class="form-group">
                 <label id="label_econs_qty">Quantity *</label>
-                <input type="number" id="econs_qty" step="any" required>
+                <input type="number" id="econs_qty" step="any" required oninput="previewConsEntryAmount()">
               </div>
 
               <div class="form-group">
@@ -16644,7 +16675,8 @@ function logConsumableLedgerEntry(entry) {
     qtyOut: Number(entry.qtyOut || 0),
     ref: entry.ref || '-',
     notes: entry.notes || '',
-    unit: entry.unit || 'Pcs'
+    unit: entry.unit || 'Pcs',
+    rate: Number(entry.rate || 0)
   };
   
   state.consumableLedger.push(record);
@@ -19601,10 +19633,36 @@ function populateConsumableDropdown() {
   });
 }
 
+// Item select karte hi uska rate apne aap bhar jaye
+function onConsumableItemChange() {
+  const item = document.getElementById('econs_item')?.value || '';
+  const rateEl = document.getElementById('econs_rate');
+  if (!rateEl) return;
+  const c = (state.consumables || []).find(x => x.item === item);
+  rateEl.value = c && c.rate ? c.rate : '';
+  previewConsEntryAmount();
+}
+
+// Consumables entry ka live amount = qty × rate
+function previewConsEntryAmount() {
+  const amtEl = document.getElementById('econs_amount');
+  if (!amtEl) return;
+  const rate = Number(document.getElementById('econs_rate')?.value || 0);
+  const qty = Number(document.getElementById('econs_qty')?.value || 0);
+  amtEl.value = rate > 0 && qty > 0
+    ? '₹ ' + (qty * rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '';
+}
+
 function onProdSkuChange() {
   const bc = document.getElementById('ep_skuSelect').value;
   const sku = state.skus.find(s => s.barcode === bc);
-  if (!sku) return;
+  if (!sku) {
+    // Form reset ke baad purana cost note na rahe
+    const costEl = document.getElementById('ep_costNote');
+    if (costEl) { costEl.style.display = 'none'; costEl.textContent = ''; }
+    return;
+  }
 
   // Auto-populate Description and Vendor
   const descEl = document.getElementById('ep_desc');
@@ -19742,6 +19800,45 @@ function updateAvailIndexStockDisplay(spec) {
   stockEl.style.color = stockKg > 0 ? '#0f766e' : '#b91c1c';
 }
 
+// ==========================================================================
+// MANUFACTURING MATERIAL COST — production entry ka material costing
+// Paper + Index + Board + CFC (har item ka rate uski entry/master se)
+// ==========================================================================
+function getMfgRates(sku, indexSpec) {
+  const paperRate = (spec) => {
+    const p = (state.papersSummary || []).find(x => x.reelSize === spec);
+    return p && Number(p.rate) > 0 ? Number(p.rate) : 77;
+  };
+  const paperRateVal = paperRate(sku.paperSpec);
+  const indexRateVal = indexSpec ? paperRate(indexSpec) : 0;
+
+  let boardRateVal = 7.5;
+  if (sku.boardSpec && Array.isArray(state.boardSummary)) {
+    const compactB = (sku.boardSpec || '').replace(/\s+/g, '').toLowerCase();
+    const bSum = state.boardSummary.find(b => {
+      const bSize = (b.size || '').replace(/\s+/g, '').toLowerCase();
+      return bSize === compactB || (compactB.includes('200') && bSize.includes('200')) || (compactB.includes('77') && bSize.includes('77')) || (compactB.includes('190') && bSize.includes('45.5') && bSize.includes('190') && bSize.includes('45.5'));
+    });
+    if (bSum && Number(bSum.rate) > 0) boardRateVal = Number(bSum.rate);
+  }
+
+  const cfcItem = (state.consumables || []).find(c => c.item === `${sku.barcode} : CFC`);
+  const cfcRateVal = cfcItem && Number(cfcItem.rate) > 0 ? Number(cfcItem.rate) : 36;
+
+  return { paperRate: paperRateVal, indexRate: indexRateVal, boardRate: boardRateVal, cfcRate: cfcRateVal };
+}
+
+// batch quantities se cost breakdown — preview aur submit dono me same
+function calcMfgCost(sku, indexSpec, hasIndex, batchPaper, batchIndex, batchBoard, batchCfc) {
+  const r = getMfgRates(sku, indexSpec);
+  const paper = Number((batchPaper * r.paperRate).toFixed(2));
+  const index = hasIndex && batchIndex > 0 ? Number((batchIndex * r.indexRate).toFixed(2)) : 0;
+  const board = Number((batchBoard * r.boardRate).toFixed(2));
+  const cfc = Number((batchCfc * r.cfcRate).toFixed(2));
+  const total = Number((paper + index + board + cfc).toFixed(2));
+  return { ...r, paper, index, board, cfc, total };
+}
+
 function calcProdLogPreview() {
   const bc = document.getElementById('ep_skuSelect').value;
   const sku = state.skus.find(s => s.barcode === bc);
@@ -19819,6 +19916,20 @@ function calcProdLogPreview() {
 
   document.getElementById('ep_formulaNote').textContent = formulaText;
   document.getElementById('ep_previewValue').textContent = `Prod: ${newProd.toLocaleString()} | Due: ${newDue.toLocaleString()}`;
+
+  // MANUFACTURING COST PREVIEW — Paper + Index + Board + CFC = Total
+  const costEl = document.getElementById('ep_costNote');
+  if (costEl) {
+    if (addQty > 0) {
+      const cost = calcMfgCost(sku, selectedIndexSpec, hasIndex, batchPaper, batchIndex, batchBoard, batchCfc);
+      const perPc = cost.total / addQty;
+      costEl.style.display = 'block';
+      costEl.textContent = `💰 Material Cost: Paper ₹${cost.paper.toLocaleString('en-IN')} + Index ₹${cost.index.toLocaleString('en-IN')} + Board ₹${cost.board.toLocaleString('en-IN')} + CFC ₹${cost.cfc.toLocaleString('en-IN')} = ₹${cost.total.toLocaleString('en-IN')} (₹${perPc.toFixed(2)}/Pc)`;
+    } else {
+      costEl.style.display = 'none';
+      costEl.textContent = '';
+    }
+  }
 }
 
 function onDespVendorChange() {
@@ -20014,6 +20125,20 @@ function onDespSkuChange() {
 
   document.getElementById('ed_currStock').value = (sku.closingStock || 0).toLocaleString() + ' Pcs';
   document.getElementById('ed_currDue').value = (sku.dueDespatched || 0).toLocaleString() + ' Pcs';
+
+  // Rate field: PO Released rate auto-fill (user chahe to badal sakta hai)
+  const rateEl = document.getElementById('ed_rate');
+  if (rateEl) {
+    let poRate = 0;
+    (state.poReleases || []).forEach(r => {
+      if (String(r.productCode || '').trim() === String(sku.barcode || '').trim()) {
+        const rt = Number(r.kclApprovedRate || 0);
+        if (rt > 0) poRate = rt;
+      }
+    });
+    rateEl.value = poRate > 0 ? poRate : '';
+  }
+
   updateDespPoStatusBanner(sku);
   calcDespLogPreview();
 }
@@ -20038,8 +20163,18 @@ function calcDespLogPreview() {
   const newStock = (sku.oldStock || 0) + (sku.production || 0) - newDesp;
   const remainingPo = Math.max(0, poInfo.totalReleasedQty - newDesp);
 
+  // Despatch amount = qty × rate
+  const rate = Number(document.getElementById('ed_rate')?.value || 0);
+  const amtEl = document.getElementById('ed_amount');
+  if (amtEl) {
+    amtEl.value = rate > 0 && addQty > 0
+      ? '₹ ' + (addQty * rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : '';
+  }
+
   document.getElementById('ed_formulaNote').textContent =
-    `Despatching ${addQty.toLocaleString()} Pcs -> Pending Despatch: ${newDueDesp.toLocaleString()} Pcs | Remaining PO Balance: ${remainingPo.toLocaleString()} Pcs (PO: ${poInfo.poNumbers})`;
+    `Despatching ${addQty.toLocaleString()} Pcs -> Pending Despatch: ${newDueDesp.toLocaleString()} Pcs | Remaining PO Balance: ${remainingPo.toLocaleString()} Pcs (PO: ${poInfo.poNumbers})` +
+    (rate > 0 ? ` | Amount: ₹${(addQty * rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} @ ₹${rate}/Pcs` : '');
   document.getElementById('ed_previewValue').textContent = `Remaining Stock: ${newStock.toLocaleString()} Pcs`;
   document.getElementById('ed_previewValue').style.color = '#1e3a8a';
 }
@@ -21134,15 +21269,19 @@ function handleProductionLogSubmit(e) {
                      ` | Board: ${batchBoard.toLocaleString()} Sheets` +
                      (batchCfc > 0 ? ` | CFC: ${batchCfc.toLocaleString()} Boxes (${cfcItemName})` : '');
 
+  // MANUFACTURING COST — is production entry me kitna material amount involve hua
+  const mfgCost = calcMfgCost(sku, selectedIndexSpec, hasIndex, batchPaper, batchIndex, batchBoard, batchCfc);
+  const costDesc = ` | 💰 Cost: ₹${mfgCost.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Paper ₹${mfgCost.paper.toLocaleString('en-IN')} + Index ₹${mfgCost.index.toLocaleString('en-IN')} + Board ₹${mfgCost.board.toLocaleString('en-IN')} + CFC ₹${mfgCost.cfc.toLocaleString('en-IN')})`;
+
   addTodayTransaction({
     type: 'Production',
     vendor: sku.vendor,
     barcode: sku.barcode,
     description: sku.description,
     qty: `+${addQty.toLocaleString()} Pcs Produced`,
-    impact: impactDesc,
+    impact: impactDesc + costDesc,
     ref: `${machine} (${notes || date})`,
-    details: { addQty, rejection: rejQty, batchPaper, paperSpec: sku.paperSpec, batchIndex, indexSpec: selectedIndexSpec, batchBoard }
+    details: { addQty, rejection: rejQty, batchPaper, paperSpec: sku.paperSpec, batchIndex, indexSpec: selectedIndexSpec, batchBoard, batchCfc, materialCost: mfgCost, costPerPc: Number((mfgCost.total / Math.max(1, addQty)).toFixed(2)) }
   });
 
   saveState();
@@ -21171,11 +21310,18 @@ function handleDespatchLogSubmit(e) {
   const invoice = document.getElementById('ed_invoice').value.trim();
   const vehicle = document.getElementById('ed_vehicle').value.trim();
   const date = document.getElementById('ed_date').value;
+  const rate = Number(document.getElementById('ed_rate')?.value || 0);
   const sku = state.skus.find(s => s.barcode === barcode);
   if (!sku) {
     alert("Kripya valid SKU / Product Code select karein.");
     return;
   }
+
+  if (!(rate > 0)) {
+    alert("⚠️ Kripya Rate per Pcs (₹) bhariye — PO Released rate apne aap aata hai, chahe to badal sakte hain!");
+    return;
+  }
+  const despAmount = Number((addQty * rate).toFixed(2));
 
   // STRICT RULE: Despatch entry tab hi hogi jab is month ke order ke product code ka PO Release hoga!
   const poInfo = getSkuPoReleaseInfo(sku.barcode, sku.month);
@@ -21230,9 +21376,9 @@ function handleDespatchLogSubmit(e) {
     barcode: sku.barcode,
     description: sku.description,
     qty: `${addQty.toLocaleString()} Pcs Despatched`,
-    impact: `Remaining Godown Stock: ${((sku.oldStock || 0) + (sku.production || 0) - sku.despatched).toLocaleString()} Pcs`,
+    impact: `Remaining Godown Stock: ${((sku.oldStock || 0) + (sku.production || 0) - sku.despatched).toLocaleString()} Pcs | Amount: ₹${despAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} @ ₹${rate}/Pcs`,
     ref: `Inv: ${invoice}${destVal ? ' • Dest: ' + destVal : ''} (${vehicle || date})`,
-    details: { addQty, invoice, vendor: vendorVal, destination: destVal, vehicle, date }
+    details: { addQty, invoice, vendor: vendorVal, destination: destVal, vehicle, date, rate, amount: despAmount }
   });
 
   saveState();
@@ -21452,6 +21598,23 @@ function handlePaperInwardProcessSubmit(e) {
   // Screen stays stable on paper entry form without jumping to bottom
 }
 
+// Board entry ka live amount preview: qty × rate
+function previewBoardEntryAmount() {
+  const rateEl = document.getElementById('eboard_rate');
+  const amtEl = document.getElementById('eboard_amount');
+  if (!rateEl || !amtEl) return;
+  const rate = Number(rateEl.value || 0);
+  const inward = Number(document.getElementById('eboard_inward')?.value || 0);
+  const outPrint = Number(document.getElementById('eboard_outPrint')?.value || 0);
+  const printedRecd = Number(document.getElementById('eboard_printedRecd')?.value || 0);
+  // Sirf incoming sheets (inward + printed recd) par rate lagta hai;
+  // outPrint sirf transfer hai — uska rate alag se nahi jodte.
+  const qty = inward + printedRecd;
+  amtEl.value = rate > 0 && qty > 0
+    ? '₹ ' + (qty * rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '';
+}
+
 function toggleBoardEntryMode() {
   const mode = document.querySelector('input[name="board_entry_type"]:checked')?.value || 'daily';
   const labelInward = document.getElementById('label_eboard_inward');
@@ -21487,17 +21650,25 @@ function handleBoardMovementSubmit(e) {
   const outPrint = Number(document.getElementById('eboard_outPrint')?.value || 0);
   const printedRecd = Number(document.getElementById('eboard_printedRecd').value || 0);
   const barcode = document.getElementById('eboard_barcode')?.value || '';
+  const rate = Number(document.getElementById('eboard_rate')?.value || 0);
 
   if (inward <= 0 && outPrint <= 0 && printedRecd <= 0) {
     alert("⚠️ Kripya quantity (sheets) bhariye!");
     return;
   }
 
+  if (!(rate > 0)) {
+    alert("⚠️ Kripya Board Rate per Sheet (₹) bhariye — isse closing stock ki valuation sahi hogi!");
+    return;
+  }
+
   let bSum = state.boardSummary.find(b => b.size === size);
   if (!bSum) {
-    bSum = { size, sheetWt: 0.08, rate: 7.5, openingGodownSheets: 0, openingPrinterSheets: 0, ourGodownSheets: 0, printerSheets: 0 };
+    bSum = { size, sheetWt: 0.08, rate, openingGodownSheets: 0, openingPrinterSheets: 0, ourGodownSheets: 0, printerSheets: 0 };
     state.boardSummary.push(bSum);
   }
+  // Entry ka rate summary par apply — closing stock valuation isi rate par update
+  bSum.rate = rate;
 
   if (entryType === 'opening') {
     // OPENING BALANCE MODE
@@ -21509,11 +21680,13 @@ function handleBoardMovementSubmit(e) {
       const compactS = size.replace(/x/g, ' x ');
       state.materialStock.board[compactS] = (state.materialStock.board[compactS] || 0) + inward + printedRecd;
     }
+    bSum.totalSheets = (bSum.openingGodownSheets || 0) + (bSum.openingPrinterSheets || 0) + (bSum.ourGodownSheets || 0) + (bSum.printerSheets || 0);
+    bSum.totalValuation = Math.round(bSum.totalSheets * rate);
 
     // Add audit ledger record
     state.boardLedger.unshift({
       date, inv: inv || 'OPENING-BOARD', party: 'Opening Stock', size, inward: 0, outPrint: 0, printedRecd: 0,
-      godownBal: bSum.openingGodownSheets, printBal: bSum.openingPrinterSheets, notes: 'Opening Board Entry'
+      godownBal: bSum.openingGodownSheets, printBal: bSum.openingPrinterSheets, rate, notes: 'Opening Board Entry'
     });
 
     // Record into Today's Transactions
@@ -21524,9 +21697,9 @@ function handleBoardMovementSubmit(e) {
       barcode: size,
       description: `Opening Stock (${size})`,
       qty: `Godown: +${inward.toLocaleString()} Sheets | Printer: +${printedRecd.toLocaleString()} Sheets`,
-      impact: `Opening Balance Set`,
+      impact: `Opening Balance Set @ ₹${rate}/Sheet`,
       ref: inv || 'OPENING-BOARD',
-      details: { openingGodown: inward, openingPrinter: printedRecd }
+      details: { openingGodown: inward, openingPrinter: printedRecd, rate }
     });
 
     saveState();
@@ -21564,9 +21737,11 @@ function handleBoardMovementSubmit(e) {
     }
     bSum.ourGodownSheets = (bSum.ourGodownSheets || 0) + inward - outPrint;
     bSum.printerSheets = (bSum.printerSheets || 0) + outPrint - printedRecd;
+    bSum.totalSheets = (bSum.ourGodownSheets || 0) + (bSum.printerSheets || 0);
+    bSum.totalValuation = Math.round(bSum.totalSheets * rate);
 
     state.boardLedger.unshift({
-      date, inv, party, size, barcode, inward, outPrint, printedRecd,
+      date, inv, party, size, barcode, inward, outPrint, printedRecd, rate,
       godownBal: bSum.ourGodownSheets, printBal: bSum.printerSheets
     });
 
@@ -21577,6 +21752,7 @@ function handleBoardMovementSubmit(e) {
 
     // Record into Today's Transactions
     const qtyStr = inward ? `+${inward.toLocaleString()} Sheets Inward` : (outPrint ? `${outPrint.toLocaleString()} Sheets Out to Print` : `+${printedRecd.toLocaleString()} Printed Sheets Recd`);
+    const entryAmt = (inward + printedRecd) * rate;
     addTodayTransaction({
       type: 'Materials',
       subType: 'Board Movement',
@@ -21584,9 +21760,9 @@ function handleBoardMovementSubmit(e) {
       barcode: size,
       description: `Mill Board (${size})`,
       qty: qtyStr,
-      impact: `Our Godown: ${bSum.ourGodownSheets.toLocaleString()} | Printer Bal: ${bSum.printerSheets.toLocaleString()}`,
+      impact: `Our Godown: ${bSum.ourGodownSheets.toLocaleString()} | Printer Bal: ${bSum.printerSheets.toLocaleString()}${entryAmt > 0 ? ` | Amount: ₹${entryAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}`,
       ref: `DC/Inv: ${inv}`,
-      details: { inward, outPrint, printedRecd }
+      details: { inward, outPrint, printedRecd, rate, amount: Number(entryAmt.toFixed(2)) }
     });
 
     saveState();
@@ -21600,6 +21776,7 @@ function handleBoardMovementSubmit(e) {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  previewBoardEntryAmount();
   // Screen stays stable on board entry form without jumping to bottom
 }
 
@@ -21632,6 +21809,7 @@ function handleConsumablesLogSubmit(e) {
   const item = document.getElementById('econs_item').value;
   const qty = Number(document.getElementById('econs_qty').value);
   const ref = document.getElementById('econs_ref').value.trim();
+  const rate = Number(document.getElementById('econs_rate')?.value || 0);
 
   const c = state.consumables.find(x => x.item === item);
   if (!c) {
@@ -21643,6 +21821,15 @@ function handleConsumablesLogSubmit(e) {
     alert("⚠️ Please enter a valid quantity.");
     return;
   }
+
+  if (!(rate > 0)) {
+    alert("⚠️ Kripya Rate (₹ per unit) bhariye — isse stock ki valuation sahi hogi!");
+    return;
+  }
+
+  // Entry ka rate item par apply — closing stock valuation isi rate par update
+  c.rate = rate;
+  c.amount = Math.round((c.stock || 0) * rate);
 
   if (entryType === 'opening') {
     // OPENING BALANCE ENTRY
@@ -21660,7 +21847,8 @@ function handleConsumablesLogSubmit(e) {
       qtyOut: 0,
       ref: ref || 'OPENING-CONSUMABLE',
       notes: 'Opening balance setup',
-      unit: c.unit
+      unit: c.unit,
+      rate
     });
 
     // Record into Today's Transactions
@@ -21671,9 +21859,9 @@ function handleConsumablesLogSubmit(e) {
       barcode: c.category,
       description: item,
       qty: `Opening Stock: +${qty} ${c.unit}`,
-      impact: `Available Stock: ${c.stock} ${c.unit}`,
+      impact: `Available Stock: ${c.stock} ${c.unit} @ ₹${rate}/${c.unit}`,
       ref: ref || 'OPENING-CONSUMABLE',
-      details: { qty, type: 'opening' }
+      details: { qty, type: 'opening', rate, amount: Number((qty * rate).toFixed(2)) }
     });
 
     saveState();
@@ -21717,7 +21905,8 @@ function handleConsumablesLogSubmit(e) {
       qtyOut: type === 'issue' ? qty : 0,
       ref: ref || (type === 'inward' ? 'CHALLAN-INWARD' : 'LINE-ISSUE'),
       notes: type === 'inward' ? 'Vendor delivery inward' : 'Issued to production floor',
-      unit: c.unit
+      unit: c.unit,
+      rate
     });
 
     // Record into Today's Transactions
@@ -21728,9 +21917,9 @@ function handleConsumablesLogSubmit(e) {
       barcode: c.category,
       description: item,
       qty: (type === 'inward' ? `+${qty}` : `-${qty}`) + ` ${c.unit}`,
-      impact: `Closing Available Stock: ${c.stock} ${c.unit}`,
+      impact: `Closing Available Stock: ${c.stock} ${c.unit} @ ₹${rate}/${c.unit} | Amount: ₹${(qty * rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       ref: `${ref || (type === 'inward' ? 'Inward Challan' : 'Line Issue')} (${date})`,
-      details: { qty, type }
+      details: { qty, type, rate, amount: Number((qty * rate).toFixed(2)) }
     });
 
     saveState();
@@ -21744,6 +21933,7 @@ function handleConsumablesLogSubmit(e) {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  previewConsEntryAmount();
   // Screen stays stable on consumables entry form without jumping to bottom
 }
 
@@ -23868,6 +24058,14 @@ function updateBoardBarcodeDropdown() {
 
   const size = sizeSelect.value;
   const compactSize = size.replace(/\s+/g, '').toLowerCase();
+
+  // Rate field: board size ke current rate se auto-fill
+  const rateEl = document.getElementById('eboard_rate');
+  if (rateEl && size) {
+    const bSum = (state.boardSummary || []).find(b => (b.size || '').replace(/\s+/g, '').toLowerCase() === compactSize);
+    rateEl.value = bSum && bSum.rate ? bSum.rate : '';
+  }
+  previewBoardEntryAmount();
 
   barcodeSelect.innerHTML = '<option value="">-- General / All Notebooks of this Board Size --</option>';
 
