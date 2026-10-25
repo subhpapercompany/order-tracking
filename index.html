@@ -19746,6 +19746,8 @@ function calcProdLogPreview() {
   const bc = document.getElementById('ep_skuSelect').value;
   const sku = state.skus.find(s => s.barcode === bc);
   const addQty = Number(document.getElementById('ep_addQty').value || 0);
+  const rejPvEl = document.getElementById('ep_rejection');
+  const rejQtyPv = Math.max(0, Math.floor(Number(rejPvEl && rejPvEl.value) || 0));
   if (!sku) return;
 
   const hasIndexBox = document.getElementById('ep_hasIndex');
@@ -19755,7 +19757,7 @@ function calcProdLogPreview() {
 
   updateAvailIndexStockDisplay(selectedIndexSpec);
 
-  const newProd = (sku.production || 0) + addQty;
+  const newProd = (sku.production || 0) + addQty - rejQtyPv;   // Rejection FG se minus
   const newDue = (sku.orderQty || 0) - (sku.oldStock || 0) - newProd;
 
   // Calculate Breakdown with chosen index spec and toggle
@@ -21032,7 +21034,9 @@ function handleProductionLogSubmit(e) {
   }
 
   // ALL VALIDATIONS PASSED: Update SKU Production & Weight
-  sku.production = (sku.production || 0) + addQty;
+  // Rejection ko FG stock se MINUS kiya jata hai (law): production me
+  // sirf NET saleable pcs jodte hain — FG = oldStock + production - despatched
+  sku.production = (sku.production || 0) + (addQty - rejQty);
   sku.hasIndex = hasIndex;
   sku.indexSpec = selectedIndexSpec;
   sku.bookWtPaper = wtBreakdown.bookWtPaper;
@@ -35037,7 +35041,7 @@ function daybookDeleteEntry(source, idx) {
     const type = raw.type || '';
     const det = raw.details || {};
     if (sku) {
-      if (type.indexOf('Production') >= 0) sku.production = Math.max(0, Number(sku.production || 0) - Number(det.addQty || 0));
+      if (type.indexOf('Production') >= 0) sku.production = Math.max(0, Number(sku.production || 0) - (Number(det.addQty || 0) - Number(det.rejection || 0)));
       else if (type.indexOf('Despatch') >= 0) sku.despatched = Math.max(0, Number(sku.despatched || 0) - Number(det.addQty || 0));
       else if (type.indexOf('Order') >= 0) sku.orderQty = Math.max(0, Number(sku.orderQty || 0) - Number(det.orderQty || 0));
     }
