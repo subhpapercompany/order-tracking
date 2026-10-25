@@ -639,6 +639,10 @@
 
   @media(max-width: 990px) {
     .reporting-container { grid-template-columns: 1fr; }
+    /* FIX (narrow/mobile screen): sticky sidebar scroll karte waqt content ke
+       peeche overlap kar jata tha — menu text cards/tables se jhalakta tha.
+       Single-column layout me wo apni jagah (upar) rehta hai. */
+    .reporting-sidebar { position: static !important; }
   }
 
   /* ========================================================
@@ -1306,6 +1310,8 @@
 
   @media(max-width: 990px) {
     .entry-container { grid-template-columns: 1fr; }
+    /* FIX (narrow/mobile screen): same overlap fix as reporting mode */
+    .entry-sidebar { position: static !important; }
   }
 
 
@@ -3705,30 +3711,39 @@ body.print-flash-mode .no-print {
         </div>
       </div>
 
-      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px;">
-        <div class="kpi-card" style="border-left:4px solid #2563eb; padding:10px 14px;">
-          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Total Entries</div>
-          <div id="dbkSumEntries" style="font-size:20px; font-weight:900; color:#1e40af; margin-top:2px;">0</div>
+      <!-- ===== 6 CURRENT-VALUATION CARDS (Daybook) =====
+           Purane entry-count cards hataye ja chuke hain (wo Dashboard par hain).
+           Ye sab CURRENT stock/valuation hain — date filter se affect nahi hote. -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:10px; margin-bottom:14px;">
+        <div class="kpi-card" style="border-left:4px solid #7c3aed; padding:10px 14px;">
+          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Paper Value <span style="text-transform:none; letter-spacing:0;">(WIP + Reels)</span></div>
+          <div id="dbkValPaper" style="font-size:19px; font-weight:900; color:#6d28d9; margin-top:2px;">₹ 0</div>
+          <div id="dbkValPaperQty" style="font-size:10.5px; font-weight:700; color:#64748b; margin-top:1px;">0 Kg</div>
         </div>
         <div class="kpi-card" style="border-left:4px solid #0891b2; padding:10px 14px;">
-          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Order Qty</div>
-          <div id="dbkSumOrder" style="font-size:20px; font-weight:900; color:#0e7490; margin-top:2px;">0</div>
+          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Board Value <span style="text-transform:none; letter-spacing:0;">(Godown + Printer)</span></div>
+          <div id="dbkValBoard" style="font-size:19px; font-weight:900; color:#0e7490; margin-top:2px;">₹ 0</div>
+          <div id="dbkValBoardQty" style="font-size:10.5px; font-weight:700; color:#64748b; margin-top:1px;">0 Sheets</div>
         </div>
         <div class="kpi-card" style="border-left:4px solid #16a34a; padding:10px 14px;">
-          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Production Qty</div>
-          <div id="dbkSumProd" style="font-size:20px; font-weight:900; color:#15803d; margin-top:2px;">0</div>
+          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Finished Goods <span style="text-transform:none; letter-spacing:0;">(PO Released rate)</span></div>
+          <div id="dbkValFg" style="font-size:19px; font-weight:900; color:#15803d; margin-top:2px;">₹ 0</div>
+          <div id="dbkValFgQty" style="font-size:10.5px; font-weight:700; color:#64748b; margin-top:1px;">0 Pcs</div>
         </div>
         <div class="kpi-card" style="border-left:4px solid #d97706; padding:10px 14px;">
-          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Despatch Qty</div>
-          <div id="dbkSumDesp" style="font-size:20px; font-weight:900; color:#b45309; margin-top:2px;">0</div>
-        </div>
-        <div class="kpi-card" style="border-left:4px solid #7c3aed; padding:10px 14px;">
-          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Paper / Board</div>
-          <div id="dbkSumPaper" style="font-size:20px; font-weight:900; color:#6d28d9; margin-top:2px;">0 Kg</div>
+          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Consumable Value</div>
+          <div id="dbkValCons" style="font-size:19px; font-weight:900; color:#b45309; margin-top:2px;">₹ 0</div>
+          <div id="dbkValConsQty" style="font-size:10.5px; font-weight:700; color:#64748b; margin-top:1px;">Stock &times; Rate</div>
         </div>
         <div class="kpi-card" style="border-left:4px solid #dc2626; padding:10px 14px;">
-          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Total Value</div>
-          <div id="dbkSumMoney" style="font-size:20px; font-weight:900; color:#b91c1c; margin-top:2px;">₹ 0</div>
+          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Total Value <span style="text-transform:none; letter-spacing:0;">(Paper+Board+FG+Cons)</span></div>
+          <div id="dbkValTotal" style="font-size:19px; font-weight:900; color:#b91c1c; margin-top:2px;">₹ 0</div>
+          <div id="dbkValTotalQty" style="font-size:10.5px; font-weight:700; color:#64748b; margin-top:1px;">Current stock value</div>
+        </div>
+        <div class="kpi-card" style="border-left:4px solid #2563eb; padding:10px 14px;">
+          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Amount Receivable <span style="text-transform:none; letter-spacing:0;">(Despatched)</span></div>
+          <div id="dbkValRecv" style="font-size:19px; font-weight:900; color:#1e40af; margin-top:2px;">₹ 0</div>
+          <div id="dbkValRecvQty" style="font-size:10.5px; font-weight:700; color:#64748b; margin-top:1px;">0 Pcs despatched</div>
         </div>
       </div>
 
@@ -34361,7 +34376,7 @@ function getDaybookEntries() {
   // 7. Purchase order requests
   (state.poRequests || []).forEach((l, idx) => {
     pushRow('poReq', idx, l.requestDate || l.date || '', 'PO Request', l.vendor || '-', l.productCode || '-', (l.orderQuantity || l.poQty || 0) + ' Pcs', [l.poNumber, l.destination, l.ruling].filter(Boolean).join(' · ') || '-', {
-      orderQty: Number(l.orderQuantity || l.poQty || 0), value: Number(l.orderQuantity || 0) * Number(l.rate || l.poReqApprovedRate || 0)
+      orderQty: Number(l.orderQuantity || l.poQty || 0), value: Number(l.orderQuantity || 0) * Number(l.kclApprovedRate || l.rate || l.poReqApprovedRate || 0)
     });
   });
 
@@ -34506,22 +34521,81 @@ function renderDaybook() {
   const cnt = document.getElementById('daybookCountLabel');
   if (cnt) cnt.textContent = rows.length + ' entries' + (hiddenZero > 0 ? ' · ' + hiddenZero + ' zero hidden' : '');
 
-  let sumOrder = 0, sumProd = 0, sumDesp = 0, sumPaper = 0, sumValue = 0;
-  rows.forEach(r => {
-    sumOrder += r.orderQty;
-    sumProd += r.prodQty;
-    sumDesp += r.despQty;
-    sumPaper += r.paperKg;
-    sumValue += r.value;
+  // ============ 6 CURRENT-VALUATION CARDS (Daybook) ============
+  // Ye sab CURRENT stock/valuation hain — date filter se independent.
+  // (Purane entry-count cards Entries/Order/Production/Despatch ab Dashboard par hain.)
+
+  // Card 1 — PAPER VALUE = (WIP + Reels) × paper rate
+  let paperKg = 0, paperVal = 0;
+  (state.papersSummary || []).forEach(p => {
+    const kg = (Number(p.wipKg) || 0) + (Number(p.reelsKg) || 0);
+    paperKg += kg;
+    paperVal += kg * (Number(p.rate) || 77);
   });
 
+  // Card 2 — BOARD VALUE = (Godown + Printer sheets) × rate  (Board screen ke equal)
+  let boardSh = 0, boardVal = 0;
+  (state.boardSummary || []).forEach(b => {
+    let inward = 0, outPrint = 0, printedRecd = 0;
+    (state.boardLedger || []).forEach(l => {
+      if (l.size !== b.size) return;
+      inward += Number(l.inward || 0);
+      outPrint += Number(l.outPrint || 0);
+      printedRecd += Number(l.printedRecd || 0);
+    });
+    // Physical stock = godown + printer (movement ke do panje ek hi maal ke hain,
+    // isliye inward+printedRecd jodna double-count hota — yahan stock formula hai)
+    const sheets = (Number(b.openingGodownSheets || 0) + inward - outPrint + printedRecd)
+                 + (Number(b.openingPrinterSheets || 0) + outPrint - printedRecd);
+    boardSh += sheets;
+    // Board screen jaisa hi rounding (per size) — taaki dono jagah ek hi number dikhe
+    boardVal += Math.round(sheets * (Number(b.rate) || 7.5));
+  });
+
+  // Har SKU ka latest PO Released rate (valuation isi rate par)
+  const poRelRateByCode = {};
+  (state.poReleases || []).forEach(r => {
+    const c = String(r.productCode || '').trim();
+    if (!c) return;
+    const rt = Number(r.kclApprovedRate || 0);
+    if (rt > 0) poRelRateByCode[c] = rt; // latest release hi maana gaya
+  });
+
+  // Card 3 — FINISHED GOODS VALUE = FG stock × PO Released rate
+  // Card 6 — AMOUNT RECEIVABLE     = Despatched qty × PO Released rate
+  let fgPcs = 0, fgVal = 0, despPcs = 0, recvVal = 0;
+  (state.skus || []).forEach(s => {
+    const rate = poRelRateByCode[String(s.barcode || '').trim()] || 0;
+    const fg = Number(s.oldStock || 0) + Number(s.production || 0) - Number(s.despatched || 0);
+    fgPcs += fg;
+    fgVal += fg * rate;
+    const d = Number(s.despatched || 0);
+    despPcs += d;
+    recvVal += d * rate;
+  });
+
+  // Card 4 — CONSUMABLE VALUE = stock × rate
+  let consVal = 0;
+  (state.consumables || []).forEach(c => {
+    consVal += Number(c.amount) || (Number(c.stock || 0) * Number(c.rate || 0));
+  });
+
+  // Card 5 — TOTAL VALUE = Paper + Board + Finished Goods + Consumable
+  const totalVal = paperVal + boardVal + fgVal + consVal;
+
   const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  setText('dbkSumEntries', rows.length);
-  setText('dbkSumOrder', daybookNum(sumOrder));
-  setText('dbkSumProd', daybookNum(sumProd));
-  setText('dbkSumDesp', daybookNum(sumDesp));
-  setText('dbkSumPaper', daybookNum(sumPaper) + ' Kg/Sheets');
-  setText('dbkSumMoney', daybookMoney(sumValue));
+  setText('dbkValPaper', daybookMoney(Math.round(paperVal)));
+  setText('dbkValPaperQty', daybookNum(paperKg) + ' Kg');
+  setText('dbkValBoard', daybookMoney(Math.round(boardVal)));
+  setText('dbkValBoardQty', daybookNum(boardSh) + ' Sheets');
+  setText('dbkValFg', daybookMoney(Math.round(fgVal)));
+  setText('dbkValFgQty', daybookNum(fgPcs) + ' Pcs @ PO Released rate');
+  setText('dbkValCons', daybookMoney(Math.round(consVal)));
+  setText('dbkValConsQty', 'Stock × Rate');
+  setText('dbkValTotal', daybookMoney(Math.round(totalVal)));
+  setText('dbkValTotalQty', 'Paper + Board + FG + Consumable');
+  setText('dbkValRecv', daybookMoney(Math.round(recvVal)));
+  setText('dbkValRecvQty', daybookNum(despPcs) + ' Pcs despatched');
 
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:36px 16px; color:#64748b; font-size:13px;">📭 Is date range / filter me koi entry nahi mili. Filter change karke dekhein.</td></tr>';
