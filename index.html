@@ -623,6 +623,7 @@
   .badge-tx-desp { background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
   .badge-tx-cons { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
   .badge-tx-mat { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+  .badge-tx-po { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
   .active-filter {
     background: var(--primary) !important;
     color: #ffffff !important;
@@ -1557,7 +1558,7 @@
   /* Enhanced Print & PDF Export Styling */
   @media print {
     @page {
-      size: A4 landscape;
+      size: A4 portrait;
       margin: 8mm 6mm 8mm 6mm;
     }
 
@@ -1587,10 +1588,59 @@
     .toast,
     .modal,
     .modal-backdrop,
+    .no-print,
     #saveStatusIndicator,
     th:last-child,
     td:last-child {
       display: none !important;
+    }
+
+    /* Tables jin ka last column print me chahiye (opt-out) */
+    table.keep-last-col th:last-child,
+    table.keep-last-col td:last-child {
+      display: table-cell !important;
+    }
+
+    /* A4 Portrait me tables page width me fit ho jayein (733px printable)
+       - inline px widths override + wrapping = column shrink */
+    .active-print-screen table,
+    #reportingModeContainer table {
+      table-layout: auto !important;
+      width: 100% !important;
+      font-size: 7pt !important;
+      border-collapse: collapse !important;
+    }
+    .active-print-screen table th,
+    .active-print-screen table td,
+    #reportingModeContainer table th,
+    #reportingModeContainer table td {
+      min-width: 0 !important;
+      max-width: 100% !important;
+      width: auto !important;
+      padding: 2px 3px !important;
+      font-size: 7pt !important;
+      line-height: 1.25 !important;
+      white-space: normal !important;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    /* PO Request = legal landscape (no wrap) - inhe chhune se column toot jayenge */
+    table.legal-wide-table,
+    table.legal-wide-table th,
+    table.legal-wide-table td {
+      table-layout: auto !important;
+      width: auto !important;
+      white-space: nowrap !important;
+      word-break: normal !important;
+      overflow-wrap: normal !important;
+      font-size: 8pt !important;
+    }
+    table.legal-wide-table th,
+    table.legal-wide-table td {
+      padding: 3px 6px !important;
+    }
+    table.legal-wide-table {
+      width: auto !important;
     }
 
     .reporting-container {
@@ -3381,7 +3431,7 @@ body.print-flash-mode .no-print {
     </div>
     <div class="print-title-bar">
       <span class="print-report-title" id="printReportTitle">MASTER REPORT</span>
-      <span class="print-report-filter" id="printReportFilter">A4 Landscape Master Print &bull; Active Enterprise Database</span>
+      <span class="print-report-filter" id="printReportFilter">A4 Portrait Master Print &bull; Active Enterprise Database</span>
     </div>
   </div>
 
@@ -3451,6 +3501,9 @@ body.print-flash-mode .no-print {
         </div>
         <div class="reporting-nav-item" data-sheet="detailed-stock" onclick="switchSheet('detailed-stock')">
           <span>📦 <span class="tally-hotkey">D</span>etailed Stock Statement</span>
+        </div>
+        <div class="reporting-nav-item" data-sheet="invledger" onclick="switchSheet('invledger')">
+          <span>📒 <span class="tally-hotkey">I</span>nventory Ledger</span>
         </div>
 
         <div class="tally-category">REPORTS</div>
@@ -4424,7 +4477,6 @@ body.print-flash-mode .no-print {
             <div class="formula-indicator">Stock = Opening Balance + Inward - Line Issue</div>
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
-            <button class="btn btn-outline" onclick="openConsumableItemLedgerModal()" style="font-weight:700; border-color:#0284c7; color:#0284c7; background:#f0f9ff;">📋 Date-wise Item Ledger</button>
             <button class="btn btn-outline" onclick="openConsumableOpeningModal()" style="font-weight:700; border-color:#0d9488; color:#0d9488; background:#f0fdfa;">📦 Set Opening Balance</button>
             <button class="btn btn-primary" onclick="quickLogConsumables()">+ Log Consumable Transaction</button>
           </div>
@@ -4560,7 +4612,7 @@ body.print-flash-mode .no-print {
         </div>
 
         <div class="table-responsive">
-          <table class="data-table" id="tableDetailedStock" style="width:100%; font-size:12px;">
+          <table class="data-table keep-last-col" id="tableDetailedStock" style="width:100%; font-size:12px;">
             <thead>
               <tr>
                 <th style="width: 130px; text-align:left;">Category</th>
@@ -4572,7 +4624,6 @@ body.print-flash-mode .no-print {
                 <th class="num" style="width: 130px; background:#0f172a !important; color:#38bdf8 !important; font-weight:800; font-size:13px;">Closing Stock (To Date)</th>
                 <th class="num" style="width: 85px; background:#1e3a8a !important; color:#ffffff !important;">Rate (₹)</th>
                 <th class="num" style="width: 125px; background:#1e3a8a !important; color:#ffffff !important; font-weight:800;">Valuation (₹)</th>
-                <th style="text-align: center; width: 90px; background:#1e3a8a !important; color:#ffffff !important;">Passbook</th>
               </tr>
             </thead>
             <tbody id="detailedStockTableBody">
@@ -4580,12 +4631,113 @@ body.print-flash-mode .no-print {
             </tbody>
             <tfoot>
               <tr style="background: #0f172a; color:#ffffff; font-weight: 800; font-size: 13px;">
-                <td colspan="8" style="text-align: right; padding-right: 16px; color:#ffffff;">TOTAL INVENTORY VALUATION:</td>
+                <td colspan="7" style="text-align: right; padding-right: 16px; color:#ffffff;">TOTAL INVENTORY VALUATION:</td>
                 <td class="num" id="detailedStockFooterVal" style="color: #86efac; font-weight: 900; font-size: 14px;">₹ 15,60,879</td>
                 <td></td>
               </tr>
             </tfoot>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHEET: INVENTORY LEDGER (TALLY-STYLE ITEM-WISE) -->
+    <div id="screen-invledger" class="sheet-screen" style="display:none;">
+      <div class="panel header-box-deepblue" style="margin-bottom: 18px; padding: 18px 24px; background: linear-gradient(135deg, #091e42 0%, #1e3a8a 60%, #172554 100%) !important; color: #ffffff !important; border-radius: 10px; border: 1px solid #1e40af; box-shadow: 0 4px 15px rgba(15,23,42,0.25);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+          <div>
+            <h2 style="font-size: 20px; font-weight: 800; color: #ffffff !important; margin: 0; display: flex; align-items: center; gap: 10px;">
+              <span>📒</span> Inventory Ledger (Item-wise Statement)
+            </h2>
+            <p style="font-size: 12.5px; color: #93c5fd !important; margin: 4px 0 0 0;">Tally-style detailed ledger — opening balance ke saath har item ka date-wise In / Out movement aur value</p>
+          </div>
+          <div class="no-print" style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-outline" onclick="masterExportCurrentSheetToPDF()" style="border-color:#93c5fd; color:#ffffff;">📄 Save as PDF</button>
+            <button class="btn btn-outline" onclick="globalPrintCurrentView()" style="border-color:#93c5fd; color:#ffffff;">🖨️ Print</button>
+            <button class="btn btn-outline" onclick="exportInventoryLedgerCSV()" style="border-color:#93c5fd; color:#ffffff;">⬇️ CSV / Excel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter Toolbar -->
+      <div class="panel no-print" style="margin-bottom: 16px; padding: 14px 18px;">
+        <div style="display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end;">
+          <div style="flex: 2; min-width: 260px;">
+            <label style="display:block; font-size: 11.5px; font-weight: 700; color:#334155; margin-bottom: 5px;">📦 Select Item</label>
+            <select id="invled_itemSelect" onchange="renderInventoryLedger()" style="width: 100%; padding: 9px 12px; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: 13.5px; font-weight: 600; background:#f8fafc;"></select>
+          </div>
+          <div style="flex: 1; min-width: 150px;">
+            <label style="display:block; font-size: 11.5px; font-weight: 700; color:#334155; margin-bottom: 5px;">📅 From Date</label>
+            <input type="date" id="invled_fromDate" onchange="renderInventoryLedger()" style="width: 100%; padding: 9px 12px; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: 13.5px; font-weight: 600;">
+          </div>
+          <div style="flex: 1; min-width: 150px;">
+            <label style="display:block; font-size: 11.5px; font-weight: 700; color:#334155; margin-bottom: 5px;">📅 To Date</label>
+            <input type="date" id="invled_toDate" onchange="renderInventoryLedger()" style="width: 100%; padding: 9px 12px; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: 13.5px; font-weight: 600;">
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-outline" onclick="setInvLedgerPreset('today')" style="font-size:12px; padding:8px 12px;">Today</button>
+            <button class="btn btn-outline" onclick="setInvLedgerPreset('month')" style="font-size:12px; padding:8px 12px;">This Month</button>
+            <button class="btn btn-outline" onclick="setInvLedgerPreset('all')" style="font-size:12px; padding:8px 12px;">All</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="kpi-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:16px;">
+        <div class="kpi-card" style="border-left:4px solid #64748b; background:#ffffff;">
+          <div class="kpi-label">Opening Balance</div>
+          <div class="kpi-value" id="invled_kpiOpening" style="color:#0f172a;">—</div>
+          <div class="kpi-subtext" id="invled_kpiOpeningVal">as on From Date</div>
+        </div>
+        <div class="kpi-card" style="border-left:4px solid #059669; background:#ffffff;">
+          <div class="kpi-label">Total IN (Period)</div>
+          <div class="kpi-value" id="invled_kpiIn" style="color:#059669;">—</div>
+          <div class="kpi-subtext" id="invled_kpiInVal">₹ —</div>
+        </div>
+        <div class="kpi-card" style="border-left:4px solid #dc2626; background:#ffffff;">
+          <div class="kpi-label">Total OUT (Period)</div>
+          <div class="kpi-value" id="invled_kpiOut" style="color:#dc2626;">—</div>
+          <div class="kpi-subtext" id="invled_kpiOutVal">₹ —</div>
+        </div>
+        <div class="kpi-card" style="border-left:4px solid #0284c7; background:#ffffff;">
+          <div class="kpi-label">Closing Balance</div>
+          <div class="kpi-value" id="invled_kpiClosing" style="color:#0284c7;">—</div>
+          <div class="kpi-subtext" id="invled_kpiClosingVal">as on To Date</div>
+        </div>
+        <div class="kpi-card" style="border-left:4px solid #7c3aed; background:#ffffff;">
+          <div class="kpi-label">Closing Value</div>
+          <div class="kpi-value" id="invled_kpiValue" style="color:#7c3aed;">₹ —</div>
+          <div class="kpi-subtext" id="invled_kpiRate">at rate —</div>
+        </div>
+      </div>
+
+      <!-- Ledger Table -->
+      <div class="panel">
+        <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <h3 id="invled_tableTitle" style="margin:0; font-size:15.5px; font-weight:800; color:#0f172a;">Inventory Ledger</h3>
+          <span id="invled_liveCompare" style="font-size:11.5px; font-weight:700; color:#475569;"></span>
+        </div>
+        <div class="table-responsive" style="overflow-x:auto;">
+          <table class="data-table keep-last-col" id="tableInvLedger">
+            <thead>
+              <tr>
+                <th style="text-align:left; width:96px;">Date</th>
+                <th style="text-align:left;">Particulars</th>
+                <th style="text-align:left; width:130px;">Ref / Voucher</th>
+                <th style="text-align:right; width:90px;">In Qty</th>
+                <th style="text-align:right; width:90px;">Out Qty</th>
+                <th style="text-align:right; width:80px;">Rate</th>
+                <th style="text-align:right; width:110px;">In ₹</th>
+                <th style="text-align:right; width:110px;">Out ₹</th>
+                <th style="text-align:right; width:100px;">Balance</th>
+                <th style="text-align:right; width:120px;">Balance Value</th>
+              </tr>
+            </thead>
+            <tbody id="invLedgerBody">
+              <tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b;">Select an item to view its ledger</td></tr>
+          </tbody>
+          <tfoot id="invLedgerFoot"></tfoot>
+        </table>
         </div>
       </div>
     </div>
@@ -9132,8 +9284,8 @@ body.print-flash-mode .no-print {
 
               <!-- Row 2: Produced Qty & KCL Rate -->
               <div class="form-group">
-                <label style="font-size: 13.5px; font-weight: 600; color: #0f172a; margin-bottom: 6px;">Produced Quantity</label>
-                <input type="number" id="porel_producedQty" min="0" style="padding: 11px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px;">
+                <label style="font-size: 13.5px; font-weight: 600; color: #0f172a; margin-bottom: 6px;">Produced Quantity <span style="font-weight:600; color:#0f766e; font-size:12px;">(auto - Production Log se)</span></label>
+                <input type="number" id="porel_producedQty" min="0" readonly title="Auto from Daily Production Log - yahan entry nahi hoti, production sirf Production entry se badhta hai" style="padding: 11px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px; background:#f1f5f9; color:#475569; cursor:not-allowed;">
               </div>
 
               <!-- Row 2 -->
@@ -10941,96 +11093,6 @@ body.print-flash-mode .no-print {
   </div>
 </div>
 
-<!-- ======================================================== -->
-
-<!-- ======================================================== -->
-<!-- MODAL: DATE-WISE ITEM MOVEMENT LEDGER (PASSBOOK REGISTER) -->
-<!-- ======================================================== -->
-<div id="modalConsumableItemLedger" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.75); backdrop-filter:blur(4px); z-index:10000; align-items:center; justify-content:center; padding:16px;">
-  <div style="background:#ffffff; border-radius:14px; width:100%; max-width:980px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.3); overflow:hidden; border:1px solid #cbd5e1; animation: modalFadeIn 0.2s ease-out; display:flex; flex-direction:column; max-height:90vh;">
-    
-    <!-- Modal Header -->
-    <div style="background:linear-gradient(135deg, #091e42 0%, #1e3a8a 100%); color:#ffffff; padding:16px 22px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-      <div style="display:flex; align-items:center; gap:12px;">
-        <span style="font-size:24px;">📋</span>
-        <div>
-          <h3 style="font-size:17px; font-weight:800; margin:0; color:#ffffff;">Item-wise Date-wise Movement Ledger (Passbook)</h3>
-          <p style="font-size:12px; color:#93c5fd; margin:3px 0 0 0;" id="modal_ledger_subheading">Track Date-wise Inward (Aaya), Consumption (Consume Hua) &amp; Running Stock Balance</p>
-        </div>
-      </div>
-      <button type="button" onclick="closeConsumableItemLedgerModal()" style="background:transparent; border:0; color:#ffffff; font-size:26px; cursor:pointer; line-height:1; opacity:0.8; padding:2px 8px;">&times;</button>
-    </div>
-
-    <!-- Modal Filter Bar -->
-    <div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:12px 22px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; flex-shrink:0;">
-      <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:260px;">
-        <label style="font-size:12.5px; font-weight:700; color:#0f172a; white-space:nowrap;">Select Item:</label>
-        <select id="modal_ledger_itemSelect" onchange="renderConsumableItemLedgerModal()" style="width:100%; max-width:380px; padding:7px 12px; border-radius:6px; border:1px solid #cbd5e1; font-weight:700; font-size:13px; background:#ffffff; color:#1e3a8a;">
-          <!-- Populated dynamically with all consumables & CFC items -->
-        </select>
-      </div>
-
-      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <div style="display:flex; align-items:center; gap:6px;">
-          <label style="font-size:11.5px; font-weight:600; color:#475569;">From:</label>
-          <input type="date" id="modal_ledger_fromDate" onchange="renderConsumableItemLedgerModal()" style="padding:5px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:12px;">
-        </div>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <label style="font-size:11.5px; font-weight:600; color:#475569;">To:</label>
-          <input type="date" id="modal_ledger_toDate" onchange="renderConsumableItemLedgerModal()" style="padding:5px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:12px;">
-        </div>
-
-        <button type="button" class="btn btn-outline" onclick="printConsumableItemLedger()" style="padding:5px 12px; font-size:12px; font-weight:700; border-color:#1e3a8a; color:#1e3a8a; background:#eff6ff;">
-          🖨️ Print Ledger
-        </button>
-        <button type="button" class="btn btn-primary" onclick="exportConsumableItemLedgerToCSV()" style="padding:5px 12px; font-size:12px; font-weight:700; background:#059669; border-color:#059669;">
-          📥 Export CSV
-        </button>
-      </div>
-    </div>
-
-    <!-- Active Item Summary Banner -->
-    <div style="background:#eff6ff; border-bottom:1px solid #bfdbfe; padding:10px 22px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; flex-shrink:0;">
-      <div>
-        <span style="font-size:12px; color:#1e40af; font-weight:600;">Active Item:</span>
-        <strong id="modal_ledger_activeItemTitle" style="font-size:14px; color:#0f172a; margin-left:6px;">-</strong>
-        <span id="modal_ledger_activeCategoryBadge" class="badge-status badge-info" style="margin-left:8px;">General</span>
-      </div>
-      <div style="display:flex; gap:16px; font-size:12px;">
-        <div>Opening: <strong id="modal_ledger_statOpening" style="color:#475569;">0</strong></div>
-        <div>Inward (+): <strong id="modal_ledger_statInward" style="color:#059669;">+0</strong></div>
-        <div>Consumed (-): <strong id="modal_ledger_statIssued" style="color:#b45309;">-0</strong></div>
-        <div>Closing Stock: <strong id="modal_ledger_statStock" style="color:#1e3a8a; font-size:13.5px; font-weight:800;">0</strong></div>
-        <div>Valuation: <strong id="modal_ledger_statValuation" style="color:#047857; font-weight:800;">₹ 0</strong></div>
-      </div>
-    </div>
-
-    <!-- Modal Body: Passbook Table -->
-    <div style="padding:16px 22px; overflow-y:auto; flex:1;">
-      <table class="data-table">
-        <thead>
-          <tr style="background:#f1f5f9;">
-            <th style="width:105px;">Date</th>
-            <th style="width:140px;">Transaction Type</th>
-            <th>Reference / Challan / Batch No.</th>
-            <th class="num" style="color:#ffffff !important; font-weight:700; width:120px;">Qty In (+ Aaya)</th>
-            <th class="num" style="color:#ffffff !important; font-weight:700; width:130px;">Qty Out (- Consume)</th>
-            <th class="num" style="background:#0f172a; color:#38bdf8; font-weight:800; width:140px;">Running Stock</th>
-            <th>Notes / Operator</th>
-          </tr>
-        </thead>
-        <tbody id="modal_ledger_tableBody">
-          <!-- Rendered via JS -->
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Modal Footer -->
-    <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:12px 22px; display:flex; justify-content:flex-end; gap:10px; flex-shrink:0;">
-      <button type="button" onclick="closeConsumableItemLedgerModal()" class="btn btn-secondary">Close Passbook</button>
-    </div>
-  </div>
-</div>
 
 <!-- MODAL: EDIT PO RELEASE                                  -->
 <!-- ======================================================== -->
@@ -11052,7 +11114,7 @@ body.print-flash-mode .no-print {
         <div class="form-group"><label>Order Month</label><input type="month" id="edit_porel_month" required></div>
         <div class="form-group"><label>Product Code</label><input type="text" id="edit_porel_code" required></div>
         <div class="form-group"><label>Order Quantity</label><input type="number" id="edit_porel_orderQty" required></div>
-        <div class="form-group"><label>Produced Qnty</label><input type="number" id="edit_porel_producedQty"></div>
+        <div class="form-group"><label>Produced Qnty <span style="color:#0f766e;">(auto - Production Log se)</span></label><input type="number" id="edit_porel_producedQty" readonly title="Auto from Daily Production Log - yahan entry nahi hoti" style="background:#f1f5f9; color:#475569; cursor:not-allowed;"></div>
         <div class="form-group">
           <label>KCL Approved Rate (₹)</label>
           <input type="number" id="edit_porel_kclRate" step="0.01" required oninput="checkEditPoRelRateMismatch()">
@@ -14560,6 +14622,8 @@ function switchSheet(sheetId, clickedEl) {
     renderRanjitMakingBill();
   } else if (sheetId === 'detailed-stock') {
     renderDetailedStockReport();
+  } else if (sheetId === 'invledger') {
+    renderInventoryLedger();
   }
 
   try { syncKeyboardFocusWithActive(); } catch (_) {}
@@ -15760,6 +15824,7 @@ function initKeyboardNavigation() {
         else if (k === 'l') { switchSheet('porelease'); e.preventDefault(); }
         else if (k === 't') { switchSheet('potracking'); e.preventDefault(); }
         else if (k === 'y') { switchSheet('daybook'); e.preventDefault(); }
+        else if (k === 'i') { switchSheet('invledger'); e.preventDefault(); }
         else if (k === 'q') { promptQuitSoftware(); e.preventDefault(); }
       } else if (state.mode === 'entry') {
         if (k === '1' || k === 'n') { switchEntryTab('order'); e.preventDefault(); }
@@ -15796,6 +15861,7 @@ function renderAllViews() {
   renderPoReleaseSheet();
   renderPoTrackingSheet();
   renderDetailedStockReport();
+  renderInventoryLedger();
   renderDaybook();
 }
 
@@ -16751,639 +16817,6 @@ function ensureConsumableLedgerSeeded() {
 /**
  * Open Item Movement Ledger Modal
  */
-/**
- * Open Item Movement Ledger Modal (Unified: Paper, Board, FG, Consumables)
- */
-function openConsumableItemLedgerModal(preferredItem, fromDate, toDate) {
-  ensureCfcConsumablesExist();
-  ensureConsumableLedgerSeeded();
-
-  const modal = document.getElementById('modalConsumableItemLedger');
-  if (!modal) return;
-
-  const sel = document.getElementById('modal_ledger_itemSelect');
-  if (sel) {
-    sel.innerHTML = '';
-
-    // Group 1: Paper (Reels & Cut Sheets WIP)
-    const grpPaper = document.createElement('optgroup');
-    grpPaper.label = '📜 Paper (Reels & Cut Sheets WIP)';
-    const paperSpecs = ['90x43x57', '97x37x54', '97x37x57', '89.8x43x56', '96.7x37x56'];
-    const rulings = ['Unruled', 'Single Line', 'Four Line', 'Med. Square', 'Double Rule', 'Index'];
-    
-    paperSpecs.forEach(spec => {
-      rulings.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = `PAPER_WIP:${spec}:${r}`;
-        opt.textContent = `Paper - ${spec} : ${r} (Cut Sheets WIP)`;
-        grpPaper.appendChild(opt);
-      });
-      const optReel = document.createElement('option');
-      optReel.value = `PAPER_REELS:${spec}`;
-      optReel.textContent = `Paper - ${spec} : Mother Reels (Reel Form)`;
-      grpPaper.appendChild(optReel);
-    });
-    sel.appendChild(grpPaper);
-
-    // Group 2: Board (Raw & WIP Printed Covers)
-    const grpBoard = document.createElement('optgroup');
-    grpBoard.label = '📦 Title Cover Board (Raw & WIP Printed Covers)';
-    const boardSizes = ['45.5 x 91 x 190', '45.5 x 91 x 200', '77 x 98 x 190', '44 x 1010 x 250gsm', '46 x 91 x 250gsm', '78 x 98 x 230gsm', '76 x 98 x 230gsm'];
-    boardSizes.forEach(size => {
-      const optRaw = document.createElement('option');
-      optRaw.value = `BOARD_RAW:${size}`;
-      optRaw.textContent = `Board - ${size} (Raw Godown Sheets)`;
-      grpBoard.appendChild(optRaw);
-
-      const optWip = document.createElement('option');
-      optWip.value = `BOARD_WIP:${size}`;
-      optWip.textContent = `Board - ${size} (WIP Printed Covers)`;
-      grpBoard.appendChild(optWip);
-    });
-    sel.appendChild(grpBoard);
-
-    // Group 3: Finished Goods (Manufactured Notebooks)
-    const grpFG = document.createElement('optgroup');
-    grpFG.label = '📚 Finished Goods (Manufactured Notebooks)';
-    (state.skus || []).forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = `FG:${s.barcode}`;
-      const stock = (s.oldStock || 0) + (s.production || 0) - (s.despatched || 0);
-      opt.textContent = `FG - ${s.barcode} : ${s.description} (Stock: ${stock.toLocaleString()} Pcs)`;
-      grpFG.appendChild(opt);
-    });
-    sel.appendChild(grpFG);
-
-    // Group 4: Inks, Cartons & Consumables
-    const grpCons = document.createElement('optgroup');
-    grpCons.label = '🧪 Inks, Cartons (CFC) & Consumables';
-    (state.consumables || []).forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = `CONSUMABLE:${c.item}`;
-      opt.textContent = `${c.category} - ${c.item} (Stock: ${(c.stock || 0).toLocaleString()} ${c.unit})`;
-      grpCons.appendChild(opt);
-    });
-    sel.appendChild(grpCons);
-
-    // Preferred selection logic
-    let matched = false;
-    if (preferredItem) {
-      const pLower = String(preferredItem).toLowerCase();
-      for (let i = 0; i < sel.options.length; i++) {
-        const val = sel.options[i].value;
-        const text = sel.options[i].textContent.toLowerCase();
-        if (val === preferredItem || text.includes(pLower)) {
-          sel.selectedIndex = i;
-          matched = true;
-          break;
-        }
-      }
-      if (!matched && (pLower.includes('90x43x57') || pLower.includes('unruled'))) {
-        for (let i = 0; i < sel.options.length; i++) {
-          if (sel.options[i].value === 'PAPER_WIP:90x43x57:Unruled') {
-            sel.selectedIndex = i;
-            matched = true;
-            break;
-          }
-        }
-      }
-    }
-
-    if (!matched) {
-      // Default to 90x43x57 Unruled so user immediately sees what they requested
-      for (let i = 0; i < sel.options.length; i++) {
-        if (sel.options[i].value === 'PAPER_WIP:90x43x57:Unruled') {
-          sel.selectedIndex = i;
-          matched = true;
-          break;
-        }
-      }
-    }
-  }
-
-  // Set default dates (beginning of month to today)
-  const fromEl = document.getElementById('modal_ledger_fromDate');
-  const toEl = document.getElementById('modal_ledger_toDate');
-  const now = new Date();
-  if (fromEl) fromEl.value = fromDate || fromEl.value || '2026-10-01';
-  if (toEl) toEl.value = toDate || toEl.value || now.toISOString().slice(0, 10);
-
-  modal.style.display = 'flex';
-  renderConsumableItemLedgerModal();
-}
-
-function closeConsumableItemLedgerModal() {
-  const modal = document.getElementById('modalConsumableItemLedger');
-  if (modal) modal.style.display = 'none';
-}
-
-/**
- * Render Passbook Table inside Modal with Running Balance across all item types
- */
-function renderConsumableItemLedgerModal() {
-  ensureConsumableLedgerSeeded();
-  const sel = document.getElementById('modal_ledger_itemSelect');
-  if (!sel || !sel.value) return;
-
-  const rawVal = sel.value;
-  const fromDate = document.getElementById('modal_ledger_fromDate') ? document.getElementById('modal_ledger_fromDate').value : '';
-  const toDate = document.getElementById('modal_ledger_toDate') ? document.getElementById('modal_ledger_toDate').value : '';
-
-  let itemTitle = rawVal;
-  let itemCategory = 'General';
-  let itemUnit = 'Pcs';
-  let itemRate = 0;
-  let openingVal = 0;
-  let allTxs = [];
-
-  const savedStock = state.materialStock || DEFAULT_MATERIAL_STOCK;
-
-  // -------------------------------------------------------------
-  // TYPE A: PAPER WIP (CUT SHEETS)
-  // -------------------------------------------------------------
-  if (rawVal.startsWith('PAPER_WIP:')) {
-    const parts = rawVal.split(':');
-    const spec = parts[1];
-    const rKey = parts[2];
-
-    itemTitle = `Paper - ${spec} : ${rKey} (Cut Sheets WIP)`;
-    itemCategory = 'Paper WIP';
-    itemUnit = 'Kg';
-    itemRate = 77;
-
-    // Initial opening balance from materialStock.paper
-    openingVal = (savedStock.paper && savedStock.paper[spec] && savedStock.paper[spec][rKey]) || 0;
-    if (rKey === 'Med. Square' && !openingVal && savedStock.paper && savedStock.paper[spec]) {
-      openingVal = savedStock.paper[spec]['Med.Square'] || savedStock.paper[spec]['MED. SQUARE'] || 0;
-    }
-
-    // Opening Transaction
-    allTxs.push({
-      date: '2026-10-01',
-      type: 'Opening Balance',
-      ref: 'OB-PAPER-WIP',
-      qtyIn: openingVal > 0 ? openingVal : 0,
-      qtyOut: openingVal < 0 ? Math.abs(openingVal) : 0,
-      unit: 'Kg',
-      notes: `Initial physical cut sheets stock for ${spec} ${rKey}`
-    });
-
-    // Inward from Reel Slitting (state.papersLedger)
-    (state.papersLedger || []).forEach(pl => {
-      if (pl.reelSize === spec && pl.wipType === rKey) {
-        const inward = Number(pl.processedKg || pl.inwardKg || 0);
-        if (inward > 0) {
-          allTxs.push({
-            date: pl.date || '2026-10-01',
-            type: 'Reel Slitting Inward',
-            ref: `Challan/Batch: ${pl.inv || 'N/A'}`,
-            qtyIn: inward,
-            qtyOut: 0,
-            unit: 'Kg',
-            notes: pl.notes || `Reels slitted into ${rKey} cut sheets`
-          });
-        }
-      }
-    });
-
-    // Production Consumption from SKUs
-    (state.skus || []).forEach(s => {
-      const prodQty = s.production || 0;
-      if (prodQty <= 0) return;
-
-      const descUpper = String(s.description || '').toUpperCase();
-      const sizeUpper = String(s.size || '').toUpperCase();
-      const isA4 = descUpper.includes('A4') || sizeUpper.includes('A4') || String(s.barcode).startsWith('115') || (s.reelSize && (s.reelSize === 89.8 || Math.round(s.reelSize) === 90));
-      
-      const sVendor = (s.vendor && s.vendor.toUpperCase().includes('ITC')) ? 'ITC' : 'Camlin';
-      let pSpec = '';
-      if (sVendor === 'ITC') {
-        pSpec = isA4 ? '89.8x43x56' : '96.7x37x56';
-      } else {
-        pSpec = isA4 ? '90x43x57' : (((s.pages || 52) <= 56) ? '97x37x54' : '97x37x57');
-      }
-      if (s.paperSpec) pSpec = s.paperSpec;
-
-      // Ruling matching
-      const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
-      let skuRuling = 'Single Line';
-      if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) skuRuling = 'Double Rule';
-      else if (rRaw.includes('UNRULED') || rRaw.includes('UR') || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
-      else if (rRaw.includes('FOUR') || rRaw.includes('4L')) skuRuling = 'Four Line';
-      else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) skuRuling = 'Med. Square';
-      else if (rRaw.includes('INDEX')) skuRuling = 'Index';
-      else skuRuling = 'Single Line';
-
-      if (pSpec === spec && skuRuling === rKey) {
-        const bookWt = s.bookWtPaper || s.bookWt || 0;
-        const consKg = Number(s.paperConsumptionKg) || (prodQty * bookWt * 1.0025);
-        allTxs.push({
-          date: s.lastProdDate || '2026-10-15',
-          type: 'Production Consumption',
-          ref: `Prod Log: ${s.barcode}`,
-          qtyIn: 0,
-          qtyOut: Number(consKg.toFixed(2)),
-          unit: 'Kg',
-          notes: `Consumed for producing ${prodQty.toLocaleString()} Pcs ${s.description} (Book Wt: ${bookWt.toFixed(4)} Kg/pc)`
-        });
-      }
-    });
-  }
-
-  // -------------------------------------------------------------
-  // TYPE B: PAPER REELS (MOTHER REELS)
-  // -------------------------------------------------------------
-  else if (rawVal.startsWith('PAPER_REELS:')) {
-    const spec = rawVal.split(':')[1];
-    itemTitle = `Paper - ${spec} : Mother Reels (Reel Form)`;
-    itemCategory = 'Raw Paper Reels';
-    itemUnit = 'Kg';
-    itemRate = 77;
-
-    const pItem = (state.papersSummary || []).find(p => p.reelSize === spec);
-    openingVal = pItem ? (pItem.openingReelsKg || 0) : 0;
-
-    allTxs.push({
-      date: '2026-10-01',
-      type: 'Opening Balance',
-      ref: 'OB-REELS',
-      qtyIn: openingVal,
-      qtyOut: 0,
-      unit: 'Kg',
-      notes: `Opening Godown Stock of Mother Reels (${spec})`
-    });
-
-    (state.papersLedger || []).forEach(pl => {
-      if (pl.reelSize === spec) {
-        if (Number(pl.inwardKg || 0) > 0) {
-          allTxs.push({
-            date: pl.date || '2026-10-05',
-            type: 'Paper Reel Inward',
-            ref: `Challan: ${pl.inv || 'N/A'}`,
-            qtyIn: Number(pl.inwardKg || 0),
-            qtyOut: 0,
-            unit: 'Kg',
-            notes: pl.notes || 'Mill Reel Delivery Received'
-          });
-        }
-        if (Number(pl.processedKg || 0) > 0) {
-          allTxs.push({
-            date: pl.date || '2026-10-10',
-            type: 'Reel Slitting Issue',
-            ref: `Batch Cutting: ${pl.inv || 'N/A'}`,
-            qtyIn: 0,
-            qtyOut: Number(pl.processedKg || 0),
-            unit: 'Kg',
-            notes: `Slitted into ${pl.wipType || 'Cut Sheets'}`
-          });
-        }
-      }
-    });
-  }
-
-  // -------------------------------------------------------------
-  // TYPE C: TITLE COVER BOARD (RAW & WIP PRINTED COVERS)
-  // -------------------------------------------------------------
-  else if (rawVal.startsWith('BOARD_RAW:') || rawVal.startsWith('BOARD_WIP:')) {
-    const isRaw = rawVal.startsWith('BOARD_RAW:');
-    const size = isRaw ? rawVal.replace('BOARD_RAW:', '') : rawVal.replace('BOARD_WIP:', '');
-    itemTitle = `Board - ${size} (${isRaw ? 'Raw Godown Sheets' : 'WIP Printed Covers'})`;
-    itemCategory = isRaw ? 'Raw Board' : 'Printed Board WIP';
-    itemUnit = 'Sheets';
-    itemRate = 3.5;
-
-    const compactSize = size.replace(/\s+/g, '').toLowerCase();
-    const bItem = (state.boardSummary || []).find(b => (b.size || '').replace(/\s+/g, '').toLowerCase() === compactSize);
-
-    if (isRaw) {
-      openingVal = bItem ? (bItem.openingGodownSheets || bItem.ourGodownSheets || 0) : 0;
-      allTxs.push({
-        date: '2026-10-01',
-        type: 'Opening Balance',
-        ref: 'OB-BOARD-RAW',
-        qtyIn: openingVal,
-        qtyOut: 0,
-        unit: 'Sheets',
-        notes: `Opening Godown Raw Board Sheets (${size})`
-      });
-
-      (state.boardLedger || []).forEach(bl => {
-        if ((bl.size || '').replace(/\s+/g, '').toLowerCase() === compactSize) {
-          if (Number(bl.inward || 0) > 0) {
-            allTxs.push({
-              date: bl.date || '2026-10-05',
-              type: 'Board Inward',
-              ref: `Challan: ${bl.inv || 'N/A'}`,
-              qtyIn: Number(bl.inward || 0),
-              qtyOut: 0,
-              unit: 'Sheets',
-              notes: bl.notes || 'Board purchase delivery'
-            });
-          }
-          if (Number(bl.outPrint || 0) > 0) {
-            allTxs.push({
-              date: bl.date || '2026-10-08',
-              type: 'Issue to Printer',
-              ref: `Printer: ${bl.party || 'Fortune Graphics'}`,
-              qtyIn: 0,
-              qtyOut: Number(bl.outPrint || 0),
-              unit: 'Sheets',
-              notes: 'Dispatched for cover printing'
-            });
-          }
-        }
-      });
-    } else {
-      // WIP Printed Covers
-      openingVal = 0;
-      allTxs.push({
-        date: '2026-10-01',
-        type: 'Opening Balance',
-        ref: 'OB-BOARD-WIP',
-        qtyIn: 0,
-        qtyOut: 0,
-        unit: 'Sheets',
-        notes: `Opening Printed Covers in Factory (${size})`
-      });
-
-      // Inward from Printer Deliveries
-      (state.boardLedger || []).forEach(bl => {
-        if ((bl.size || '').replace(/\s+/g, '').toLowerCase() === compactSize) {
-          if (Number(bl.printedRecd || 0) > 0) {
-            allTxs.push({
-              date: bl.date || '2026-10-12',
-              type: 'Printed Covers Recd',
-              ref: `Challan: ${bl.inv || 'N/A'}`,
-              qtyIn: Number(bl.printedRecd || 0),
-              qtyOut: 0,
-              unit: 'Sheets',
-              notes: `Received from ${bl.party || 'Printer Godown'}`
-            });
-          }
-        }
-      });
-
-      // Outward from Production Consumption
-      (state.skus || []).forEach(s => {
-        const prodQty = s.production || 0;
-        if (prodQty <= 0) return;
-        const ups = s.ups || 8;
-        const bSheets = Number(s.boardSheetsRequired) || Math.ceil(prodQty / ups);
-        allTxs.push({
-          date: s.lastProdDate || '2026-10-15',
-          type: 'Production Consumption',
-          ref: `Prod Log: ${s.barcode}`,
-          qtyIn: 0,
-          qtyOut: bSheets,
-          unit: 'Sheets',
-          notes: `Consumed for producing ${prodQty.toLocaleString()} Pcs ${s.description}`
-        });
-      });
-    }
-  }
-
-  // -------------------------------------------------------------
-  // TYPE D: FINISHED GOODS (NOTEBOOKS)
-  // -------------------------------------------------------------
-  else if (rawVal.startsWith('FG:')) {
-    const barcode = rawVal.replace('FG:', '');
-    const s = (state.skus || []).find(x => x.barcode === barcode) || { barcode: barcode, description: barcode, oldStock: 0, production: 0, despatched: 0, mrp: 0 };
-    
-    itemTitle = `FG - ${barcode} : ${s.description}`;
-    itemCategory = 'Finished Goods';
-    itemUnit = 'Pcs';
-    itemRate = (s.mrp || 60) * 0.45; // Cost approximation
-
-    openingVal = s.oldStock || 0;
-    allTxs.push({
-      date: '2026-10-01',
-      type: 'Opening Stock',
-      ref: 'OB-FG',
-      qtyIn: openingVal,
-      qtyOut: 0,
-      unit: 'Pcs',
-      notes: `Opening Godown Finished Goods Stock`
-    });
-
-    if (s.production > 0) {
-      allTxs.push({
-        date: s.lastProdDate || '2026-10-15',
-        type: 'Production Completed',
-        ref: `Prod Batch: ${s.barcode}`,
-        qtyIn: s.production,
-        qtyOut: 0,
-        unit: 'Pcs',
-        notes: `Factory finished goods manufactured & packed`
-      });
-    }
-
-    if (s.despatched > 0) {
-      allTxs.push({
-        date: '2026-10-18',
-        type: 'Despatch to CFA',
-        ref: `Invoice / Challan`,
-        qtyIn: 0,
-        qtyOut: s.despatched,
-        unit: 'Pcs',
-        notes: `Dispatched against approved customer orders`
-      });
-    }
-  }
-
-  // -------------------------------------------------------------
-  // TYPE E: CONSUMABLES, INKS & CARTONS (DEFAULT)
-  // -------------------------------------------------------------
-  else {
-    const itemName = rawVal.startsWith('CONSUMABLE:') ? rawVal.replace('CONSUMABLE:', '') : rawVal;
-    const c = (state.consumables || []).find(x => x.item === itemName) || { item: itemName, category: 'General', unit: 'Pcs', rate: 0, opening: 0, inward: 0, issued: 0, stock: 0 };
-
-    itemTitle = c.item;
-    itemCategory = c.category;
-    itemUnit = c.unit;
-    itemRate = c.rate || 0;
-    openingVal = c.opening || 0;
-
-    allTxs = (state.consumableLedger || []).filter(t => t.item === itemName);
-  }
-
-  // Sort Chronologically by Date
-  allTxs.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-
-  // Calculate Running Balance
-  let runningBal = 0;
-  let totInward = 0;
-  let totIssued = 0;
-
-  const txWithBal = allTxs.map(t => {
-    const qIn = Number(t.qtyIn || 0);
-    const qOut = Number(t.qtyOut || 0);
-    totInward += qIn;
-    totIssued += qOut;
-    runningBal += (qIn - qOut);
-    return { ...t, runningBal: Number(runningBal.toFixed(2)) };
-  });
-
-  const currentClosingStock = Number(runningBal.toFixed(2));
-
-  // Update Modal Header Summary Stats
-  const titleEl = document.getElementById('modal_ledger_activeItemTitle');
-  if (titleEl) titleEl.textContent = itemTitle;
-  const badgeEl = document.getElementById('modal_ledger_activeCategoryBadge');
-  if (badgeEl) badgeEl.textContent = itemCategory;
-
-  if (document.getElementById('modal_ledger_statOpening')) {
-    document.getElementById('modal_ledger_statOpening').textContent = `${openingVal.toLocaleString()} ${itemUnit}`;
-  }
-  if (document.getElementById('modal_ledger_statInward')) {
-    document.getElementById('modal_ledger_statInward').textContent = `+${totInward.toLocaleString()} ${itemUnit}`;
-  }
-  if (document.getElementById('modal_ledger_statIssued')) {
-    document.getElementById('modal_ledger_statIssued').textContent = `-${totIssued.toLocaleString()} ${itemUnit}`;
-  }
-
-  const stockEl = document.getElementById('modal_ledger_statStock');
-  if (stockEl) {
-    if (currentClosingStock < 0) {
-      stockEl.textContent = `${currentClosingStock.toLocaleString()} ${itemUnit} (⚠️ Shortage)`;
-      stockEl.style.color = '#dc2626';
-    } else {
-      stockEl.textContent = `${currentClosingStock.toLocaleString()} ${itemUnit}`;
-      stockEl.style.color = '#1e3a8a';
-    }
-  }
-
-  if (document.getElementById('modal_ledger_statValuation')) {
-    const valAmt = Math.max(0, currentClosingStock) * itemRate;
-    document.getElementById('modal_ledger_statValuation').textContent = `₹ ${Math.round(valAmt).toLocaleString()}`;
-  }
-
-  // Filter by date range for display
-  const displayTxs = txWithBal.filter(t => {
-    if (fromDate && t.date < fromDate) return false;
-    if (toDate && t.date > toDate) return false;
-    return true;
-  });
-
-  const tbody = document.getElementById('modal_ledger_tableBody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
-
-  if (displayTxs.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px 14px; color:#64748b; font-style:italic;">No date-wise movement records logged for <strong>${itemTitle}</strong> in selected date range.</td></tr>`;
-    return;
-  }
-
-  displayTxs.forEach(t => {
-    let typeBadge = '<span class="badge-status badge-info">' + t.type + '</span>';
-    if (t.type.includes('Inward') || t.type.includes('Opening')) {
-      typeBadge = '<span class="badge-status badge-completed">' + t.type + '</span>';
-    } else if (t.type.includes('Packing')) {
-      typeBadge = '<span class="badge-status badge-vendor-camlin">' + t.type + '</span>';
-    } else if (t.type.includes('Issue') || t.type.includes('Consumption') || t.type.includes('Despatch')) {
-      typeBadge = '<span class="badge-status badge-pending">' + t.type + '</span>';
-    }
-
-    const isNeg = t.runningBal < 0;
-    const runBg = isNeg ? '#fee2e2' : '#eff6ff';
-    const runColor = isNeg ? '#dc2626' : '#1e3a8a';
-    const runWeight = isNeg ? '900' : '800';
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><strong>${t.date || '-'}</strong></td>
-      <td>${typeBadge}</td>
-      <td style="font-weight:600; color:#334155;">${t.ref || '-'}</td>
-      <td class="num" style="color:#059669; font-weight:700;">${t.qtyIn > 0 ? '+' + t.qtyIn.toLocaleString() + ' ' + (t.unit || itemUnit) : '-'}</td>
-      <td class="num" style="color:#b45309; font-weight:700;">${t.qtyOut > 0 ? '-' + t.qtyOut.toLocaleString() + ' ' + (t.unit || itemUnit) : '-'}</td>
-      <td class="num" style="background:${runBg}; color:${runColor}; font-weight:${runWeight}; font-size:13px;">${t.runningBal.toLocaleString()} ${t.unit || itemUnit}${isNeg ? ' (Deficit)' : ''}</td>
-      <td style="font-size:12px; color:#64748b;">${t.notes || '-'}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-function printConsumableItemLedger() {
-  const sel = document.getElementById('modal_ledger_itemSelect');
-  if (!sel || !sel.value) return;
-  const selText = sel.options[sel.selectedIndex]?.textContent || sel.value;
-
-  const tbody = document.getElementById('modal_ledger_tableBody');
-  const tableContent = tbody ? tbody.innerHTML : '';
-
-  const win = window.open('', '_blank', 'width=950,height=720');
-  win.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Item Movement Ledger - ${selText}</title>
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #0f172a; }
-        .header { border-bottom: 2px solid #1e3a8a; padding-bottom: 12px; margin-bottom: 18px; }
-        h1 { margin: 0 0 4px 0; font-size: 20px; color: #1e3a8a; }
-        .sub { font-size: 13px; color: #475569; }
-        table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 10px; }
-        th, td { border: 1px solid #cbd5e1; padding: 8px 10px; }
-        th { background: #0f172a; color: #ffffff; text-align: left; }
-        .num { text-align: right; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Subh Paper Company &bull; Item Movement Passbook Ledger</h1>
-        <div class="sub">Item: <strong>${selText}</strong> &bull; Generated: ${new Date().toLocaleString()}</div>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th style="width:105px;">Date</th>
-            <th style="width:150px;">Transaction Type</th>
-            <th>Reference / Challan / Batch No.</th>
-            <th class="num" style="width:120px;">Qty In (+ Aaya)</th>
-            <th class="num" style="width:130px;">Qty Out (- Consume)</th>
-            <th class="num" style="width:140px;">Running Stock</th>
-            <th>Notes / Operator</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${tableContent}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `);
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); win.close(); }, 400);
-}
-
-
-function exportConsumableItemLedgerToCSV() {
-  const sel = document.getElementById('modal_ledger_itemSelect');
-  if (!sel || !sel.value) return;
-  const itemName = sel.value;
-
-  const rows = [
-    ["Date", "Transaction Type", "Reference", "Qty In", "Qty Out", "Running Balance", "Notes"]
-  ];
-
-  const tbody = document.getElementById('modal_ledger_tableBody');
-  if (tbody) {
-    Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
-      const cols = Array.from(tr.querySelectorAll('td')).map(td => `"${td.innerText.replace(/"/g, '""').trim()}"`);
-      if (cols.length >= 6) rows.push(cols);
-    });
-  }
-
-  const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `Item_Ledger_${itemName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
 // =========================================================================
 // 2. DETAILED STOCK STATEMENT (AS ON DATE) REPORTING ENGINE
 // =========================================================================
@@ -17394,17 +16827,6 @@ function exportConsumableItemLedgerToCSV() {
 /**
  * Render Detailed Stock & Movement Report (With Date Range: Opening, Inward, Outward, Closing)
  */
-function openItemPassbookFromStock(itemKey) {
-  openConsumableItemLedgerModal();
-  setTimeout(() => {
-    const sel = document.getElementById('modal_ledger_itemSelect');
-    if (sel) {
-      sel.value = itemKey;
-      renderConsumableItemLedger();
-    }
-  }, 50);
-}
-
 function renderDetailedStockReport() {
   ensureCfcConsumablesExist();
   ensureConsumableLedgerSeeded();
@@ -17743,7 +17165,7 @@ function renderDetailedStockReport() {
   tbody.innerHTML = '';
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:32px 14px; color:#64748b; font-weight:700;">No inventory records match the selected category & search filters.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:32px 14px; color:#64748b; font-weight:700;">No inventory records match the selected category & search filters.</td></tr>`;
     return;
   }
 
@@ -17778,11 +17200,6 @@ function renderDetailedStockReport() {
         <td class="num" style="background:${isNeg ? '#fff1f2' : '#f0fdf4'}; border-left:1px solid #cbd5e1; border-right:1px solid #cbd5e1; white-space:nowrap;">${stockDisplay}</td>
         <td class="num" style="color:#64748b; font-size:11.5px; white-space:nowrap;">₹ ${i.rate.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
         <td class="num" style="font-weight:800; color:#047857; white-space:nowrap;">₹ ${i.amount.toLocaleString()}</td>
-        <td style="text-align:center; white-space:nowrap;">
-          <button type="button" class="btn btn-outline" onclick="openItemPassbookFromStock('${i.itemKey}')" style="padding:4px 8px; font-size:11px; font-weight:700; color:#1e40af; border-color:#93c5fd; background:#eff6ff;" title="Open Date-wise Ledger Passbook">
-            📋 Ledger
-          </button>
-        </td>
       </tr>
     `;
   });
@@ -17836,6 +17253,455 @@ function exportDetailedStockToExcel() {
   exportDetailedStockToCSV();
 }
 
+/* ==========================================================================
+   3. INVENTORY LEDGER (TALLY-STYLE ITEM-WISE STATEMENT)
+   Item dropdown + Date Range + Opening Balance + Running Balance + Value
+   Numbers bilkul Detailed Stock Statement jaise hi (same source ledgers).
+   ========================================================================== */
+
+function _invLedgerLocalISO(dt) {
+  const p = n => String(n).padStart(2, '0');
+  return dt.getFullYear() + '-' + p(dt.getMonth() + 1) + '-' + p(dt.getDate());
+}
+
+function _invLedgerEsc(v) {
+  return String(v === undefined || v === null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function populateInventoryLedgerItems() {
+  ensureCfcConsumablesExist();
+  ensureConsumableLedgerSeeded();
+
+  const sel = document.getElementById('invled_itemSelect');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '';
+
+  // Group 1: Paper (Reels & Cut Sheets WIP)
+  const grpPaper = document.createElement('optgroup');
+  grpPaper.label = '📜 Paper (Reels & Cut Sheets WIP)';
+  const paperSpecs = ['90x43x57', '97x37x54', '97x37x57', '89.8x43x56', '96.7x37x56'];
+  const rulings = ['Unruled', 'Single Line', 'Four Line', 'Med. Square', 'Double Rule', 'Index'];
+  paperSpecs.forEach(spec => {
+    rulings.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = `PAPER_WIP:${spec}:${r}`;
+      opt.textContent = `Paper - ${spec} : ${r} (Cut Sheets WIP)`;
+      grpPaper.appendChild(opt);
+    });
+    const optReel = document.createElement('option');
+    optReel.value = `PAPER_REELS:${spec}`;
+    optReel.textContent = `Paper - ${spec} : Mother Reels (Reel Form)`;
+    grpPaper.appendChild(optReel);
+  });
+  sel.appendChild(grpPaper);
+
+  // Group 2: Title Cover Board (Raw & WIP)
+  const grpBoard = document.createElement('optgroup');
+  grpBoard.label = '📦 Title Cover Board (Raw & WIP Printed Covers)';
+  const boardSizes = ['45.5 x 91 x 190', '45.5 x 91 x 200', '77 x 98 x 190', '44 x 1010 x 250gsm', '46 x 91 x 250gsm', '78 x 98 x 230gsm', '76 x 98 x 230gsm'];
+  boardSizes.forEach(size => {
+    const o1 = document.createElement('option');
+    o1.value = `BOARD_RAW:${size}`;
+    o1.textContent = `Board - ${size} (Raw Godown Sheets)`;
+    grpBoard.appendChild(o1);
+    const o2 = document.createElement('option');
+    o2.value = `BOARD_WIP:${size}`;
+    o2.textContent = `Board - ${size} (WIP Printed Covers)`;
+    grpBoard.appendChild(o2);
+  });
+  sel.appendChild(grpBoard);
+
+  // Group 3: Finished Goods
+  const grpFG = document.createElement('optgroup');
+  grpFG.label = '📚 Finished Goods (Manufactured Notebooks)';
+  (state.skus || []).forEach(s => {
+    if (!s.barcode) return;
+    const opt = document.createElement('option');
+    opt.value = `FG:${s.barcode}`;
+    const stock = (s.oldStock || 0) + (s.production || 0) - (s.despatched || 0);
+    opt.textContent = `FG - ${s.barcode} : ${s.description} (Stock: ${stock.toLocaleString()} Pcs)`;
+    grpFG.appendChild(opt);
+  });
+  sel.appendChild(grpFG);
+
+  // Group 4: Inks, Cartons (CFC) & Consumables
+  const grpCons = document.createElement('optgroup');
+  grpCons.label = '🧪 Inks, Cartons (CFC) & Consumables';
+  (state.consumables || []).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = `CONSUMABLE:${c.item}`;
+    opt.textContent = `${c.category} - ${c.item} (Stock: ${(c.stock || 0).toLocaleString()} ${c.unit})`;
+    grpCons.appendChild(opt);
+  });
+  sel.appendChild(grpCons);
+
+  if (prev) {
+    for (let i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === prev) { sel.selectedIndex = i; break; }
+    }
+  }
+}
+
+/**
+ * Ek item ki saari dated movements + opening base.
+ * Returns { title, category, unit, rate, base, rows[], liveStock }
+ * base = stock as on 2026-10-01 (opening marker), rows = baaki movements.
+ */
+function buildInventoryLedgerRows(itemKey) {
+  const savedStock = state.materialStock || DEFAULT_MATERIAL_STOCK;
+  let title = itemKey || '-';
+  let category = 'General';
+  let unit = 'Pcs';
+  let rate = 0;
+  let base = 0;
+  const rows = [];
+
+  if (itemKey.indexOf('PAPER_WIP:') === 0) {
+    const parts = itemKey.split(':');
+    const spec = parts[1];
+    const rKey = parts[2];
+    let baseOpening = (savedStock.paper && savedStock.paper[spec] && savedStock.paper[spec][rKey]) || 0;
+    if (rKey === 'Med. Square' && !baseOpening && savedStock.paper && savedStock.paper[spec]) {
+      baseOpening = savedStock.paper[spec]['Med.Square'] || savedStock.paper[spec]['MED. SQUARE'] || 0;
+    }
+    title = `Paper - ${spec} : ${rKey} (Cut Sheets WIP)`;
+    category = 'Paper WIP';
+    unit = 'Kg';
+    rate = 77.0;
+    base = baseOpening;
+
+    // Slitting se WIP aaya (processed) - Detailed Stock jaisa hi
+    (state.papersLedger || []).forEach(pl => {
+      if (pl.reelSize !== spec || pl.wipType !== rKey) return;
+      if (pl.notes === 'Opening Stock Entry') return;
+      const inKg = Number(pl.processedKg || pl.inwardKg || 0);
+      if (inKg > 0) {
+        rows.push({ date: pl.date || '2026-10-05', type: 'Processed (Slitting In)', ref: pl.inv || '-', qtyIn: inKg, qtyOut: 0, notes: pl.notes || (`Slitting se ${rKey} WIP bana`) });
+      }
+    });
+
+    // Production ne kitna paper consume kiya
+    (state.skus || []).forEach(s => {
+      const prodQty = s.production || 0;
+      if (prodQty <= 0) return;
+      const descUpper = String(s.description || '').toUpperCase();
+      const sizeUpper = String(s.size || '').toUpperCase();
+      const isA4 = descUpper.indexOf('A4') >= 0 || sizeUpper.indexOf('A4') >= 0 || String(s.barcode).startsWith('115') || (s.reelSize && (s.reelSize === 89.8 || Math.round(s.reelSize) === 90));
+      const sVendor = (s.vendor && s.vendor.toUpperCase().includes('ITC')) ? 'ITC' : 'Camlin';
+      let pSpec = sVendor === 'ITC' ? (isA4 ? '89.8x43x56' : '96.7x37x56') : (isA4 ? '90x43x57' : (((s.pages || 52) <= 56) ? '97x37x54' : '97x37x57'));
+      if (s.paperSpec) pSpec = s.paperSpec;
+
+      const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
+      let skuRuling = 'Single Line';
+      if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) skuRuling = 'Double Rule';
+      else if (rRaw.includes('UNRULED') || rRaw.includes('UR') || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
+      else if (rRaw.includes('FOUR') || rRaw.includes('4L')) skuRuling = 'Four Line';
+      else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) skuRuling = 'Med. Square';
+      else if (rRaw.includes('INDEX')) skuRuling = 'Index';
+      else skuRuling = 'Single Line';
+
+      if (pSpec === spec && skuRuling === rKey) {
+        const bWt = s.bookWtPaper || s.bookWt || 0;
+        const consKg = Number(s.paperConsumptionKg) || (prodQty * bWt * 1.0025);
+        rows.push({ date: s.lastProdDate || '2026-10-15', type: 'Production Consumption', ref: s.barcode || '-', qtyIn: 0, qtyOut: consKg, notes: s.description || '' });
+      }
+    });
+
+  } else if (itemKey.indexOf('PAPER_REELS:') === 0) {
+    const spec = itemKey.split(':')[1];
+    const pSum = (state.papersSummary || []).find(p => p.reelSize === spec);
+    title = `Paper - ${spec} : Mother Reels (Reel Form)`;
+    category = 'Paper (Reels)';
+    unit = 'Kg';
+    rate = 77.0;
+    base = pSum ? (pSum.openingReelsKg || 0) : 0;
+
+    (state.papersLedger || []).forEach(pl => {
+      if (pl.reelSize !== spec) return;
+      if (pl.notes === 'Opening Stock Entry') return;
+      const qIn = Number(pl.inwardKg || 0);
+      const qOut = Number(pl.processedKg || 0);
+      if (qIn > 0 || qOut > 0) {
+        rows.push({ date: pl.date || '2026-10-05', type: qIn > 0 ? 'Mill Inward' : 'Issued for Slitting', ref: pl.inv || '-', qtyIn: qIn, qtyOut: qOut, notes: pl.notes || '' });
+      }
+    });
+
+  } else if (itemKey.indexOf('BOARD_RAW:') === 0) {
+    const size = itemKey.slice('BOARD_RAW:'.length);
+    const compactB = size.replace(/\s+/g, '').toLowerCase();
+    const bSum = (state.boardSummary || []).find(b => (b.size || '').replace(/\s+/g, '').toLowerCase() === compactB);
+    title = `Board - ${size} (Raw Godown Sheets)`;
+    category = 'Board (Raw Godown)';
+    unit = 'Sheets';
+    rate = bSum ? (bSum.rate || 7.50) : 7.50;
+    base = bSum ? (bSum.openingGodownSheets || bSum.ourGodownSheets || 0) : 0;
+
+    (state.boardLedger || []).forEach(bl => {
+      if ((bl.size || '').replace(/\s+/g, '').toLowerCase() !== compactB) return;
+      if (bl.notes === 'Opening Board Entry') return;
+      const qIn = Number(bl.inward || 0);
+      const qOut = Number(bl.outPrint || 0);
+      if (qIn > 0 || qOut > 0) {
+        rows.push({ date: bl.date || '2026-10-05', type: qIn > 0 ? 'Mill Inward (Godown)' : 'Sent to Printer', ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, notes: bl.party || bl.notes || '' });
+      }
+    });
+
+  } else if (itemKey.indexOf('BOARD_WIP:') === 0) {
+    const size = itemKey.slice('BOARD_WIP:'.length);
+    const compactB = size.replace(/\s+/g, '').toLowerCase();
+    const bSum = (state.boardSummary || []).find(b => (b.size || '').replace(/\s+/g, '').toLowerCase() === compactB);
+    title = `Board - ${size} (WIP Printed Covers)`;
+    category = 'Board (WIP Printed)';
+    unit = 'Sheets';
+    rate = bSum ? (bSum.rate || 7.50) : 7.50;
+    base = bSum ? (bSum.openingPrinterSheets || 0) : 0;
+
+    (state.boardLedger || []).forEach(bl => {
+      if ((bl.size || '').replace(/\s+/g, '').toLowerCase() !== compactB) return;
+      if (bl.notes === 'Opening Board Entry') return;
+      const qIn = Number(bl.outPrint || 0);
+      const qOut = Number(bl.printedRecd || 0);
+      if (qIn > 0 || qOut > 0) {
+        rows.push({ date: bl.date || '2026-10-10', type: qIn > 0 ? 'Sent to Printer' : 'Printed Received Back', ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, notes: bl.party || bl.notes || '' });
+      }
+    });
+
+  } else if (itemKey.indexOf('FG:') === 0) {
+    const barcode = itemKey.slice(3);
+    const s = (state.skus || []).find(x => x.barcode === barcode) || {};
+    title = `FG - ${barcode} : ${s.description || ''}`;
+    category = 'Finished Goods';
+    unit = 'Pcs';
+    rate = Number((((s.orderQty && s.amount) ? s.amount / s.orderQty : (s.mrp ? s.mrp * 0.55 : 25))).toFixed(2));
+    base = s.oldStock || 0;
+
+    if ((s.production || 0) > 0) {
+      rows.push({ date: s.lastProdDate || '2026-10-15', type: 'Production Completed', ref: barcode, qtyIn: Number(s.production), qtyOut: 0, notes: 'Factory me bana hua stock' });
+    }
+    if ((s.despatched || 0) > 0) {
+      rows.push({ date: s.lastDespDate || '2026-10-18', type: 'Despatched', ref: barcode, qtyIn: 0, qtyOut: Number(s.despatched), notes: 'CFA / Party ko bheja' });
+    }
+
+  } else if (itemKey.indexOf('CONSUMABLE:') === 0) {
+    const itemName = itemKey.slice('CONSUMABLE:'.length);
+    const c = (state.consumables || []).find(x => x.item === itemName) || { item: itemName, category: 'General', unit: 'Pcs', rate: 0, opening: 0 };
+    title = c.item;
+    category = c.category;
+    unit = c.unit || 'Pcs';
+    rate = c.rate || 0;
+    base = c.opening || 0;
+
+    (state.consumableLedger || []).forEach(cl => {
+      if (cl.item !== itemName) return;
+      if (cl.type === 'Opening Balance') return;
+      const qIn = Number(cl.qtyIn || 0);
+      const qOut = Number(cl.qtyOut || 0);
+      rows.push({ date: cl.date || '2026-10-10', type: cl.type || 'Movement', ref: cl.ref || '-', qtyIn: qIn, qtyOut: qOut, notes: cl.notes || '' });
+    });
+  }
+
+  rows.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+  let live = base;
+  rows.forEach(r => { live += (Number(r.qtyIn || 0) - Number(r.qtyOut || 0)); });
+
+  return { title: title, category: category, unit: unit, rate: rate, base: base, rows: rows, liveStock: Number(live.toFixed(2)) };
+}
+
+let _invLedgerView = null;
+
+function renderInventoryLedger() {
+  ensureCfcConsumablesExist();
+  ensureConsumableLedgerSeeded();
+
+  const fromEl = document.getElementById('invled_fromDate');
+  const toEl = document.getElementById('invled_toDate');
+  const today = _invLedgerLocalISO(new Date());
+  if (fromEl && !fromEl.value) fromEl.value = '2026-10-01';
+  if (toEl && !toEl.value) toEl.value = today;
+  const fromDate = fromEl ? fromEl.value : '2026-10-01';
+  const toDate = toEl ? toEl.value : today;
+
+  populateInventoryLedgerItems();
+  const sel = document.getElementById('invled_itemSelect');
+  const key = sel ? sel.value : '';
+
+  const tbody = document.getElementById('invLedgerBody');
+  const tfoot = document.getElementById('invLedgerFoot');
+  if (!tbody) return;
+
+  const fmt = n => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+  if (!key) {
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:26px; color:#64748b; font-weight:600;">Item select kijiye — uska detailed ledger yahan open hoga.</td></tr>`;
+    if (tfoot) tfoot.innerHTML = '';
+    return;
+  }
+
+  const d = buildInventoryLedgerRows(key);
+  const allRows = d.rows.slice();
+
+  // Opening = base (as on 2026-10-01) + uske baad ke saare movements (From Date se pehle)
+  let opening = d.base;
+  allRows.forEach(r => {
+    if (String(r.date || '') < fromDate) opening += (Number(r.qtyIn || 0) - Number(r.qtyOut || 0));
+  });
+  opening = Number(opening.toFixed(2));
+
+  const period = allRows.filter(r => String(r.date || '') >= fromDate && String(r.date || '') <= toDate);
+
+  let running = opening;
+  let totIn = 0, totOut = 0, totInVal = 0, totOutVal = 0;
+  const disp = [{ openingRow: true, date: fromDate, type: 'Opening Balance', ref: 'OB', qtyIn: 0, qtyOut: 0, notes: `Opening as on ${fromDate}`, bal: opening }];
+
+  period.forEach(r => {
+    const qIn = Number(r.qtyIn || 0);
+    const qOut = Number(r.qtyOut || 0);
+    running = Number((running + qIn - qOut).toFixed(2));
+    totIn += qIn;
+    totOut += qOut;
+    totInVal += qIn * d.rate;
+    totOutVal += qOut * d.rate;
+    disp.push({ date: r.date, type: r.type, ref: r.ref, qtyIn: qIn, qtyOut: qOut, notes: r.notes, bal: running });
+  });
+
+  const closing = running;
+  const closingValue = Math.round(Math.max(0, closing) * d.rate);
+
+  _invLedgerView = { key: key, title: d.title, category: d.category, unit: d.unit, rate: d.rate, fromDate: fromDate, toDate: toDate, opening: opening, totIn: totIn, totOut: totOut, totInVal: totInVal, totOutVal: totOutVal, closing: closing, closingValue: closingValue, disp: disp };
+
+  // ---- KPI Cards ----
+  const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setTxt('invled_kpiOpening', `${fmt(opening)} ${d.unit}`);
+  setTxt('invled_kpiOpeningVal', `as on ${fromDate}`);
+  setTxt('invled_kpiIn', `+${fmt(totIn)} ${d.unit}`);
+  setTxt('invled_kpiInVal', `₹ ${Math.round(totInVal).toLocaleString()}`);
+  setTxt('invled_kpiOut', `-${fmt(totOut)} ${d.unit}`);
+  setTxt('invled_kpiOutVal', `₹ ${Math.round(totOutVal).toLocaleString()}`);
+  setTxt('invled_kpiClosing', `${fmt(closing)} ${d.unit}`);
+  setTxt('invled_kpiClosingVal', `as on ${toDate}`);
+  setTxt('invled_kpiValue', `₹ ${closingValue.toLocaleString()}`);
+  setTxt('invled_kpiRate', `@ ₹ ${Number(d.rate).toFixed(2)} / ${d.unit}`);
+
+  const titleEl = document.getElementById('invled_tableTitle');
+  if (titleEl) titleEl.textContent = `${d.title} — ${fromDate} to ${toDate}`;
+
+  const cmpEl = document.getElementById('invled_liveCompare');
+  if (cmpEl) {
+    const same = Math.abs(d.liveStock - closing) < 0.01;
+    cmpEl.innerHTML = same
+      ? `Live stock (aaj): <strong>${fmt(d.liveStock)} ${d.unit}</strong> — ledger se match ✅`
+      : `Live stock (aaj): <strong>${fmt(d.liveStock)} ${d.unit}</strong> | Range closing: <strong>${fmt(closing)} ${d.unit}</strong> (range aaj tak nahi hai)`;
+  }
+
+  // ---- Table rows ----
+  let html = '';
+  disp.forEach((r, idx) => {
+    const isOb = !!r.openingRow;
+    const trBg = isOb ? '#f1f5f9' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc');
+    const balNeg = r.bal < 0;
+    html += `
+      <tr style="border-bottom:1px solid #e2e8f0; background:${trBg};">
+        <td style="white-space:nowrap; font-weight:${isOb ? '800' : '600'}; color:#334155;">${_invLedgerEsc(r.date)}</td>
+        <td style="font-weight:700; color:${isOb ? '#0f172a' : '#1e3a8a'};">${isOb ? '🟢 ' : ''}${_invLedgerEsc(r.type)}</td>
+        <td style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#475569; white-space:nowrap;">${_invLedgerEsc(r.ref)}</td>
+        <td class="num" style="text-align:right; color:#059669; font-weight:700; white-space:nowrap;">${r.qtyIn > 0 ? '+' + fmt(r.qtyIn) : '-'}</td>
+        <td class="num" style="text-align:right; color:#b91c1c; font-weight:700; white-space:nowrap;">${r.qtyOut > 0 ? '-' + fmt(r.qtyOut) : '-'}</td>
+        <td class="num" style="text-align:right; color:#64748b; white-space:nowrap;">₹ ${Number(d.rate).toFixed(2)}</td>
+        <td class="num" style="text-align:right; color:#047857; font-weight:600; white-space:nowrap;">${r.qtyIn > 0 ? '₹ ' + Math.round(r.qtyIn * d.rate).toLocaleString() : '-'}</td>
+        <td class="num" style="text-align:right; color:#b45309; font-weight:600; white-space:nowrap;">${r.qtyOut > 0 ? '₹ ' + Math.round(r.qtyOut * d.rate).toLocaleString() : '-'}</td>
+        <td class="num" style="text-align:right; background:${balNeg ? '#fee2e2' : '#eff6ff'}; color:${balNeg ? '#dc2626' : '#1e3a8a'}; font-weight:900; white-space:nowrap;">${fmt(r.bal)}</td>
+        <td class="num" style="text-align:right; background:${balNeg ? '#fff1f2' : '#f0fdf4'}; color:${balNeg ? '#b91c1c' : '#047857'}; font-weight:800; white-space:nowrap;">₹ ${Math.round(Math.max(0, r.bal) * d.rate).toLocaleString()}</td>
+      </tr>`;
+  });
+
+  if (disp.length <= 1) {
+    html += `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b; font-style:italic;">Is date range me <strong>${_invLedgerEsc(d.title)}</strong> ki koi movement nahi hai. Opening balance upar dikha raha hai.</td></tr>`;
+  }
+  tbody.innerHTML = html;
+
+  if (tfoot) {
+    tfoot.innerHTML = `
+      <tr style="background:#0f172a; color:#ffffff; font-weight:800; font-size:12.5px;">
+        <td colspan="3" style="text-align:right; padding-right:10px;">TOTAL (${fromDate} → ${toDate})</td>
+        <td class="num" style="text-align:right; color:#86efac;">+${fmt(totIn)}</td>
+        <td class="num" style="text-align:right; color:#fca5a5;">-${fmt(totOut)}</td>
+        <td class="num" style="text-align:right;">-</td>
+        <td class="num" style="text-align:right; color:#86efac;">₹ ${Math.round(totInVal).toLocaleString()}</td>
+        <td class="num" style="text-align:right; color:#fca5a5;">₹ ${Math.round(totOutVal).toLocaleString()}</td>
+        <td class="num" style="text-align:right; color:#93c5fd;">${fmt(closing)}</td>
+        <td class="num" style="text-align:right; color:#86efac;">₹ ${closingValue.toLocaleString()}</td>
+      </tr>`;
+  }
+}
+
+function setInvLedgerPreset(p) {
+  const fromEl = document.getElementById('invled_fromDate');
+  const toEl = document.getElementById('invled_toDate');
+  if (!fromEl || !toEl) return;
+  const now = new Date();
+  const today = _invLedgerLocalISO(now);
+  if (p === 'today') {
+    fromEl.value = today;
+    toEl.value = today;
+  } else if (p === 'month') {
+    fromEl.value = _invLedgerLocalISO(new Date(now.getFullYear(), now.getMonth(), 1));
+    toEl.value = today;
+  } else {
+    fromEl.value = '2026-10-01';
+    toEl.value = today;
+  }
+  renderInventoryLedger();
+}
+
+function exportInventoryLedgerCSV() {
+  const v = _invLedgerView;
+  if (!v || !v.disp || v.disp.length === 0) {
+    if (typeof showToast === 'function') showToast('Pehle item select karke ledger generate kijiye.');
+    return;
+  }
+  const fmtN = n => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const rows = [
+    ['SUBH PAPER COMPANY - INVENTORY LEDGER (ITEM-WISE)'],
+    ['Item', v.title],
+    ['Category', v.category],
+    ['Period', `${v.fromDate} to ${v.toDate}`],
+    ['Unit', v.unit],
+    ['Rate', Number(v.rate).toFixed(2)],
+    ['Opening Balance', fmtN(v.opening)],
+    [],
+    ['Date', 'Particulars', 'Ref / Vch', `In Qty (${v.unit})`, `Out Qty (${v.unit})`, 'Rate', 'In (INR)', 'Out (INR)', `Balance (${v.unit})`, 'Balance Value (INR)']
+  ];
+  v.disp.forEach(r => {
+    rows.push([
+      r.date || '',
+      `"${String(r.type || '').replace(/"/g, '""')}"`,
+      `"${String(r.ref || '').replace(/"/g, '""')}"`,
+      r.qtyIn || 0,
+      r.qtyOut || 0,
+      Number(v.rate).toFixed(2),
+      Math.round((r.qtyIn || 0) * v.rate),
+      Math.round((r.qtyOut || 0) * v.rate),
+      fmtN(r.bal),
+      Math.round(Math.max(0, r.bal) * v.rate)
+    ]);
+  });
+  rows.push([]);
+  rows.push(['TOTAL (period)', '', '', fmtN(v.totIn), fmtN(v.totOut), '', Math.round(v.totInVal), Math.round(v.totOutVal), fmtN(v.closing), v.closingValue]);
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.join(',')).join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `Inventory_Ledger_${v.key.replace(/[^a-zA-Z0-9]/g, '_')}_${v.fromDate}_to_${v.toDate}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  if (typeof showToast === 'function') showToast(`Inventory Ledger CSV downloaded — ${v.title}`);
+}
+
 function renderConsumablesSheet() {
   ensureCfcConsumablesExist();
   const tbody = document.getElementById('consumablesMasterTableBody');
@@ -17858,7 +17724,6 @@ function renderConsumablesSheet() {
       <td><span class="badge-status ${c.stock > 0 ? 'badge-completed' : 'badge-deficit'}">${c.stock > 0 ? 'In Stock' : 'Out of Stock'}</span></td>
       <td style="text-align: center; white-space: nowrap;">
         <div style="display:inline-flex; gap:4px; align-items:center; justify-content:center;">
-          <button type="button" class="btn-icon" onclick="openConsumableItemLedgerModal('${(c.item || '').replace(/'/g, "\\'")}')" title="View Date-wise Ledger / Passbook" style="background:#f0fdf4; border:1px solid #86efac; color:#15803d; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">📋</button>
           <button type="button" class="btn-icon" onclick="openEditConsumableModal(${idx})" title="Edit Record" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">✏️</button>
           <button type="button" class="btn-icon" onclick="deleteConsumableItem(${idx})" title="Delete Record" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">🗑️</button>
         </div>
@@ -20543,6 +20408,9 @@ function renderTodayTransactions(highlightId) {
     if (type === 'Production') return '<span class="badge-tx badge-tx-prod">🏭 Production</span>';
     if (type === 'Despatch') return '<span class="badge-tx badge-tx-desp">🚚 Despatch</span>';
     if (type === 'Consumption') return '<span class="badge-tx badge-tx-cons">⚡ Consumption</span>';
+    if (type === 'PO Request') return '<span class="badge-tx badge-tx-po">📋 PO Request</span>';
+    if (type === 'PO Release') return '<span class="badge-tx badge-tx-po">📤 PO Release</span>';
+    if (type === 'PO Tracking') return '<span class="badge-tx badge-tx-po">🔍 PO Tracking</span>';
     return '<span class="badge-tx badge-tx-mat">📦 Materials</span>';
   }
 
@@ -21996,6 +21864,7 @@ function getSheetFriendlyName(sheetId) {
     papers: 'Papers (Reels & WIP)',
     board: 'Board Stock',
     consumables: 'Consumables',
+    invledger: 'Inventory Ledger',
     bookwt: 'BOOK WT Master',
     financials: 'Financials',
     flashreport: 'Daily Flash Report',
@@ -22146,7 +22015,7 @@ function preparePrintLetterhead(sheet) {
       const _poqDateTag2 = (_poqdfs2.from || _poqdfs2.to) ? ` • Date Filter: ${_poqdfs2.from || '…'} to ${_poqdfs2.to || '…'}` : '';
       filterEl.textContent = `Legal Size Wide Master Format (14" × 8.5" Landscape) • Scope: ${divisionName} • Ruling Filter: ${ruling}${_poqDateTag2} • Costing & Approvals • No Text Wrap`;
     } else {
-      filterEl.textContent = `A4 Landscape Master Print • Scope: ${divisionName} • Subh Enterprise ERP`;
+      filterEl.textContent = `A4 Portrait Master Print • Scope: ${divisionName} • Subh Enterprise ERP`;
     }
   }
 }
@@ -22160,15 +22029,15 @@ function applyDynamicPrintPageStyle(sheet) {
     document.head.appendChild(pageStyleEl);
   }
 
-  /* ================= A4 PORTRAIT FIX (beforeprint override) =================
+  /* ================= A4 PORTRAIT (beforeprint override) =================
      Ye function har print par chalta hai (window 'beforeprint' listener) aur
-     head me sabse aakhri style me `@page { size: A4 landscape !important }`
-     laga deta tha. Uski wajeh se special print modes bhi LANDSCAPE chhape the,
-     chahe unhone print se pehle khud A4 portrait kyun na likh ho:
+     head me sabse aakhri style me `@page { size: ... }` inject karta tha.
+     Ab default A4 PORTRAIT hai (PO Request ke alawa) — special print modes
+     (Ranjit, Hundi, Leave) bhi portrait hi rakhe jate hain:
        - Ranjit Making Bill  (body.print-ranjit-mode)
        - Hundi Bill of Exchange (body.print-hundi-mode)
        - Leave / Advance Slip   (body.printing-leave-slip)
-     Isliye in modes me landscape ki jagah sahi portrait page style inject ho. */
+       - PO Request Master      (legal landscape — chhoot) */
   const _bc = document.body.classList;
   if (_bc.contains('print-ranjit-mode')) {
     _bc.remove('print-legal-mode');
@@ -22201,10 +22070,11 @@ function applyDynamicPrintPageStyle(sheet) {
       }
     `;
   } else {
+    /* SABHI sheets/prints ab A4 PORTRAIT me — sirf PO Request (isLegal) legal landscape rehta hai */
     document.body.classList.remove('print-legal-mode');
     pageStyleEl.textContent = `
       @page {
-        size: A4 landscape !important;
+        size: A4 portrait !important;
         margin: 8mm 6mm 8mm 6mm !important;
       }
     `;
@@ -22233,12 +22103,12 @@ function masterExportCurrentSheetToPDF() {
   const isoDate = new Date().toISOString().slice(0, 10);
   const activeV = state.activeVendor || 'all';
   const vTag = activeV === 'all' ? 'CONSOLIDATED' : activeV.toUpperCase();
-  const formatTag = isLegal ? 'LEGAL_WIDE' : 'A4_LANDSCAPE';
+  const formatTag = isLegal ? 'LEGAL_WIDE' : 'A4_PORTRAIT';
   document.title = `SUBH_${vTag}_${friendlyName.replace(/[^a-zA-Z0-9]/g, '_')}_${formatTag}_${isoDate}`;
 
   showToast(isLegal
     ? `📄 Opening Legal Size Wide PDF export for '${friendlyName}' (14" × 8.5" Landscape, No Wrap)... Choose 'Save as PDF'`
-    : `📄 Opening A4 Landscape PDF export for '${friendlyName}' (${vTag})... Choose 'Save as PDF'`);
+    : `📄 Opening A4 Portrait PDF export for '${friendlyName}' (${vTag})... Choose 'Save as PDF'`);
 
   setTimeout(() => {
     window.print();
@@ -22264,7 +22134,7 @@ function masterPrintCurrentReport() {
 
   showToast(isLegal
     ? `🖨️ Opening print preview for '${friendlyName}' (Legal Size Wide 14" × 8.5" Landscape, No Wrap)...`
-    : `🖨️ Opening print preview for '${friendlyName}' (A4 Landscape)...`);
+    : `🖨️ Opening print preview for '${friendlyName}' (A4 Portrait)...`);
 
   setTimeout(() => {
     window.print();
@@ -22474,6 +22344,7 @@ function exportFinancialsToCSV() {
 
 function masterExportCurrentSheetToExcel() {
   const sheet = state.activeSheet || 'dashboard';
+  if (sheet === 'invledger') { exportInventoryLedgerCSV(); return; }
   const friendlyName = getSheetFriendlyName(sheet);
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB');
@@ -23355,6 +23226,7 @@ function masterExportCurrentSheetToExcel() {
  */
 function exportActiveTableToCSV() {
   const sheet = state.activeSheet || 'dashboard';
+  if (sheet === 'invledger') { exportInventoryLedgerCSV(); return; }
   const activeV = state.activeVendor || 'all';
   const vTag = activeV === 'all' ? 'ALL' : activeV;
   let headers = [];
@@ -25216,7 +25088,7 @@ function handlePoRequestSubmit(e) {
     vendor: item.vendor,
     barcode: item.productCode,
     description: `${item.productSize} ${item.cover} ${item.noOfPages}Pg (${item.ruling})`,
-    qty: `${item.orderQuantity.toLocaleString()} Pcs (Batch Prod: ${item.producedQuantity.toLocaleString()})`,
+    qty: `${item.orderQuantity.toLocaleString()} Pcs | Produced so far: ${item.producedQuantity.toLocaleString()} (Production Log)`,
     impact: `Cumulative Prod: ${cumProdForCode.toLocaleString()} | Due: ${Math.max(0, origOrderTotal - cumProdForCode).toLocaleString()}`,
     ref: `Req Date: ${item.requestDate}`,
     details: item
@@ -25224,7 +25096,7 @@ function handlePoRequestSubmit(e) {
 
   saveState();
   renderAllViews();
-  showToast(`PO Request for Product ${item.productCode} (${item.vendor}) saved! Batch: ${item.producedQuantity.toLocaleString()} | Cumulative Prod: ${cumProdForCode.toLocaleString()}`);
+  showToast(`PO Request for Product ${item.productCode} (${item.vendor}) saved! Produced so far (Production Log): ${cumProdForCode.toLocaleString()} | Due: ${Math.max(0, origOrderTotal - cumProdForCode).toLocaleString()}`);
 
   // Clear form inputs cleanly
   const formPoReq = document.getElementById('formPoRequest');
@@ -25382,7 +25254,8 @@ function handlePoReleaseSubmit(e) {
     orderMonth: document.getElementById('porel_month').value,
     productCode: pCode,
     orderQuantity: Number(document.getElementById('porel_orderQty').value) || 0,
-    producedQnty: Number(document.getElementById('porel_producedQty').value) || 0,
+    // Produced = sirf Daily Production Log se (read-only mirror) - PO Release entry production nahi badalti
+    producedQnty: skuMatch ? (Number(skuMatch.production) || 0) : (Number(document.getElementById('porel_producedQty').value) || 0),
     kclApprovedRate: enteredRate,
     poReqApprovedRate: poReqExpectedRate,
     rateMismatch: isMismatch,
@@ -26609,7 +26482,9 @@ function savePoReleaseEdit(e) {
   item.orderMonth = document.getElementById('edit_porel_month').value;
   item.productCode = pCode;
   item.orderQuantity = Number(document.getElementById('edit_porel_orderQty').value) || 0;
-  item.producedQnty = Number(document.getElementById('edit_porel_producedQty').value) || 0;
+  // Produced = sirf Daily Production Log se (mirror) - edit karne se production nahi badalta
+  const skuForRel = (state.skus || []).find(s => s.barcode === pCode);
+  item.producedQnty = skuForRel ? (Number(skuForRel.production) || 0) : (Number(document.getElementById('edit_porel_producedQty').value) || 0);
   item.kclApprovedRate = enteredRate;
   item.poReqApprovedRate = poReqExpectedRate;
   item.rateMismatch = isMismatch;
@@ -32777,6 +32652,7 @@ function printPaperWipAudit() {
       <head>
         <title>Paper WIP Audit - ${spec} ${rKey}</title>
         <style>
+          @page { size: A4 portrait; margin: 10mm 8mm; }
           body { font-family: 'Inter', system-ui, sans-serif; padding: 20px; color: #0f172a; }
           table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
           th, td { border: 1px solid #cbd5e1; padding: 6px 8px; }
@@ -33126,6 +33002,7 @@ function printBoardWipAudit() {
       <head>
         <title>Board WIP Audit - ${size}</title>
         <style>
+          @page { size: A4 portrait; margin: 10mm 8mm; }
           body { font-family: 'Inter', system-ui, sans-serif; padding: 20px; color: #0f172a; }
           table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
           th, td { border: 1px solid #cbd5e1; padding: 6px 8px; }
@@ -37077,3 +36954,4 @@ function deleteHundiRegisterEntry(id) {
 
 </body>
 </html>
+
