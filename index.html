@@ -17385,6 +17385,10 @@ function populateInventoryLedgerItems() {
   const paperSpecs = ['90x43x57', '97x37x54', '97x37x57', '89.8x43x56', '96.7x37x56'];
   const rulings = ['Unruled', 'Single Line', 'Four Line', 'Med. Square', 'Double Rule', 'Index'];
   paperSpecs.forEach(spec => {
+    const optAll = document.createElement('option');
+    optAll.value = `PAPER_ALL:${spec}`;
+    optAll.textContent = `Paper - ${spec} — Reel + WIP (Drill-down)`;
+    grpPaper.appendChild(optAll);
     rulings.forEach(r => {
       const opt = document.createElement('option');
       opt.value = `PAPER_WIP:${spec}:${r}`;
@@ -17403,6 +17407,10 @@ function populateInventoryLedgerItems() {
   grpBoard.label = '📦 Title Cover Board (Raw & WIP Printed Covers)';
   const boardSizes = ['45.5 x 91 x 190', '45.5 x 91 x 200', '77 x 98 x 190', '44 x 1010 x 250gsm', '46 x 91 x 250gsm', '78 x 98 x 230gsm', '76 x 98 x 230gsm'];
   boardSizes.forEach(size => {
+    const o0 = document.createElement('option');
+    o0.value = `BOARD_ALL:${size}`;
+    o0.textContent = `Board - ${size} (All Godowns — Consolidated)`;
+    grpBoard.appendChild(o0);
     const o1 = document.createElement('option');
     o1.value = `BOARD_RAW:${size}`;
     o1.textContent = `Board - ${size} (Raw Godown Sheets)`;
@@ -17413,6 +17421,29 @@ function populateInventoryLedgerItems() {
     grpBoard.appendChild(o2);
   });
   sel.appendChild(grpBoard);
+
+  // Group 2b: Stock with Printers (party-wise) — Fortune / Salsar / Rich aise parties
+  const partySet = [];
+  (state.boardLedger || []).forEach(bl => {
+    if ((Number(bl.outPrint || 0) > 0 || Number(bl.printedRecd || 0) > 0) && bl.party && partySet.indexOf(bl.party) < 0) {
+      partySet.push(bl.party);
+    }
+  });
+  if (partySet.length) {
+    const grpParty = document.createElement('optgroup');
+    grpParty.label = '🤝 Stock with Printers (Party-wise)';
+    const optPA = document.createElement('option');
+    optPA.value = 'PARTY_BOARD:__ALL__';
+    optPA.textContent = 'All Printers — Party-wise (Stock with them)';
+    grpParty.appendChild(optPA);
+    partySet.sort().forEach(p => {
+      const optP = document.createElement('option');
+      optP.value = `PARTY_BOARD:${p}`;
+      optP.textContent = `Stock with ${p} — datewise (size + barcode)`;
+      grpParty.appendChild(optP);
+    });
+    sel.appendChild(grpParty);
+  }
 
   // Group 3: Finished Goods
   const grpFG = document.createElement('optgroup');
@@ -17458,8 +17489,96 @@ function buildInventoryLedgerRows(itemKey) {
   let rate = 0;
   let base = 0;
   const rows = [];
+  let groups = null;   // consolidated mode: per-godown child ledgers (BOARD_ALL only)
 
-  if (itemKey.indexOf('PAPER_WIP:') === 0) {
+  if (itemKey.indexOf('PAPER_ALL:') === 0) {
+    // SPEC-level main group: Reel Form + har WIP ruling ek-ek summary row,
+    // row click par uska datewise in/out (FIFO value ke saath) drill-down.
+    const spec = itemKey.slice('PAPER_ALL:'.length);
+    const pSum = (state.papersSummary || []).find(p => p.reelSize === spec);
+    title = `Paper - ${spec} — Reel + WIP (Drill-down)`;
+    category = 'Paper (Reel + WIP)';
+    unit = 'Kg';
+    rate = pSum ? (Number(pSum.rate) || 77) : 77;
+    base = 0;
+    const childDefs = [{ key: `PAPER_REELS:${spec}`, icon: '🧻', label: 'Reel Form (Mother Reels)' }];
+    ['Single Line', 'Double Rule', 'Unruled', 'Four Line', 'Med. Square', 'Index'].forEach(rr => {
+      childDefs.push({ key: `PAPER_WIP:${spec}:${rr}`, icon: '📄', label: `WIP — ${rr}` });
+    });
+    groups = childDefs.map(cd => ({ key: cd.key, icon: cd.icon, label: cd.label, child: buildInventoryLedgerRows(cd.key) }));
+    groups.forEach(g => { base += Number(g.child.base || 0); g.child.rows.forEach(r => rows.push(r)); });
+
+  } else if (itemKey.indexOf('PARTY_BOARD:') === 0) {
+    // STOCK WITH PRINTER (party-wise): party ke paas Subh ka board kitna hai.
+    // outPrint = party ke paas gaya (In), printedRecd = wapas aaya (Out).
+    const which = itemKey.slice('PARTY_BOARD:'.length);
+    const partyList = [];
+    (state.boardLedger || []).forEach(bl => {
+      if ((Number(bl.outPrint || 0) > 0 || Number(bl.printedRecd || 0) > 0) && bl.party && partyList.indexOf(bl.party) < 0) partyList.push(bl.party);
+    });
+    if (which === '__ALL__') {
+      title = 'Stock with Printers — Party-wise (All Sizes)';
+      category = 'Stock with Party';
+      unit = 'Sheets';
+      rate = 7.50;
+      base = 0;
+      groups = partyList.sort().map(p => ({ key: `PARTY_BOARD:${p}`, icon: '🤝', label: p, child: buildInventoryLedgerRows(`PARTY_BOARD:${p}`) }));
+      groups.forEach(g => { base += Number(g.child.base || 0); g.child.rows.forEach(r => rows.push(r)); });
+      const firstRate = groups.map(g => Number(g.child.rate) || 0).find(x => x > 0);
+      if (firstRate) rate = firstRate;
+    } else {
+      const party = which;
+      title = `Stock with ${party} — Subh Paper Company Board`;
+      category = 'Stock with Party';
+      unit = 'Sheets';
+      rate = 7.50;
+      base = 0;
+      (state.boardLedger || []).forEach(bl => {
+        if (bl.party !== party) return;
+        const qIn = Number(bl.outPrint || 0);      // Subh ka board party ke paas gaya
+        const qOut = Number(bl.printedRecd || 0);  // printed cover wapas aaya
+        if (qIn <= 0 && qOut <= 0) return;
+        if (Number(bl.rate) > 0) rate = Number(bl.rate);
+        const specTxt = bl.size || '-';
+        const bcTxt = bl.barcode ? ` • ${bl.barcode}` : '';
+        rows.push({
+          date: bl.date || '2026-10-05',
+          type: `${qIn > 0 ? 'Sent to Printer' : 'Printed Received Back'} — ${specTxt}${bcTxt}`,
+          ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, rate: Number(bl.rate) || 0,
+          notes: bl.notes || ''
+        });
+      });
+    }
+
+  } else if (itemKey.indexOf('PARTY_SZ:') === 0) {
+    // Ek size + ek printer: raw board diya / return aaya / Subh ka balance uske paas
+    const rest = itemKey.slice('PARTY_SZ:'.length);
+    const sep = rest.indexOf('::');
+    const pSize = rest.slice(0, sep);
+    const party = rest.slice(sep + 2);
+    const compactP = pSize.replace(/\s+/g, '').toLowerCase();
+    title = `${party} — ${pSize} (Subh Board)`;
+    category = 'Stock with Party';
+    unit = 'Sheets';
+    rate = 7.50;
+    base = 0;
+    (state.boardLedger || []).forEach(bl => {
+      if (bl.party !== party) return;
+      if (String(bl.size || '').replace(/\s+/g, '').toLowerCase() !== compactP) return;
+      const qIn = Number(bl.outPrint || 0);
+      const qOut = Number(bl.printedRecd || 0);
+      if (qIn <= 0 && qOut <= 0) return;
+      if (Number(bl.rate) > 0) rate = Number(bl.rate);
+      const bcTxt = bl.barcode ? ` • ${bl.barcode}` : '';
+      rows.push({
+        date: bl.date || '2026-10-05',
+        type: `${qIn > 0 ? 'Sent to Printer' : 'Printed Received Back'} — ${pSize}${bcTxt}`,
+        ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, rate: Number(bl.rate) || 0,
+        notes: bl.notes || ''
+      });
+    });
+
+  } else if (itemKey.indexOf('PAPER_WIP:') === 0) {
     const parts = itemKey.split(':');
     const spec = parts[1];
     const rKey = parts[2];
@@ -17479,7 +17598,7 @@ function buildInventoryLedgerRows(itemKey) {
       if (pl.notes === 'Opening Stock Entry') return;
       const inKg = Number(pl.processedKg || pl.inwardKg || 0);
       if (inKg > 0) {
-        rows.push({ date: pl.date || '2026-10-05', type: 'Processed (Slitting In)', ref: pl.inv || '-', qtyIn: inKg, qtyOut: 0, notes: pl.notes || (`Slitting se ${rKey} WIP bana`) });
+        rows.push({ date: pl.date || '2026-10-05', type: 'Processed (Slitting In)', ref: pl.inv || '-', qtyIn: inKg, qtyOut: 0, rate: Number(pl.rate) || 0, notes: pl.notes || (`Slitting se ${rKey} WIP bana`) });
       }
     });
 
@@ -17506,7 +17625,7 @@ function buildInventoryLedgerRows(itemKey) {
       if (pSpec === spec && skuRuling === rKey) {
         const bWt = s.bookWtPaper || s.bookWt || 0;
         const consKg = Number(s.paperConsumptionKg) || (prodQty * bWt * 1.0025);
-        rows.push({ date: s.lastProdDate || '2026-10-15', type: 'Production Consumption', ref: s.barcode || '-', qtyIn: 0, qtyOut: consKg, notes: s.description || '' });
+        rows.push({ date: s.lastProdDate || '2026-10-15', type: 'Production Consumption', ref: s.barcode || '-', qtyIn: 0, qtyOut: consKg, rate: Number(s.paperRate) || 0, notes: s.description || '' });
       }
     });
 
@@ -17525,9 +17644,46 @@ function buildInventoryLedgerRows(itemKey) {
       const qIn = Number(pl.inwardKg || 0);
       const qOut = Number(pl.processedKg || 0);
       if (qIn > 0 || qOut > 0) {
-        rows.push({ date: pl.date || '2026-10-05', type: qIn > 0 ? 'Mill Inward' : 'Issued for Slitting', ref: pl.inv || '-', qtyIn: qIn, qtyOut: qOut, notes: pl.notes || '' });
+        rows.push({ date: pl.date || '2026-10-05', type: qIn > 0 ? 'Mill Inward' : 'Issued for Slitting', ref: pl.inv || '-', qtyIn: qIn, qtyOut: qOut, rate: Number(pl.rate) || 0, notes: pl.notes || '' });
       }
     });
+
+  } else if (itemKey.indexOf('BOARD_ALL:') === 0) {
+    // CONSOLIDATED godown-wise view: Our Godown (raw) + Printer (WIP printed covers).
+    // Each group carries its own child ledger; the renderer shows one summary row per
+    // godown and expands the child's datewise rows on row-click (drill-down).
+    const size = itemKey.slice('BOARD_ALL:'.length);
+    const compactB = size.replace(/\s+/g, '').toLowerCase();
+    const bSum = (state.boardSummary || []).find(b => (b.size || '').replace(/\s+/g, '').toLowerCase() === compactB);
+    title = `Board - ${size} (All Godowns — Consolidated)`;
+    category = 'Board (All Godowns)';
+    unit = 'Sheets';
+    rate = bSum ? (bSum.rate || 7.50) : 7.50;
+    base = bSum ? (Number(bSum.openingGodownSheets || 0) + Number(bSum.openingPrinterSheets || 0)) : 0;
+    // Groups: 1) Subh / Self ka apna godown, 2) har printer ka apna slab — jisse
+    // pata chalta hai kis size ka raw board kaun sa printer paas gaya, kitna return
+    // aaya aur abhi Subh ka kitna stock uske paas hai.
+    const partyForSize = [];
+    (state.boardLedger || []).forEach(bl => {
+      if (String(bl.size || '').replace(/\s+/g, '').toLowerCase() !== compactB) return;
+      if ((Number(bl.outPrint || 0) > 0 || Number(bl.printedRecd || 0) > 0) && bl.party && partyForSize.indexOf(bl.party) < 0) {
+        partyForSize.push(bl.party);
+      }
+    });
+    groups = [
+      { key: `BOARD_RAW:${size}`, icon: '🏛', label: 'Subh / Self (Raw Godown)', lvl: 'Godown', child: buildInventoryLedgerRows(`BOARD_RAW:${size}`) }
+    ];
+    partyForSize.sort().forEach(p => {
+      groups.push({
+        key: `PARTY_SZ:${size}::${p}`,
+        icon: '🖨',
+        label: `${p} (Raw Board → Print)`,
+        lvl: 'Party',
+        child: buildInventoryLedgerRows(`PARTY_SZ:${size}::${p}`)
+      });
+    });
+    // merged movement list -> generic KPI math (opening/in/out/closing) stays correct
+    groups.forEach(g => g.child.rows.forEach(r => rows.push(Object.assign({}, r, { godown: g.label }))));
 
   } else if (itemKey.indexOf('BOARD_RAW:') === 0) {
     const size = itemKey.slice('BOARD_RAW:'.length);
@@ -17545,7 +17701,7 @@ function buildInventoryLedgerRows(itemKey) {
       const qIn = Number(bl.inward || 0);
       const qOut = Number(bl.outPrint || 0);
       if (qIn > 0 || qOut > 0) {
-        rows.push({ date: bl.date || '2026-10-05', type: qIn > 0 ? 'Mill Inward (Godown)' : 'Sent to Printer', ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, notes: bl.party || bl.notes || '' });
+        rows.push({ date: bl.date || '2026-10-05', type: qIn > 0 ? 'Mill Inward (Godown)' : 'Sent to Printer', ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, rate: Number(bl.rate) || 0, notes: bl.party || bl.notes || '' });
       }
     });
 
@@ -17565,7 +17721,7 @@ function buildInventoryLedgerRows(itemKey) {
       const qIn = Number(bl.outPrint || 0);
       const qOut = Number(bl.printedRecd || 0);
       if (qIn > 0 || qOut > 0) {
-        rows.push({ date: bl.date || '2026-10-10', type: qIn > 0 ? 'Sent to Printer' : 'Printed Received Back', ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, notes: bl.party || bl.notes || '' });
+        rows.push({ date: bl.date || '2026-10-10', type: qIn > 0 ? 'Sent to Printer' : 'Printed Received Back', ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, rate: Number(bl.rate) || 0, notes: bl.party || bl.notes || '' });
       }
     });
 
@@ -17608,10 +17764,88 @@ function buildInventoryLedgerRows(itemKey) {
   let live = base;
   rows.forEach(r => { live += (Number(r.qtyIn || 0) - Number(r.qtyOut || 0)); });
 
-  return { title: title, category: category, unit: unit, rate: rate, base: base, rows: rows, liveStock: Number(live.toFixed(2)) };
+  return { title: title, category: category, unit: unit, rate: rate, base: base, rows: rows, liveStock: Number(live.toFixed(2)), groups: groups };
 }
 
 let _invLedgerView = null;
+let _invLedgerExpanded = {};   // drill-down open/close state (consolidated views)
+
+/** Ek datewise row ka <tr> — normal view + drill-down dono use karte hain. */
+function _invLedgerTr(r, idx, rate, indent) {
+  const fmt = n => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const isOb = !!r.openingRow;
+  const trBg = isOb ? '#f1f5f9' : (indent ? '#fbfdff' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'));
+  const balNeg = r.bal < 0;
+  const pre = indent ? '<span style="color:#94a3b8; font-weight:800;">└&nbsp;</span>' : '';
+  const rIn = Number(r.rateUsed !== undefined ? r.rateUsed : rate);
+  const vIn = Number(r.inVal !== undefined ? r.inVal : (r.qtyIn > 0 ? r.qtyIn * rate : 0));
+  const vOut = Number(r.outVal !== undefined ? r.outVal : (r.qtyOut > 0 ? r.qtyOut * rate : 0));
+  return `
+      <tr style="border-bottom:1px solid #e2e8f0; background:${trBg};">
+        <td style="white-space:nowrap; font-weight:${isOb ? '800' : '600'}; color:#334155;${indent ? ' padding-left:26px;' : ''}">${_invLedgerEsc(r.date)}</td>
+        <td style="font-weight:700; color:${isOb ? '#0f172a' : '#1e3a8a'};">${isOb ? '🟢 ' : pre}${_invLedgerEsc(r.type)}</td>
+        <td style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#475569; white-space:nowrap;">${_invLedgerEsc(r.ref)}</td>
+        <td class="num" style="text-align:right; color:#059669; font-weight:700; white-space:nowrap;">${r.qtyIn > 0 ? '+' + fmt(r.qtyIn) : '-'}</td>
+        <td class="num" style="text-align:right; color:#b91c1c; font-weight:700; white-space:nowrap;">${r.qtyOut > 0 ? '-' + fmt(r.qtyOut) : '-'}</td>
+        <td class="num" style="text-align:right; color:#64748b; white-space:nowrap;">₹ ${Number(rIn).toFixed(2)}</td>
+        <td class="num" style="text-align:right; color:#047857; font-weight:600; white-space:nowrap;">${r.qtyIn > 0 ? '₹ ' + Math.round(vIn).toLocaleString() : '-'}</td>
+        <td class="num" style="text-align:right; color:#b45309; font-weight:600; white-space:nowrap;">${r.qtyOut > 0 ? '₹ ' + Math.round(vOut).toLocaleString() : '-'}</td>
+        <td class="num" style="text-align:right; background:${balNeg ? '#fee2e2' : '#eff6ff'}; color:${balNeg ? '#dc2626' : '#1e3a8a'}; font-weight:900; white-space:nowrap;">${fmt(r.bal)}</td>
+        <td class="num" style="text-align:right; background:${balNeg ? '#fff1f2' : '#f0fdf4'}; color:${balNeg ? '#b91c1c' : '#047857'}; font-weight:800; white-space:nowrap;">₹ ${Math.round(Math.max(0, r.balVal !== undefined ? r.balVal : Math.max(0, r.bal) * (r.balanceRate !== undefined ? r.balanceRate : rate))).toLocaleString()}</td>
+      </tr>`;
+}
+
+/**
+ * Consolidated row ke liye us child ledger ka period-stats.
+ * FIFO: inward apne rate ki layer banata hai, outward purani layer se khata hai —
+ * isliye In₹/Out₹ aur closing value layer-rate se nikalte hain.
+ */
+function _invLedgerGroupStats(c, fromDate, toDate) {
+  let ob = c.base;
+  c.rows.forEach(r => { if (String(r.date || '') < fromDate) ob += (Number(r.qtyIn || 0) - Number(r.qtyOut || 0)); });
+  ob = Number(ob.toFixed(2));
+  const period = c.rows.filter(r => String(r.date || '') >= fromDate && String(r.date || '') <= toDate);
+
+  const defRate = Number(c.rate || 77);
+  const layers = [{ qty: ob, rate: defRate }];   // opening ek hi layer (default rate)
+  let run = ob, ti = 0, to = 0;
+  const disp = [{ openingRow: true, date: fromDate, type: 'Opening Balance', ref: 'OB', qtyIn: 0, qtyOut: 0, notes: 'Opening as on ' + fromDate, bal: ob, rateUsed: defRate, inVal: 0, outVal: 0, balVal: ob * defRate }];
+
+  period.forEach(r => {
+    const qi = Number(r.qtyIn || 0), qo = Number(r.qtyOut || 0);
+    const rRate = Number(r.rate) > 0 ? Number(r.rate) : defRate;
+    let inVal = 0, outVal = 0, rateUsed = rRate;
+
+    if (qi > 0) { inVal = qi * rRate; layers.push({ qty: qi, rate: rRate }); }
+    let need = qo;
+    while (need > 0 && layers.length) {
+      const L = layers[0];
+      const take = Math.min(L.qty, need);
+      outVal += take * L.rate;
+      rateUsed = L.rate;
+      L.qty -= take; need -= take;
+      if (L.qty <= 0.000001) layers.shift();
+    }
+    if (qo > 0 && need > 0) outVal += need * defRate;   // shortfall opening layer se
+
+    run = Number((run + qi - qo).toFixed(2));
+    ti += qi; to += qo;
+    const balVal = layers.reduce((a, l) => a + l.qty * l.rate, 0);
+    disp.push({ date: r.date, type: r.type, ref: r.ref, qtyIn: qi, qtyOut: qo, notes: r.notes, bal: run, rateUsed: rateUsed, inVal: inVal, outVal: outVal, balVal: balVal });
+  });
+
+  const closing = run;
+  const closingValue = layers.reduce((a, l) => a + l.qty * l.rate, 0);
+  let sumInVal = 0, sumOutVal = 0;
+  disp.forEach(x => { sumInVal += Number(x.inVal || 0); sumOutVal += Number(x.outVal || 0); });
+  return { opening: ob, totIn: ti, totOut: to, closing: closing, closingValue: Number(closingValue.toFixed(2)), totInVal: sumInVal, totOutVal: sumOutVal, disp: disp };
+}
+
+/** Summary row click → drill-down toggle. */
+function toggleInvLedgerDrill(key) {
+  _invLedgerExpanded[key] = !_invLedgerExpanded[key];
+  renderInventoryLedger();
+}
 
 function renderInventoryLedger() {
   ensureCfcConsumablesExist();
@@ -17655,21 +17889,72 @@ function renderInventoryLedger() {
 
   let running = opening;
   let totIn = 0, totOut = 0, totInVal = 0, totOutVal = 0;
-  const disp = [{ openingRow: true, date: fromDate, type: 'Opening Balance', ref: 'OB', qtyIn: 0, qtyOut: 0, notes: `Opening as on ${fromDate}`, bal: opening }];
+  const defRate = Number(d.rate) || 0;
+
+  // FIFO: layers pehle From-Date se pehle ki movements se bante hain (opening + purane
+  // inward apne rate par), phir period ke har inward se add aur har outward se consume
+  // hote hain — isliye Out₹ purani (sasti/mahangi) layer ke rate se aata hai.
+  const fifoAdd = (layers, qty, r) => { if (qty > 0) layers.push({ qty: qty, rate: r }); };
+  const fifoTake = (layers, qty, def) => {
+    let need = qty, val = 0, rateUsed = def;
+    while (need > 0.000001 && layers.length) {
+      const L = layers[0];
+      const take = Math.min(L.qty, need);
+      val += take * L.rate; rateUsed = L.rate;
+      L.qty -= take; need -= take;
+      if (L.qty <= 0.000001) layers.shift();
+    }
+    if (need > 0.000001) val += need * def;
+    return { val: val, rateUsed: rateUsed };
+  };
+
+  const layers = [];
+  if (opening > 0) layers.push({ qty: opening, rate: defRate });
+  allRows.filter(r => String(r.date || '') < fromDate).forEach(r => {
+    const rr = Number(r.rate) > 0 ? Number(r.rate) : defRate;
+    fifoAdd(layers, Number(r.qtyIn || 0), rr);
+    fifoTake(layers, Number(r.qtyOut || 0), defRate);
+  });
+  const openingVal = layers.reduce((a, l) => a + l.qty * l.rate, 0);
+
+  const disp = [{ openingRow: true, date: fromDate, type: 'Opening Balance', ref: 'OB', qtyIn: 0, qtyOut: 0, notes: `Opening as on ${fromDate}`, bal: opening, rateUsed: defRate, inVal: 0, outVal: 0, balVal: openingVal }];
 
   period.forEach(r => {
     const qIn = Number(r.qtyIn || 0);
     const qOut = Number(r.qtyOut || 0);
+    const rRate = Number(r.rate) > 0 ? Number(r.rate) : defRate;
+    let inVal = 0, rateUsed = rRate, outVal = 0;
+    if (qIn > 0) { inVal = qIn * rRate; fifoAdd(layers, qIn, rRate); }
+    if (qOut > 0) { const t = fifoTake(layers, qOut, defRate); outVal = t.val; rateUsed = t.rateUsed; }
     running = Number((running + qIn - qOut).toFixed(2));
     totIn += qIn;
     totOut += qOut;
-    totInVal += qIn * d.rate;
-    totOutVal += qOut * d.rate;
-    disp.push({ date: r.date, type: r.type, ref: r.ref, qtyIn: qIn, qtyOut: qOut, notes: r.notes, bal: running });
+    totInVal += inVal;
+    totOutVal += outVal;
+    disp.push({ date: r.date, type: r.type, ref: r.ref, qtyIn: qIn, qtyOut: qOut, notes: r.notes, bal: running, rateUsed: rateUsed, inVal: inVal, outVal: outVal, balVal: layers.reduce((a, l) => a + l.qty * l.rate, 0) });
   });
 
-  const closing = running;
-  const closingValue = Math.round(Math.max(0, closing) * d.rate);
+  let closing = running;
+  let closingValue = Math.round(Math.max(0, layers.reduce((a, l) => a + l.qty * l.rate, 0)));
+
+  // CONSOLIDATED mode: KPI/footer group-stats se — summary rows aur upar ke cards
+  // hamesha ek hi number dikhayen (FIFO layers child-wise bante hain).
+  if (d.groups) {
+    let gOpen = 0, gIn = 0, gOut = 0, gInVal = 0, gOutVal = 0, gClose = 0, gCloseVal = 0;
+    const merged = [{ openingRow: true, date: fromDate, type: 'Opening Balance', ref: 'OB', qtyIn: 0, qtyOut: 0, notes: `Opening as on ${fromDate}`, bal: 0, rateUsed: defRate, inVal: 0, outVal: 0, balVal: 0 }];
+    d.groups.forEach(g => {
+      const gs = _invLedgerGroupStats(g.child, fromDate, toDate);
+      gOpen += gs.opening; gIn += gs.totIn; gOut += gs.totOut;
+      gInVal += gs.totInVal; gOutVal += gs.totOutVal;
+      gClose += gs.closing; gCloseVal += gs.closingValue;
+      gs.disp.slice(1).forEach(r => merged.push(r));
+    });
+    opening = gOpen; totIn = gIn; totOut = gOut; totInVal = gInVal; totOutVal = gOutVal;
+    closing = Number(gClose.toFixed(2)); closingValue = Math.round(Math.max(0, gCloseVal));
+    merged[0].bal = opening; merged[0].balVal = gCloseVal;
+    disp.length = 0; merged.forEach(r => disp.push(r));
+    running = closing;
+  }
 
   _invLedgerView = { key: key, title: d.title, category: d.category, unit: d.unit, rate: d.rate, fromDate: fromDate, toDate: toDate, opening: opening, totIn: totIn, totOut: totOut, totInVal: totInVal, totOutVal: totOutVal, closing: closing, closingValue: closingValue, disp: disp };
 
@@ -17699,27 +17984,37 @@ function renderInventoryLedger() {
 
   // ---- Table rows ----
   let html = '';
-  disp.forEach((r, idx) => {
-    const isOb = !!r.openingRow;
-    const trBg = isOb ? '#f1f5f9' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc');
-    const balNeg = r.bal < 0;
-    html += `
-      <tr style="border-bottom:1px solid #e2e8f0; background:${trBg};">
-        <td style="white-space:nowrap; font-weight:${isOb ? '800' : '600'}; color:#334155;">${_invLedgerEsc(r.date)}</td>
-        <td style="font-weight:700; color:${isOb ? '#0f172a' : '#1e3a8a'};">${isOb ? '🟢 ' : ''}${_invLedgerEsc(r.type)}</td>
-        <td style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#475569; white-space:nowrap;">${_invLedgerEsc(r.ref)}</td>
-        <td class="num" style="text-align:right; color:#059669; font-weight:700; white-space:nowrap;">${r.qtyIn > 0 ? '+' + fmt(r.qtyIn) : '-'}</td>
-        <td class="num" style="text-align:right; color:#b91c1c; font-weight:700; white-space:nowrap;">${r.qtyOut > 0 ? '-' + fmt(r.qtyOut) : '-'}</td>
+  if (d.groups) {
+    // CONSOLIDATED: ek summary row per godown/party — click par datewise drill-down
+    const lvlWord = d.category === 'Stock with Party' ? 'Party' : 'Godown';
+    d.groups.forEach(g => {
+      const gs = _invLedgerGroupStats(g.child, fromDate, toDate);
+      const isOpen = !!_invLedgerExpanded[g.key];
+      const gNeg = gs.closing < 0;
+      const gKeyJs = String(g.key).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      html += `
+      <tr onclick="toggleInvLedgerDrill('${gKeyJs}')" title="Click = datewise detail" style="cursor:pointer; border-bottom:2px solid #c7d2fe; background:#eef2ff;">
+        <td style="white-space:nowrap; font-weight:800; color:#3730a3;">${isOpen ? '▼' : '▶'} ${_invLedgerEsc(g.lvl || lvlWord)}</td>
+        <td style="font-weight:800; color:#3730a3;">${_invLedgerEsc(g.icon)} ${_invLedgerEsc(g.label)} <span style="font-weight:600; color:#6366f1; font-size:11px;">— click for datewise detail</span></td>
+        <td style="font-size:11.5px; color:#6366f1; white-space:nowrap; font-weight:700;">CONSOLIDATED</td>
+        <td class="num" style="text-align:right; color:#059669; font-weight:800; white-space:nowrap;">${gs.totIn > 0 ? '+' + fmt(gs.totIn) : '-'}</td>
+        <td class="num" style="text-align:right; color:#b91c1c; font-weight:800; white-space:nowrap;">${gs.totOut > 0 ? '-' + fmt(gs.totOut) : '-'}</td>
         <td class="num" style="text-align:right; color:#64748b; white-space:nowrap;">₹ ${Number(d.rate).toFixed(2)}</td>
-        <td class="num" style="text-align:right; color:#047857; font-weight:600; white-space:nowrap;">${r.qtyIn > 0 ? '₹ ' + Math.round(r.qtyIn * d.rate).toLocaleString() : '-'}</td>
-        <td class="num" style="text-align:right; color:#b45309; font-weight:600; white-space:nowrap;">${r.qtyOut > 0 ? '₹ ' + Math.round(r.qtyOut * d.rate).toLocaleString() : '-'}</td>
-        <td class="num" style="text-align:right; background:${balNeg ? '#fee2e2' : '#eff6ff'}; color:${balNeg ? '#dc2626' : '#1e3a8a'}; font-weight:900; white-space:nowrap;">${fmt(r.bal)}</td>
-        <td class="num" style="text-align:right; background:${balNeg ? '#fff1f2' : '#f0fdf4'}; color:${balNeg ? '#b91c1c' : '#047857'}; font-weight:800; white-space:nowrap;">₹ ${Math.round(Math.max(0, r.bal) * d.rate).toLocaleString()}</td>
+        <td class="num" style="text-align:right; color:#047857; font-weight:700; white-space:nowrap;">${gs.totIn > 0 ? '₹ ' + Math.round(gs.totInVal).toLocaleString() : '-'}</td>
+        <td class="num" style="text-align:right; color:#b45309; font-weight:700; white-space:nowrap;">${gs.totOut > 0 ? '₹ ' + Math.round(gs.totOutVal).toLocaleString() : '-'}</td>
+        <td class="num" style="text-align:right; background:${gNeg ? '#fee2e2' : '#e0e7ff'}; color:${gNeg ? '#dc2626' : '#312e81'}; font-weight:900; white-space:nowrap;">${fmt(gs.closing)}</td>
+        <td class="num" style="text-align:right; background:${gNeg ? '#fff1f2' : '#eef2ff'}; color:${gNeg ? '#b91c1c' : '#3730a3'}; font-weight:900; white-space:nowrap;">₹ ${Math.round(Math.max(0, gs.closingValue)).toLocaleString()}</td>
       </tr>`;
-  });
-
-  if (disp.length <= 1) {
-    html += `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b; font-style:italic;">Is date range me <strong>${_invLedgerEsc(d.title)}</strong> ki koi movement nahi hai. Opening balance upar dikha raha hai.</td></tr>`;
+      if (isOpen) gs.disp.forEach((r, i2) => { html += _invLedgerTr(r, i2, d.rate, true); });
+    });
+    if (!d.groups.some(g => (g.child.rows || []).length)) {
+      html += `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b; font-style:italic;">Is date range me koi movement nahi hai — opening balance dikha raha hai.</td></tr>`;
+    }
+  } else {
+    disp.forEach((r, idx) => { html += _invLedgerTr(r, idx, d.rate, false); });
+    if (disp.length <= 1) {
+      html += `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b; font-style:italic;">Is date range me <strong>${_invLedgerEsc(d.title)}</strong> ki koi movement nahi hai. Opening balance upar dikha raha hai.</td></tr>`;
+    }
   }
   tbody.innerHTML = html;
 
@@ -21546,7 +21841,7 @@ function handlePaperInwardProcessSubmit(e) {
     // Add to ledger
     state.papersLedger.unshift({
       date, inv, reelSize: spec, inwardKg: inward, processedKg: processed, wastageKg: wastage,
-      wipKg: summary.wipKg, reelsKg: summary.reelsKg, wipType
+      wipKg: summary.wipKg, reelsKg: summary.reelsKg, wipType, rate: rate
     });
 
     // Also sync slitted WIP cut sheets to state.materialStock for MRP planning
