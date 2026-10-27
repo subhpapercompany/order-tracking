@@ -17962,7 +17962,7 @@ function renderInventoryLedger() {
   const thBal = document.getElementById('invled_thBal');
   if (thIn && thOut && thBal) {
     const isPaper = d.unit === 'Kg';
-    thIn.textContent = isPaper ? 'Reel to Sheet' : 'In Qty';
+    thIn.textContent = isPaper ? 'Reel Inward' : 'In Qty';
     thOut.textContent = isPaper ? 'Consumption' : 'Out Qty';
     thBal.textContent = 'Closing Balance';
   }
@@ -18079,7 +18079,7 @@ function exportInventoryLedgerCSV() {
     ['Rate', Number(v.rate).toFixed(2)],
     ['Opening Balance', fmtN(v.opening)],
     [],
-    ['Date', 'Particulars', 'Ref / Vch', (v.unit === 'Kg' ? `Reel to Sheet (${v.unit})` : `In Qty (${v.unit})`), (v.unit === 'Kg' ? `Consumption (${v.unit})` : `Out Qty (${v.unit})`), 'Rate', 'In (INR)', 'Out (INR)', `Closing Balance (${v.unit})`, 'Balance Value (INR)']
+    ['Date', 'Particulars', 'Ref / Vch', (v.unit === 'Kg' ? `Reel Inward (${v.unit})` : `In Qty (${v.unit})`), (v.unit === 'Kg' ? `Consumption (${v.unit})` : `Out Qty (${v.unit})`), 'Rate', 'In (INR)', 'Out (INR)', `Closing Balance (${v.unit})`, 'Balance Value (INR)']
   ];
   v.disp.forEach(r => {
     rows.push([
