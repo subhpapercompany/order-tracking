@@ -4724,12 +4724,12 @@ body.print-flash-mode .no-print {
                 <th style="text-align:left; width:96px;">Date</th>
                 <th style="text-align:left;">Particulars</th>
                 <th style="text-align:left; width:130px;">Ref / Voucher</th>
-                <th style="text-align:right; width:90px;">In Qty</th>
-                <th style="text-align:right; width:90px;">Out Qty</th>
+                <th id="invled_thIn" style="text-align:right; width:90px;">In Qty</th>
+                <th id="invled_thOut" style="text-align:right; width:90px;">Out Qty</th>
                 <th style="text-align:right; width:80px;">Rate</th>
                 <th style="text-align:right; width:110px;">In ₹</th>
                 <th style="text-align:right; width:110px;">Out ₹</th>
-                <th style="text-align:right; width:100px;">Balance</th>
+                <th id="invled_thBal" style="text-align:right; width:100px;">Closing Balance</th>
                 <th style="text-align:right; width:120px;">Balance Value</th>
               </tr>
             </thead>
@@ -17956,6 +17956,17 @@ function renderInventoryLedger() {
     running = closing;
   }
 
+  // Column headers: paper me aasan naam (Reel to Sheet / Consumption), baaki me In/Out
+  const thIn = document.getElementById('invled_thIn');
+  const thOut = document.getElementById('invled_thOut');
+  const thBal = document.getElementById('invled_thBal');
+  if (thIn && thOut && thBal) {
+    const isPaper = d.unit === 'Kg';
+    thIn.textContent = isPaper ? 'Reel to Sheet' : 'In Qty';
+    thOut.textContent = isPaper ? 'Consumption' : 'Out Qty';
+    thBal.textContent = 'Closing Balance';
+  }
+
   _invLedgerView = { key: key, title: d.title, category: d.category, unit: d.unit, rate: d.rate, fromDate: fromDate, toDate: toDate, opening: opening, totIn: totIn, totOut: totOut, totInVal: totInVal, totOutVal: totOutVal, closing: closing, closingValue: closingValue, disp: disp };
 
   // ---- KPI Cards ----
@@ -18068,7 +18079,7 @@ function exportInventoryLedgerCSV() {
     ['Rate', Number(v.rate).toFixed(2)],
     ['Opening Balance', fmtN(v.opening)],
     [],
-    ['Date', 'Particulars', 'Ref / Vch', `In Qty (${v.unit})`, `Out Qty (${v.unit})`, 'Rate', 'In (INR)', 'Out (INR)', `Balance (${v.unit})`, 'Balance Value (INR)']
+    ['Date', 'Particulars', 'Ref / Vch', (v.unit === 'Kg' ? `Reel to Sheet (${v.unit})` : `In Qty (${v.unit})`), (v.unit === 'Kg' ? `Consumption (${v.unit})` : `Out Qty (${v.unit})`), 'Rate', 'In (INR)', 'Out (INR)', `Closing Balance (${v.unit})`, 'Balance Value (INR)']
   ];
   v.disp.forEach(r => {
     rows.push([
