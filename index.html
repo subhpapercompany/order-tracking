@@ -4382,8 +4382,7 @@ body.print-flash-mode .no-print {
                 <th>Board Size (cm)</th>
                 <th class="num">Sheet Wt (Kg)</th>
                 <th class="num">Rate / Sheet (₹)</th>
-                <th class="num" style="background:#fef3c7; color:#92400e;">Opening Godown</th>
-                <th class="num" style="background:#fefce8; color:#854d0e;">Opening Printer</th>
+                <th class="num" style="background:#fef3c7; color:#92400e;" title="Base balance — tracking shuru hone se pehle ka total stock (Subh + Printers). Current godown-wise columns me already adjust ho chuka hai.">Opening (Base)</th>
                 <th class="num" style="background:#0f172a; color:#38bdf8;">Subh (Sheets)</th>
                 <th class="num" style="background:#0f172a; color:#fde047;">Fortune (Sheets)</th>
                 <th class="num" style="background:#0f172a; color:#fde047;">Rich (Sheets)</th>
@@ -4404,8 +4403,7 @@ body.print-flash-mode .no-print {
                 <td><strong>Total Board Inventory</strong></td>
                 <td>-</td>
                 <td>-</td>
-                <td class="num" id="boardFootOpGodown" style="color:#92400e; font-weight:800;">0</td>
-                <td class="num" id="boardFootOpPrinter" style="color:#854d0e; font-weight:800;">0</td>
+                <td class="num" id="boardFootOpening" style="color:#92400e; font-weight:800;">0</td>
                 <td class="num" id="boardFootSubh" style="color:#1e3a8a; font-weight:800;">0</td>
                 <td class="num" id="boardFootFortune" style="color:#854d0e; font-weight:800;">0</td>
                 <td class="num" id="boardFootRich" style="color:#854d0e; font-weight:800;">0</td>
@@ -8572,8 +8570,10 @@ body.print-flash-mode .no-print {
               <div class="formula-preview-value" id="ep_previewValue">-</div>
             </div>
 
-            <div class="form-actions">
+            <div class="form-actions" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
               <button type="submit" class="btn btn-primary" id="btnSaveProd">💾 Commit Production &amp; Consumption <span class="kbd-hint">Ctrl+A</span></button>
+              <button type="button" class="btn btn-outline" onclick="addMoreProductionEntry()" style="font-weight:800; font-size:13px; padding:9px 16px;" title="Sirf SKU/Qty clear hota hai — Date & Machine bache rehte hain">➕ Add More</button>
+              <span style="font-size:11.5px; color:#64748b; font-weight:600;">💡 Serial entry: <strong>Date + Machine</strong> rehte hain, sirf SKU/Qty clear hota hai</span>
             </div>
           </form>
         </div>
@@ -8680,8 +8680,10 @@ body.print-flash-mode .no-print {
               <div class="formula-preview-value" id="ed_previewValue">-</div>
             </div>
 
-            <div class="form-actions">
+            <div class="form-actions" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
               <button type="submit" id="btn_submit_despatch" class="btn btn-primary">💾 Commit Despatch Entry <span class="kbd-hint">Ctrl+A</span></button>
+              <button type="button" class="btn btn-outline" onclick="addMoreDespatchEntry()" style="font-weight:800; font-size:13px; padding:9px 16px;" title="Sirf SKU/Qty/Invoice/Vehicle clear hota hai — Date, Vendor & Destination bache rehte hain">➕ Add More</button>
+              <span style="font-size:11.5px; color:#64748b; font-weight:600;">💡 Serial entry: <strong>Date + Vendor + Destination</strong> rehte hain, sirf SKU/Qty/Invoice clear hota hai</span>
             </div>
           </form>
         </div>
@@ -15831,7 +15833,7 @@ function initKeyboardNavigation() {
       const modalIds = [
         'matStockModal', 'editPoRequestModal', 'editPoReleaseModal', 
         'editPoTrackingModal', 'dataManagementModal', 'editSkuModal', 
-        'editPaperModal', 'editBoardModal', 'editConsumableModal', 'daybookEntryModal'
+        'editPaperModal', 'editBoardModal', 'editConsumableModal', 'daybookEntryModal', 'modalEditTxEntry'
       ];
       for (const mid of modalIds) {
         const m = document.getElementById(mid);
@@ -15846,6 +15848,7 @@ function initKeyboardNavigation() {
           else if (mid === 'editBoardModal') closeEditBoardModal();
           else if (mid === 'editConsumableModal') closeEditConsumableModal();
           else if (mid === 'daybookEntryModal') closeDaybookEntryModal();
+          else if (mid === 'modalEditTxEntry') closeTxEntryEdit();
           else m.style.display = 'none';
           
           e.preventDefault();
@@ -16712,6 +16715,33 @@ function renderPapersSheet() {
 /**
  * 7. BOARD SHEET RENDERING (Size & Location Wise)
  */
+// Party name -> godown column key. Party ka naam hi godown hai.
+function boardGodownKeyForParty(partyName) {
+  const p = String(partyName || '').toLowerCase();
+  if (p.indexOf('fortune') >= 0) return 'Fortune';
+  if (p.indexOf('vishruta') >= 0) return 'Vishruta';
+  if (p.indexOf('salasar') >= 0) return 'Salasar';
+  if (p.indexOf('rich') >= 0) return 'Rich';
+  if (p.indexOf('subh') >= 0 || p.indexOf('our godown') >= 0 || p.indexOf('self') >= 0) return 'Subh';
+  return 'Other';
+}
+
+// Opening Stock wizard me party dropdown ke options (ledger ki distinct parties + fixed list).
+function boardOpeningPartyOptions(selected) {
+  const fixed = ['Salasar', 'Fortune', 'Rich', 'Vishruta'];
+  const names = [];
+  (state.boardLedger || []).forEach(l => {
+    const pn = String(l.party || '').trim();
+    if (pn && names.indexOf(pn) < 0) names.push(pn);
+  });
+  fixed.forEach(n => { if (names.indexOf(n) < 0) names.push(n); });
+  const sel = String(selected || 'Other');
+  // Agar saved party options me nahi hai to use bhi add kar do (data loss na ho)
+  if (sel && sel !== 'Other' && names.indexOf(sel) < 0) names.unshift(sel);
+  return names.map(n => `<option value="${n}"${n === sel ? ' selected' : ''}>${n}</option>`).join('') +
+    (sel === 'Other' || !sel ? '<option value="Other" selected>Other</option>' : '<option value="Other">Other</option>');
+}
+
 function renderBoardSheet() {
   renderBoardExecutiveMatrix();
   const tbody = document.getElementById('boardSummaryBody');
@@ -16746,14 +16776,21 @@ function renderBoardSheet() {
       nets[key] = (nets[key] || 0) + net;
     });
 
-    const bal = { Subh: Number(b.ourGodownSheets || 0), Fortune: 0, Rich: 0, Vishruta: 0, Salasar: 0, Other: Number(b.openingPrinterSheets || 0) };
+    // Opening printer ab party-tagged hai → usi party ke godown column me
+    // (legacy data jisme party tag nahi = Other). Subh mat chuno — Subh ka
+    // opening alag "Opening Godown" field se aata hai, double-count hoga.
+    let opKey = boardGodownKeyForParty(b.openingPrinterParty);
+    if (opKey === 'Subh') opKey = 'Other';
+
+    const bal = { Subh: Number(b.ourGodownSheets || 0), Fortune: 0, Rich: 0, Vishruta: 0, Salasar: 0, Other: 0 };
+    bal[opKey] = (bal[opKey] || 0) + Number(b.openingPrinterSheets || 0);
 
     // Kitna production consumption printer se kaata gaya (summary vs raw ledger)
     const rawPrinter = Number(b.openingPrinterSheets || 0) + Object.keys(nets).reduce((a, k) => a + nets[k], 0);
     let cut = rawPrinter - Number(b.printerSheets || 0);
     if (cut > 0) {
       Object.keys(nets).forEach(k => { const c = Math.min(nets[k], cut); nets[k] -= c; cut -= c; });
-      bal.Other = Math.max(0, bal.Other - cut);   // bacha hua opening printer se
+      bal[opKey] = Math.max(0, bal[opKey] - cut);   // bacha hua opening printer (us party ke column) se
     } else if (cut < 0) {
       Object.keys(nets).forEach(k => { nets[k] -= cut; cut = 0; });
     }
@@ -16786,8 +16823,7 @@ function renderBoardSheet() {
       <td><strong><span class="badge-status badge-info">${b.size}</span></strong></td>
       <td class="num">${b.sheetWt} Kg</td>
       <td class="num">₹ ${b.rate}</td>
-      <td class="num" style="font-weight:700; color:#92400e; background:#fef3c7;">${(b.openingGodownSheets || 0).toLocaleString()}</td>
-      <td class="num" style="font-weight:700; color:#854d0e; background:#fefce8;">${(b.openingPrinterSheets || 0).toLocaleString()}</td>
+      <td class="num" style="font-weight:700; color:#92400e; background:#fef3c7;" title="Opening Godown (Subh) + Opening at Printers (party-wise)">${(((b.openingGodownSheets || 0) + (b.openingPrinterSheets || 0))).toLocaleString()}</td>
       ${GODOWN_KEYS.map(cell).join('')}
       <td class="num" style="font-weight:800; color:${(b.totalSheets || 0) < 0 ? '#dc2626' : '#059669'};">${(b.totalSheets || 0).toLocaleString()}</td>
       <td class="num">${(((b.ourGodownKg || 0) + (b.printerKg || 0))).toLocaleString()} Kg</td>
@@ -16804,10 +16840,8 @@ function renderBoardSheet() {
 
   let sumOpGodown = (state.boardSummary || []).reduce((a, b) => a + (b.openingGodownSheets || 0), 0);
   let sumOpPrinter = (state.boardSummary || []).reduce((a, b) => a + (b.openingPrinterSheets || 0), 0);
-  const elOpG = document.getElementById('boardFootOpGodown');
-  if (elOpG) elOpG.textContent = sumOpGodown.toLocaleString();
-  const elOpP = document.getElementById('boardFootOpPrinter');
-  if (elOpP) elOpP.textContent = sumOpPrinter.toLocaleString();
+  const elOpB = document.getElementById('boardFootOpening');
+  if (elOpB) elOpB.textContent = (sumOpGodown + sumOpPrinter).toLocaleString();
   GODOWN_KEYS.forEach(k => {
     const el = document.getElementById('boardFoot' + k);
     if (el) {
@@ -20887,8 +20921,10 @@ function renderTodayTransactions(highlightId) {
 
   tbody.innerHTML = filtered.map(t => {
     const isNew = (t.id === highlightId);
+    const canEdit = (t.type === 'Production' || t.type === 'Despatch');
+    const rowClick = canEdit ? ` style="cursor:pointer;" onclick="openTxEntryEdit('${t.id}')"` : '';
     return `
-      <tr class="${isNew ? 'row-highlight' : ''}">
+      <tr class="${isNew ? 'row-highlight' : ''}"${rowClick}>
         <td style="text-align: center;">
           <input type="checkbox" class="today-tx-chk" value="${t.id}" onchange="updateTodayTxBulkDeleteBtn()">
         </td>
@@ -20900,8 +20936,9 @@ function renderTodayTransactions(highlightId) {
         <td class="num" style="font-weight:700; color:#1e40af;">${t.qty}</td>
         <td style="font-size:12px; color:#475569;">${t.impact}${(t.type === 'Production' && t.details && Number(t.details.rejection) > 0) ? ` <strong style="color:#ef4444;">| Reject: ${Number(t.details.rejection).toLocaleString()} Pcs</strong>` : ''}</td>
         <td style="font-size:11.5px; color:#64748b;">${t.ref}</td>
-        <td style="text-align:center;">
-          <button type="button" class="btn btn-secondary" style="padding: 3px 6px; font-size:11px; color:#ef4444;" title="Delete this entry" onclick="deleteTodayTransaction('${t.id}')">🗑️</button>
+        <td style="text-align:center; white-space:nowrap;">
+          ${canEdit ? `<button type="button" class="btn btn-secondary" style="padding: 3px 6px; font-size:11px; color:#1d4ed8; margin-right:3px;" title="Edit this entry" onclick="event.stopPropagation(); openTxEntryEdit('${t.id}')">✏️</button>` : ''}
+          <button type="button" class="btn btn-secondary" style="padding: 3px 6px; font-size:11px; color:#ef4444;" title="Delete this entry" onclick="event.stopPropagation(); deleteTodayTransaction('${t.id}')">🗑️</button>
         </td>
       </tr>
     `;
@@ -21637,7 +21674,7 @@ function handleProductionLogSubmit(e) {
     qty: `+${addQty.toLocaleString()} Pcs Produced`,
     impact: impactDesc + costDesc,
     ref: `${machine} (${notes || date})`,
-    details: { addQty, rejection: rejQty, batchPaper, paperSpec: sku.paperSpec, batchIndex, indexSpec: selectedIndexSpec, batchBoard, batchCfc, materialCost: mfgCost, costPerPc: Number((mfgCost.total / Math.max(1, addQty)).toFixed(2)) }
+    details: { addQty, rejection: rejQty, batchPaper, paperSpec: sku.paperSpec, batchIndex, indexSpec: selectedIndexSpec, batchBoard, batchCfc, hasIndex, machine, notes, date, materialCost: mfgCost, costPerPc: Number((mfgCost.total / Math.max(1, addQty)).toFixed(2)) }
   });
 
   saveState();
@@ -21645,18 +21682,42 @@ function handleProductionLogSubmit(e) {
   renderAllViews();
   showToast(`Logged +${addQty.toLocaleString()} pcs output! Paper: ${batchPaper.toLocaleString()} Kg${hasIndex ? ' | Index: ' + batchIndex.toLocaleString() + ' Kg' : ''}`);
 
-  // Clear all form inputs cleanly
-  const formProd = document.getElementById('formProductionLog');
-  if (formProd) formProd.reset();
-  ['ep_date', 'ep_addQty', 'ep_machine', 'ep_notes'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
+  // ADD MORE FLOW — Date & Machine rehne do, sirf entry fields clear
+  resetProductionFormForNextEntry();
+}
+
+// ---------------------------------------------------------------
+// ADD MORE (Production) — ek entry ke baad agli entry fast.
+// Date + Machine bache; SKU / Qty / Rejection / Notes clear.
+// ---------------------------------------------------------------
+function resetProductionFormForNextEntry() {
+  const clearIds = ['ep_addQty', 'ep_notes', 'ep_desc', 'ep_vendor', 'ep_currProd', 'ep_currDue',
+    'ep_bookWtPaper', 'ep_bookWtIndex', 'ep_bookWtTotal', 'ep_paperConsBatch', 'ep_indexConsBatch',
+    'ep_boardConsBatch', 'ep_cfcConsBatch', 'ep_caseQty', 'ep_cfcItemName'];
+  clearIds.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['ep_availIndexStock', 'ep_availCfcStock'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+
   const epRej = document.getElementById('ep_rejection');
-  if (epRej) epRej.value = '0';   // Rejection hamesha 0 par reset
+  if (epRej) epRej.value = '0';                       // Rejection hamesha 0 par reset
   const epSelect = document.getElementById('ep_skuSelect');
   if (epSelect) epSelect.value = '';
-  onProdSkuChange();
+  const idxChk = document.getElementById('ep_hasIndex');
+  if (idxChk && !idxChk.disabled) idxChk.checked = false;   // Camlin me fixed checked rehta hai
+
+  const pv = document.getElementById('ep_previewValue');
+  if (pv) { pv.textContent = '-'; pv.style.color = ''; }
+  const fn = document.getElementById('ep_formulaNote');
+  if (fn) fn.textContent = 'Select SKU and enter output quantity';
+  const costEl = document.getElementById('ep_costNote');
+  if (costEl) costEl.style.display = 'none';
+
+  try { onProdSkuChange(); } catch (_) {}
+  if (epSelect) epSelect.focus();
+}
+
+function addMoreProductionEntry() {
+  resetProductionFormForNextEntry();
+  showToast('➕ Ready for next Production entry — Date & Machine same rahenge.');
 }
 
 function handleDespatchLogSubmit(e) {
@@ -21743,22 +21804,287 @@ function handleDespatchLogSubmit(e) {
   showToast(`Despatch logged: +${addQty.toLocaleString()} pcs to ${destVal || 'destination'} (Inv: ${invoice})!`);
 
   // Clear all form inputs cleanly
-  const formDesp = document.getElementById('formDespatchLog');
-  if (formDesp) formDesp.reset();
-  ['ed_date', 'ed_addQty', 'ed_invoice', 'ed_vehicle', 'ed_vendor_other', 'ed_dest_other'].forEach(id => {
+  // ADD MORE FLOW — Date, Vendor & Destination rehne do; sirf entry fields clear
+  resetDespatchFormForNextEntry();
+}
+
+// ---------------------------------------------------------------
+// ADD MORE (Despatch) — ek entry ke baad agli entry fast.
+// Date + Vendor + Destination bache; SKU / Qty / Invoice / Vehicle / Rate clear.
+// ---------------------------------------------------------------
+function resetDespatchFormForNextEntry() {
+  ['ed_addQty', 'ed_invoice', 'ed_vehicle', 'ed_rate', 'ed_amount', 'ed_desc', 'ed_currStock', 'ed_currDue', 'ed_vendor_other', 'ed_dest_other'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
   const edSelect = document.getElementById('ed_skuSelect');
   if (edSelect) edSelect.value = '';
-  const edVendor = document.getElementById('ed_vendor');
-  if (edVendor) edVendor.value = '';
-  const edDest = document.getElementById('ed_dest');
-  if (edDest) edDest.value = '';
-  if (document.getElementById('group_ed_vendor_other')) document.getElementById('group_ed_vendor_other').style.display = 'none';
-  if (document.getElementById('group_ed_dest_other')) document.getElementById('group_ed_dest_other').style.display = 'none';
-  onDespSkuChange();
-  // Screen stays stable on form without jumping to bottom
+  const gV = document.getElementById('group_ed_vendor_other');
+  if (gV) gV.style.display = 'none';
+  const gD = document.getElementById('group_ed_dest_other');
+  if (gD) gD.style.display = 'none';
+  const note = document.getElementById('ed_formulaNote');
+  if (note) note.textContent = 'Select SKU and enter dispatch quantity';
+  const pv = document.getElementById('ed_previewValue');
+  if (pv) { pv.textContent = '-'; pv.style.color = ''; }
+  const banner = document.getElementById('ed_po_status_banner');
+  if (banner) banner.style.display = 'none';
+  try { onDespSkuChange(); } catch (_) {}
+  if (edSelect) edSelect.focus();
+}
+
+function addMoreDespatchEntry() {
+  resetDespatchFormForNextEntry();
+  showToast('➕ Ready for next Despatch entry — Date, Vendor & Destination same rahenge.');
+}
+
+// ============================================================
+// ENTRY EDIT MODAL — Production / Despatch entry row par click
+// ya ✏️ se. Stock + material (Paper/Index/Board/CFC) auto-adjust.
+// ============================================================
+let _txEditId = null;
+
+function txeBoardDivisor(sku) {
+  const s = String(sku.barcode || '').trim();
+  const thirdChar = s.charAt(2);
+  if (thirdChar === '3') return 8;
+  if (thirdChar === '5') return 3;
+  const isA4 = (sku.size && String(sku.size).toUpperCase().includes('A4')) ||
+                (sku.description && String(sku.description).toUpperCase().includes('A4')) ||
+                (sku.ups === 3);
+  return isA4 ? 3 : 8;
+}
+
+function txeRulingKey(sku) {
+  const rRaw = String(sku.ruling || (typeof getRulingFromProductCode === 'function' ? getRulingFromProductCode(sku.barcode, sku.description) : '')).toUpperCase();
+  if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) return 'Double Rule';
+  if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) return 'Unruled';
+  if (rRaw.includes('FOUR') || rRaw.includes('4L')) return 'Four Line';
+  if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) return 'Med. Square';
+  return 'Single Line';
+}
+
+function openTxEntryEdit(txId) {
+  const t = (state.todayTransactions || []).find(x => x.id === txId);
+  if (!t) { showToast('⚠️ Entry nahi mili — page refresh karke dobara try karein.'); return; }
+  const type = String(t.type || '');
+  if (type !== 'Production' && type !== 'Despatch') return;
+  _txEditId = txId;
+
+  const d = t.details || {};
+  const isProd = type === 'Production';
+  const g = id => document.getElementById(id);
+
+  g('txe_title').textContent = isProd ? 'Edit Production Entry' : 'Edit Despatch Entry';
+  g('txe_sub').textContent = (isProd ? 'Daily Production Log' : 'Daily Despatch Log') + ' — Stock & material auto-adjust honge';
+  g('txe_sku').value = `${t.barcode || '-'} — ${t.description || '-'}`;
+  g('txe_date').value = daybookNormalizeDate(t.date || d.date || d.productionDate || d.despatchDate) || daybookTodayISO();
+  g('txe_qty').value = Number(d.addQty || 0);
+
+  if (isProd) {
+    g('txe_rej').value = Number(d.rejection || 0);
+    g('txe_machine').value = d.machine || '';
+    g('txe_notes').value = d.notes || '';
+    g('txe_prod_block').style.display = 'contents';
+    g('txe_desp_block').style.display = 'none';
+  } else {
+    g('txe_invoice').value = d.invoice || '';
+    g('txe_vehicle').value = d.vehicle || '';
+    g('txe_rate').value = Number(d.rate || 0);
+    g('txe_prod_block').style.display = 'none';
+    g('txe_desp_block').style.display = 'contents';
+  }
+
+  g('modalEditTxEntry').style.display = 'flex';
+}
+
+function closeTxEntryEdit() {
+  const m = document.getElementById('modalEditTxEntry');
+  if (m) m.style.display = 'none';
+  _txEditId = null;
+}
+
+function saveTxEntryEdit(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const t = (state.todayTransactions || []).find(x => x.id === _txEditId);
+  if (!t) return closeTxEntryEdit();
+
+  const d = t.details || {};
+  const type = String(t.type || '');
+  const qty = Math.max(0, Math.floor(Number((document.getElementById('txe_qty') || {}).value) || 0));
+  const date = (document.getElementById('txe_date') || {}).value || t.date;
+  const sku = (state.skus || []).find(s => String(s.barcode) === String(t.barcode));
+
+  if (!sku) { alert(`❌ Product Code "${t.barcode}" abhi database me nahi hai — entry edit nahi ho sakti.`); return; }
+  if (qty <= 0) { alert('⚠️ Quantity 1 se kam nahi ho sakti!'); return; }
+
+  if (type === 'Production') saveProductionTxEdit(t, d, sku, qty, date);
+  else saveDespatchTxEdit(t, d, sku, qty, date);
+
+  saveState();
+  recalculateAllFormulas();
+  renderAllViews();
+  try { renderTodayTransactions(); } catch (_) {}
+  try { renderDaybook(); } catch (_) {}
+  closeTxEntryEdit();
+}
+
+// ---------------- PRODUCTION EDIT ----------------
+function saveProductionTxEdit(t, d, sku, qty, date) {
+  const rej = Math.max(0, Math.floor(Number((document.getElementById('txe_rej') || {}).value) || 0));
+  if (rej > qty) { alert(`⚠️ Rejection Qty (${rej.toLocaleString()}) Production Qty (${qty.toLocaleString()}) se zyada nahi ho sakti!`); return false; }
+
+  const machine = (document.getElementById('txe_machine') || {}).value || '';
+  const notes = ((document.getElementById('txe_notes') || {}).value || '').trim();
+
+  const oldAdd = Number(d.addQty) || 0;
+  const oldRej = Number(d.rejection) || 0;
+  const oldNet = oldAdd - oldRej;
+  const newNet = qty - rej;
+
+  const hasIndex = (d.hasIndex !== undefined) ? !!d.hasIndex : (Number(d.batchIndex) || 0) > 0;
+  const indexSpec = d.indexSpec || sku.indexSpec || sku.paperSpec || '90x43x57';
+
+  // ---- Stock validation (recalc stock already net of current production) ----
+  const prodBefore = Number(sku.production) || 0;
+  const prodAfter = Math.max(0, prodBefore - oldNet + newNet);
+  const dProd = prodAfter - prodBefore;
+
+  const bwPaper = Number(sku.bookWtPaper) || 0;
+  const bwIndex = Number(sku.bookWtIndex) || 0;
+  const dPaper = Number((dProd * bwPaper * 1.0025).toFixed(2));
+  const dIndex = Number((dProd * bwIndex * 1.0025).toFixed(2));
+
+  if (dPaper > 0) {
+    const avail = getAvailablePaperStock(sku.paperSpec, txeRulingKey(sku));
+    if (dPaper > avail) {
+      alert(`⛔ EDIT BLOCKED — Paper stock negative ho jayega!\n\nItem: Paper ${sku.paperSpec} (${txeRulingKey(sku)})\nAvailable: ${avail.toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\nExtra required: ${dPaper.toLocaleString(undefined, {minimumFractionDigits: 2})} Kg`);
+      return false;
+    }
+  }
+  if (hasIndex && dIndex > 0) {
+    const avail = getAvailablePaperStock(indexSpec, 'Index');
+    if (dIndex > avail) {
+      alert(`⛔ EDIT BLOCKED — Index stock negative ho jayega!\n\nItem: Index Paper ${indexSpec}\nAvailable: ${avail.toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\nExtra required: ${dIndex.toLocaleString(undefined, {minimumFractionDigits: 2})} Kg`);
+      return false;
+    }
+  }
+  const div = txeBoardDivisor(sku);
+  const dBoard = Math.ceil(prodAfter / div) - Math.ceil(prodBefore / div);
+  if (dBoard > 0 && sku.boardSpec && Array.isArray(state.boardSummary)) {
+    const compactB = String(sku.boardSpec).replace(/\s+/g, '').toLowerCase();
+    const bSum = state.boardSummary.find(b => {
+      const bSize = String(b.size || '').replace(/\s+/g, '').toLowerCase();
+      return bSize === compactB || (compactB.includes('200') && bSize.includes('200')) || (compactB.includes('77') && bSize.includes('77')) || (compactB.includes('190') && compactB.includes('45.5') && bSize.includes('190') && bSize.includes('45.5'));
+    });
+    if (bSum) {
+      const avail = (bSum.ourGodownSheets || 0) + (bSum.printerSheets || 0);
+      if (dBoard > avail) {
+        alert(`⛔ EDIT BLOCKED — Title Cover Board stock negative ho jayega!\n\nBoard: ${sku.boardSpec}\nAvailable: ${avail.toLocaleString()} Sheets\nExtra required: ${dBoard.toLocaleString()} Sheets`);
+        return false;
+      }
+    }
+  }
+
+  const caseQty = Number(sku.caseQty || sku.caseQuantity || 48);
+  const oldCfc = Number(d.batchCfc) || 0;
+  const newCfc = caseQty > 0 ? Number((newNet / caseQty).toFixed(2)) : 0;
+  const dCfc = Number((newCfc - oldCfc).toFixed(2));
+  if (dCfc > 0) {
+    ensureCfcConsumablesExist();
+    const cfcItem = (state.consumables || []).find(c => c.item === `${sku.barcode} : CFC`);
+    const cfcStock = cfcItem ? Number(cfcItem.stock || 0) : 0;
+    if (dCfc > cfcStock) {
+      alert(`⛔ EDIT BLOCKED — Packing Carton (CFC) stock negative ho jayega!\n\nItem: ${sku.barcode} : CFC\nAvailable: ${cfcStock.toLocaleString()} Boxes\nExtra required: ${dCfc.toLocaleString()} Boxes`);
+      return false;
+    }
+  }
+
+  // ---- Apply: production total (paper/index/board recalc se khud ban jaate hain) ----
+  sku.production = prodAfter;
+
+  // ---- CFC (issued) manual adjust + correction ledger ----
+  if (Math.abs(dCfc) > 0.0001) {
+    ensureCfcConsumablesExist();
+    const cfcItem = (state.consumables || []).find(c => c.item === `${sku.barcode} : CFC`);
+    if (cfcItem) {
+      cfcItem.issued = Number(((Number(cfcItem.issued) || 0) + dCfc).toFixed(2));
+      cfcItem.stock = Number(((Number(cfcItem.opening) || 0) + (Number(cfcItem.inward) || 0) - cfcItem.issued).toFixed(2));
+      cfcItem.amount = Number((cfcItem.stock * (Number(cfcItem.rate) || 36)).toFixed(2));
+      logConsumableLedgerEntry({
+        date: date,
+        item: cfcItem.item,
+        category: 'Cartons / CFC',
+        type: dCfc > 0 ? 'Production Edit' : 'Production Edit Return',
+        qtyIn: dCfc < 0 ? Math.abs(dCfc) : 0,
+        qtyOut: dCfc > 0 ? dCfc : 0,
+        ref: `Prod edit: ${oldAdd.toLocaleString()} → ${qty.toLocaleString()} Pcs`,
+        notes: `Entry edit correction${machine ? ' | Machine: ' + machine : ''}`,
+        unit: 'Box'
+      });
+    }
+  }
+
+  // ---- Per-entry batches (audit) + cost ----
+  const newPaper = Number((qty * bwPaper * 1.0025).toFixed(2));
+  const newIndex = Number((qty * bwIndex * 1.0025).toFixed(2));
+  const newBoard = Math.ceil(qty / div);
+  const mfgCost = calcMfgCost(sku, indexSpec, hasIndex, newPaper, newIndex, newBoard, newCfc);
+
+  const impactDesc = `Paper: ${newPaper.toLocaleString()} Kg (${sku.paperSpec})` +
+    (hasIndex ? ` | Index: ${newIndex.toLocaleString()} Kg (${indexSpec})` : '') +
+    ` | Board: ${newBoard.toLocaleString()} Sheets` +
+    (newCfc > 0 ? ` | CFC: ${newCfc.toLocaleString()} Boxes (${sku.barcode} : CFC)` : '');
+  const costDesc = ` | 💰 Cost: ₹${mfgCost.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Paper ₹${mfgCost.paper.toLocaleString('en-IN')} + Index ₹${mfgCost.index.toLocaleString('en-IN')} + Board ₹${mfgCost.board.toLocaleString('en-IN')} + CFC ₹${mfgCost.cfc.toLocaleString('en-IN')})`;
+
+  t.date = date;
+  t.details = Object.assign({}, d, {
+    addQty: qty, rejection: rej, batchPaper: newPaper, batchIndex: newIndex,
+    batchBoard: newBoard, batchCfc: newCfc, hasIndex: hasIndex, indexSpec: indexSpec,
+    machine: machine, notes: notes, date: date,
+    materialCost: mfgCost, costPerPc: Number((mfgCost.total / Math.max(1, qty)).toFixed(2))
+  });
+  t.qty = `+${qty.toLocaleString()} Pcs Produced`;
+  t.impact = impactDesc + costDesc;
+  t.ref = `${machine || '—'} (${notes || date})`;
+  showToast(`✅ Production entry updated: ${oldAdd.toLocaleString()} → ${qty.toLocaleString()} Pcs${rej > 0 ? ` (Reject ${rej.toLocaleString()})` : ''}`);
+  return true;
+}
+
+// ---------------- DESPATCH EDIT ----------------
+function saveDespatchTxEdit(t, d, sku, qty, date) {
+  const invoice = ((document.getElementById('txe_invoice') || {}).value || '').trim();
+  const vehicle = ((document.getElementById('txe_vehicle') || {}).value || '').trim();
+  const rate = Math.max(0, Number((document.getElementById('txe_rate') || {}).value) || 0);
+
+  const oldAdd = Number(d.addQty) || 0;
+  const oldRate = Number(d.rate) || 0;
+
+  // FG stock check — sirf increase par (stock abhi purane entry ke baad ka hai)
+  const fgStock = Number(sku.oldStock || 0) + Number(sku.production || 0) - Number(sku.despatched || 0);
+  const dQty = qty - oldAdd;
+  if (dQty > fgStock) {
+    alert(`⛔ EDIT BLOCKED — FG stock negative ho jayega!\n\nProduct: ${sku.barcode} (${sku.description})\nAvailable FG: ${fgStock.toLocaleString()} Pcs\nExtra despatch requested: ${dQty.toLocaleString()} Pcs\n\nKripya pehle Daily Production Log me production darj karein.`);
+    return false;
+  }
+
+  const dest = d.destination || '';
+  const vendorVal = d.vendor || t.vendor || '';
+
+  sku.despatched = Math.max(0, Number(sku.despatched || 0) - oldAdd + qty);
+  const amount = Number((qty * rate).toFixed(2));
+  const fgAfter = Number(sku.oldStock || 0) + Number(sku.production || 0) - Number(sku.despatched || 0);
+
+  t.date = date;
+  t.details = Object.assign({}, d, { addQty: qty, rate: rate, amount: amount, invoice: invoice, vehicle: vehicle, date: date });
+  t.qty = `${qty.toLocaleString()} Pcs Despatched`;
+  t.impact = `Remaining Godown Stock: ${fgAfter.toLocaleString()} Pcs | Amount: ₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} @ ₹${rate}/Pcs`;
+  t.ref = `Inv: ${invoice || '-'}${dest ? ' • Dest: ' + dest : ''} (${vehicle || date})`;
+  if (oldRate !== rate && rate > 0) {
+    t.details.rateChanged = true;
+  }
+  showToast(`✅ Despatch entry updated: ${oldAdd.toLocaleString()} → ${qty.toLocaleString()} Pcs${invoice ? ` (Inv: ${invoice})` : ''}`);
+  return true;
 }
 
 function handleConsumptionEntrySubmit(e) {
@@ -24926,11 +25252,16 @@ function openBoardOpeningModal() {
     const safeSize = size.replace(/\./g, '_').replace(/x/g, '_');
     const elGodown = document.getElementById('open_board_godown_' + safeSize);
     const elPrinter = document.getElementById('open_board_printer_' + safeSize);
+    const elPrinterParty = document.getElementById('open_board_printer_party_' + safeSize);
     const elRate = document.getElementById('open_board_rate_' + safeSize);
     const elWt = document.getElementById('open_board_wt_' + safeSize);
 
     if (elGodown) elGodown.value = item.openingGodownSheets || 0;
     if (elPrinter) elPrinter.value = item.openingPrinterSheets || 0;
+    if (elPrinterParty) {
+      // Legacy data me party tag nahi tha → default Other
+      elPrinterParty.innerHTML = boardOpeningPartyOptions(item.openingPrinterParty || 'Other');
+    }
     if (elRate) elRate.value = item.rate || 7.5;
     if (elWt) elWt.value = item.sheetWt || 0.08;
   });
@@ -24961,6 +25292,7 @@ function saveBoardOpeningModal(e) {
     const safeSize = size.replace(/\./g, '_').replace(/x/g, '_');
     const godownVal = parseFloat(document.getElementById('open_board_godown_' + safeSize)?.value) || 0;
     const printerVal = parseFloat(document.getElementById('open_board_printer_' + safeSize)?.value) || 0;
+    const printerParty = (document.getElementById('open_board_printer_party_' + safeSize)?.value || 'Other');
     const rateVal = parseFloat(document.getElementById('open_board_rate_' + safeSize)?.value) || 7.5;
     const wtVal = parseFloat(document.getElementById('open_board_wt_' + safeSize)?.value) || 0.08;
 
@@ -24972,6 +25304,8 @@ function saveBoardOpeningModal(e) {
 
     bItem.openingGodownSheets = godownVal;
     bItem.openingPrinterSheets = printerVal;
+    // Opening printer kaunsi party (godown) me pada — godown-wise column isi se banta hai
+    bItem.openingPrinterParty = (printerVal > 0) ? printerParty : 'Other';
     bItem.rate = rateVal;
     bItem.sheetWt = wtVal;
 
@@ -35319,6 +35653,12 @@ function daybookEditEntry(source, idx) {
   if (source === 'poRel') { openEditPoReleaseModal(idx); return; }
   if (source === 'camlin') { openCamlinVoucherModal('EDIT', raw.id); return; }
   if (source === 'flash') { openDailyFlashReport(raw.id); return; }
+  // Production / Despatch entries ka apna dedicated edit modal hai jo
+  // material consumption (paper/index/board/CFC) bhi adjust karta hai.
+  if (source === 'today') {
+    const tt = String(raw.type || '');
+    if (tt === 'Production' || tt === 'Despatch') { openTxEntryEdit(raw.id); return; }
+  }
 
   daybookOpenEditor(source, idx);
 }
@@ -36029,8 +36369,8 @@ function deleteHundiRegisterEntry(id) {
           <thead>
             <tr style="background:#f1f5f9;">
               <th style="text-align:left;">Board Size / Spec</th>
-              <th class="num" style="background:#fef3c7; color:#92400e;">Opening Our Godown (Sheets)</th>
-              <th class="num" style="background:#fefce8; color:#854d0e;">Opening Printer Godown (Sheets)</th>
+              <th class="num" style="background:#fef3c7; color:#92400e;">Opening Our Godown (Subh)</th>
+              <th class="num" style="background:#fefce8; color:#854d0e;">Opening at Printer (Sheets + Party)</th>
               <th class="num" style="width:90px;">Sheet Wt (Kg)</th>
               <th class="num" style="width:95px;">Rate (₹/Sheet)</th>
             </tr>
@@ -36046,6 +36386,9 @@ function deleteHundiRegisterEntry(id) {
               </td>
               <td>
                 <input type="number" id="open_board_printer_45_5_91_190" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
+                <select id="open_board_printer_party_45_5_91_190" style="width:100%; margin-top:4px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px; font-size:11.5px; font-weight:700; background:#fefce8; color:#854d0e;">
+                  <option value="Other">Other</option>
+                </select>
               </td>
               <td>
                 <input type="number" id="open_board_wt_45_5_91_190" step="any" value="0.07866" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
@@ -36057,20 +36400,23 @@ function deleteHundiRegisterEntry(id) {
 
             <tr>
               <td>
-                <strong>45.5 × 98 × 200</strong>
+                <strong>45.5 × 91 × 200</strong>
                 <div style="font-size:11px; color:#64748b;">A4 Longbook Spec</div>
               </td>
               <td>
-                <input type="number" id="open_board_godown_45_5_98_200" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#92400e;">
+                <input type="number" id="open_board_godown_45_5_91_200" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#92400e;">
               </td>
               <td>
-                <input type="number" id="open_board_printer_45_5_98_200" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
+                <input type="number" id="open_board_printer_45_5_91_200" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
+                <select id="open_board_printer_party_45_5_91_200" style="width:100%; margin-top:4px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px; font-size:11.5px; font-weight:700; background:#fefce8; color:#854d0e;">
+                  <option value="Other">Other</option>
+                </select>
               </td>
               <td>
-                <input type="number" id="open_board_wt_45_5_98_200" step="any" value="0.08280" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
+                <input type="number" id="open_board_wt_45_5_91_200" step="any" value="0.08280" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
               </td>
               <td>
-                <input type="number" id="open_board_rate_45_5_98_200" step="any" value="7.54" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
+                <input type="number" id="open_board_rate_45_5_91_200" step="any" value="7.54" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
               </td>
             </tr>
 
@@ -36084,6 +36430,9 @@ function deleteHundiRegisterEntry(id) {
               </td>
               <td>
                 <input type="number" id="open_board_printer_91_91_190" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
+                <select id="open_board_printer_party_91_91_190" style="width:100%; margin-top:4px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px; font-size:11.5px; font-weight:700; background:#fefce8; color:#854d0e;">
+                  <option value="Other">Other</option>
+                </select>
               </td>
               <td>
                 <input type="number" id="open_board_wt_91_91_190" step="any" value="0.15730" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
@@ -36103,6 +36452,9 @@ function deleteHundiRegisterEntry(id) {
               </td>
               <td>
                 <input type="number" id="open_board_printer_77_98_190" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
+                <select id="open_board_printer_party_77_98_190" style="width:100%; margin-top:4px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px; font-size:11.5px; font-weight:700; background:#fefce8; color:#854d0e;">
+                  <option value="Other">Other</option>
+                </select>
               </td>
               <td>
                 <input type="number" id="open_board_wt_77_98_190" step="any" value="0.14300" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
@@ -37292,6 +37644,85 @@ function deleteHundiRegisterEntry(id) {
           <button type="button" onclick="daybookDeleteFromModal()" class="btn" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; font-weight:800; font-size:12.5px; padding:7px 14px; border-radius:6px; cursor:pointer;">🗑️ Delete Entry</button>
           <button type="submit" class="btn btn-primary" style="background:#2563eb; border-color:#2563eb; font-weight:800; font-size:12.5px; padding:7px 18px; border-radius:6px; cursor:pointer;">💾 Save Changes</button>
         </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ ENTRY EDIT MODAL (Production / Despatch row → edit) ============ -->
+<div id="modalEditTxEntry" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.78); backdrop-filter:blur(4px); z-index:10002; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:#ffffff; border-radius:14px; width:100%; max-width:720px; max-height:92vh; overflow:auto; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); border:1px solid #cbd5e1;">
+    <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 65%,#172554 100%); color:#ffffff; padding:14px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:2;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:22px;">✏️</span>
+        <div>
+          <h3 id="txe_title" style="font-size:15.5px; font-weight:800; margin:0; color:#ffffff;">Edit Entry</h3>
+          <p id="txe_sub" style="font-size:11px; color:#93c5fd; margin:2px 0 0 0;">Stock &amp; material auto-adjust honge.</p>
+        </div>
+      </div>
+      <button type="button" onclick="closeTxEntryEdit()" style="background:transparent; border:0; color:#ffffff; font-size:24px; cursor:pointer; line-height:1; opacity:0.85; padding:2px 8px;" title="Close">&times;</button>
+    </div>
+
+    <form id="formEditTxEntry" onsubmit="saveTxEntryEdit(event)">
+      <div style="padding:16px 20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px;">
+
+        <div class="form-group" style="grid-column: span 2;">
+          <label>SKU / Product Code <span style="font-weight:600; color:#64748b;">(read-only)</span></label>
+          <input type="text" id="txe_sku" readonly style="padding:9px 12px; background:#f1f5f9; color:#475569; font-weight:700; border:1px solid #cbd5e1; border-radius:7px; cursor:not-allowed;">
+        </div>
+
+        <div class="form-group">
+          <label>Entry Date *</label>
+          <input type="date" id="txe_date" required style="padding:9px 12px; border:1px solid #cbd5e1; border-radius:7px; font-weight:700;">
+        </div>
+
+        <div class="form-group">
+          <label id="txe_qty_label">Quantity (Pcs) *</label>
+          <input type="number" id="txe_qty" min="1" step="1" required style="padding:9px 12px; border:1px solid #cbd5e1; border-radius:7px; font-weight:800; text-align:right; color:#1e3a8a;">
+        </div>
+
+        <!-- PRODUCTION-only fields -->
+        <div id="txe_prod_block" style="display:contents;">
+          <div class="form-group">
+            <label>Rejection Qty (Pcs)</label>
+            <input type="number" id="txe_rej" min="0" step="1" style="padding:9px 12px; border:1px solid #cbd5e1; border-radius:7px; font-weight:700; text-align:right; color:#dc2626;">
+          </div>
+          <div class="form-group">
+            <label>Machine</label>
+            <input type="text" id="txe_machine" placeholder="Machine name" style="padding:9px 12px; border:1px solid #cbd5e1; border-radius:7px; font-weight:600;">
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Notes / Operator</label>
+            <input type="text" id="txe_notes" placeholder="Optional notes" style="padding:9px 12px; border:1px solid #cbd5e1; border-radius:7px; font-weight:600;">
+          </div>
+        </div>
+
+        <!-- DESPATCH-only fields -->
+        <div id="txe_desp_block" style="display:none;">
+          <div class="form-group">
+            <label>Challan / Invoice No</label>
+            <input type="text" id="txe_invoice" placeholder="Invoice no" style="padding:9px 12px; border:1px solid #cbd5e1; border-radius:7px; font-weight:700;">
+          </div>
+          <div class="form-group">
+            <label>Vehicle No</label>
+            <input type="text" id="txe_vehicle" placeholder="Vehicle no" style="padding:9px 12px; border:1px solid #cbd5e1; border-radius:7px; font-weight:600;">
+          </div>
+          <div class="form-group">
+            <label>Rate per Pcs (₹) *</label>
+            <input type="number" id="txe_rate" min="0" step="0.01" style="padding:9px 12px; border:1px solid #cbd5e1; border-radius:7px; font-weight:800; text-align:right; color:#0f766e;">
+          </div>
+        </div>
+
+        <div class="form-group" style="grid-column: span 2; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:10px 12px;">
+          <small style="font-size:12px; color:#0369a1; font-weight:600; line-height:1.5;">
+            💡 Save par system auto-adjust karega: SKU Production/Despatch total, FG stock, Paper &amp; Index consumption (Kg), Title Cover Board sheets aur Packing Carton (CFC) issued. Agar kisi material ka stock negative ho jayega to edit block ho jayega.
+          </small>
+        </div>
+      </div>
+
+      <div style="padding:12px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; gap:10px; background:#f8fafc; position:sticky; bottom:0;">
+        <button type="button" onclick="closeTxEntryEdit()" class="btn btn-secondary" style="font-weight:700; font-size:12.5px;">Cancel</button>
+        <button type="submit" class="btn btn-primary" style="background:#2563eb; border-color:#2563eb; font-weight:800; font-size:12.5px; padding:7px 18px; border-radius:6px; cursor:pointer;">💾 Save Changes</button>
       </div>
     </form>
   </div>
