@@ -8857,7 +8857,7 @@ body.print-flash-mode .no-print {
                 <label>Board Size *</label>
                 <select id="eboard_size" onchange="updateBoardBarcodeDropdown()" required>
                   <option value="" disabled selected></option>
-                  <option value="45.5x91x190">45.5 x 91 x 190 (A5 Spec)</option>
+                  <option value="45.5x91x190">45.5 x 91 x 190 (A4 ≤175P, 3 ups)</option>
                   <option value="45.5x91x200">45.5 x 91 x 200 (A4 Spec)</option>
                   <option value="91x91x190">91 x 91 x 190</option>
                   <option value="77x98x190">77 x 98 x 190</option>
@@ -12463,20 +12463,78 @@ async function reloadDatabaseFromDisk(showNotify = false) {
   }
 }
 
-function showFileProtocolNotice() {
-  const showBanner = () => {
-    if (document.getElementById('fileProtocolNoticeBanner')) return;
-    const banner = document.createElement('div');
-    banner.id = 'fileProtocolNoticeBanner';
-    banner.style.cssText = 'background:#b91c1c; color:#ffffff; padding:12px 20px; font-weight:700; font-size:13px; text-align:center; position:sticky; top:0; z-index:999999; box-shadow:0 3px 10px rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center; gap:12px;';
-    banner.innerHTML = '<span>⚠️ <strong>OFFLINE FILE MODE (file://):</strong> Is mode mein entries hard disk par permanent save nahi hoti hain. Kripya desktop par diye gaye <strong>"Subh Paper - Order Tracking"</strong> icon se ya <code>http://localhost:8080</code> se software kholein.</span>';
+/* =========================================================================
+   FILE:// MODE NOTICE - SMART BANNER
+   - Drive LIVE hai  -> halka amber notice (dismiss ke saath), kyunki entries
+     Google Drive par save ho rahe hain (permanent).
+   - Drive OFF/disabled -> laal warning (asli data-loss risk).
+   ========================================================================= */
+
+/** file:// par khola gaya ya nahi (helper taaki test me override ho sake). */
+function _isFileProtocol() {
+  return window.location.protocol === 'file:';
+}
+
+let _fileModeBannerTimer = null;
+
+function _fileModeDismissed() {
+  try { return sessionStorage.getItem('subh_filemode_banner_dismissed') === '1'; } catch (_) { return false; }
+}
+
+function dismissFileModeBanner() {
+  try { sessionStorage.setItem('subh_filemode_banner_dismissed', '1'); } catch (_) {}
+  const b = document.getElementById('fileProtocolNoticeBanner');
+  if (b) b.remove();
+}
+
+function renderFileModeBanner() {
+  if (!_isFileProtocol()) return;
+  if (_fileModeDismissed()) return;
+
+  const driveLive = window._gDriveOnline === true;
+  const driveOff = localStorage.getItem('subh_gdrive_disabled') === 'true';
+
+  let banner = document.getElementById('fileProtocolNoticeBanner');
+  if (banner && banner.dataset.driveLive === String(driveLive)) return; // already correct
+  if (banner) banner.remove();
+
+  banner = document.createElement('div');
+  banner.id = 'fileProtocolNoticeBanner';
+  banner.dataset.driveLive = String(driveLive);
+
+  if (driveLive) {
+    // Drive connected -> entries permanent save ho rahe hain, toh red nahi
+    banner.style.cssText = 'background:#fffbeb; color:#92400e; border-bottom:2px solid #f59e0b; padding:9px 20px; font-weight:700; font-size:12.5px; text-align:center; position:sticky; top:0; z-index:999999; display:flex; align-items:center; justify-content:center; gap:14px;';
+    banner.innerHTML = '<span>📁 <strong>Offline File Mode (file://):</strong> Entries <strong>Google Drive par save ho rahe hain</strong> (Drive: Live). Best — desktop <strong>"Subh Paper - Order Tracking"</strong> icon ya <code>http://localhost:8080</code> se kholein, usme local server copy bhi banti hai.</span>' +
+      '<button type="button" onclick="dismissFileModeBanner()" title="Band karein" style="background:#92400e; color:#fffbeb; border:none; border-radius:5px; font-weight:800; font-size:12px; padding:3px 10px; cursor:pointer; flex-shrink:0;">&times;</button>';
+  } else {
+    // Drive bhi available nahi -> asli risk, laal
+    banner.style.cssText = 'background:#b91c1c; color:#ffffff; padding:10px 20px; font-weight:700; font-size:13px; text-align:center; position:sticky; top:0; z-index:999999; box-shadow:0 3px 10px rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center; gap:14px;';
+    banner.innerHTML = '<span>⚠️ <strong>OFFLINE FILE MODE (file://):</strong> Drive sync ' + (driveOff ? 'band hai' : 'available nahi hai') + ', isliye entries <strong>permanent save nahi ho rahe</strong>. Kripya desktop <strong>"Subh Paper - Order Tracking"</strong> icon se ya <code>http://localhost:8080</code> se software kholein.</span>' +
+      '<button type="button" onclick="dismissFileModeBanner()" title="Band karein" style="background:#ffffff; color:#b91c1c; border:none; border-radius:5px; font-weight:800; font-size:12px; padding:3px 10px; cursor:pointer; flex-shrink:0;">&times;</button>';
+  }
+
+  const mount = () => {
+    if (!document.body || document.getElementById('fileProtocolNoticeBanner')) return;
     document.body.prepend(banner);
   };
-  if (document.body) {
-    showBanner();
-  } else {
-    window.addEventListener('DOMContentLoaded', showBanner);
-  }
+  if (document.body) mount(); else window.addEventListener('DOMContentLoaded', mount);
+}
+
+/** Drive status badalne par banner ko upgrade/downgrade karo. */
+function refreshFileModeBanner() {
+  if (!_isFileProtocol()) return;
+  if (_fileModeDismissed()) return;
+  clearTimeout(_fileModeBannerTimer);
+  _fileModeBannerTimer = setTimeout(renderFileModeBanner, 400);
+}
+
+function showFileProtocolNotice() {
+  if (!_isFileProtocol()) return;
+  if (_fileModeDismissed()) return;
+  // Drive status ko resolve hone ka thoda time do (initApp ke baad aata hai)
+  clearTimeout(_fileModeBannerTimer);
+  _fileModeBannerTimer = setTimeout(renderFileModeBanner, 2200);
 }
 
 async function initApp() {
@@ -12499,22 +12557,22 @@ async function initApp() {
   });
 
   // If opened via file:/// protocol, redirect to localhost if available or warn user
-  if (window.location.protocol === 'file:') {
+  if (_isFileProtocol()) {
+    window._fileModeActive = true;
+    const activateFileMode = () => showFileProtocolNotice();
     try {
       fetch('http://localhost:8080/api/ping', { mode: 'cors' })
-        .then(r => r.json())
+        .then(r => (r && r.ok ? r.json() : null))   // 404/HTML ko graceful handle karo (JSON crash nahi)
         .then(res => {
           if (res && res.status === 'ok') {
             console.log("Local server detected on port 8080. Redirecting to http://localhost:8080/ ...");
             window.location.href = 'http://localhost:8080/';
           } else {
-            showFileProtocolNotice();
+            activateFileMode();
           }
-        }).catch(() => {
-          showFileProtocolNotice();
-        });
+        }).catch(activateFileMode);
     } catch (_) {
-      showFileProtocolNotice();
+      activateFileMode();
     }
   }
 
@@ -12887,6 +12945,10 @@ let _lastGDriveKnownTimestamp = null;
 let _gDrivePulseInterval = null;
 
 function updateGDriveStatusBadge(text, isOnline) {
+  // File-mode banner ko sahi batane ke liye Drive ki live status track karo
+  window._gDriveOnline = (isOnline === true);
+  if (window._fileModeActive && typeof refreshFileModeBanner === 'function') refreshFileModeBanner();
+
   const badge = document.getElementById('gDriveHeaderBadge');
   const dot = document.getElementById('gDriveStatusDot');
   const textEl = document.getElementById('gDriveStatusText');
@@ -13144,15 +13206,18 @@ function getRulingFromProductCode(code, desc = '') {
   const d = String(desc || '').toUpperCase();
   if (d.includes('DOUBLE') || d.includes('2L') || d.includes('TWO LINE') || d.includes('2 LINE')) return 'DOUBLE RULE';
   if (d.includes('4L') || d.includes('FOUR LINE') || d.includes(' FL ')) return 'FOUR LINE';
-  if (d.includes('UR') || d.includes('UNRULED')) return 'UNRULED';
+  // \bUR\b: plain 'UR' only as a whole word — 'FOUR LINE' contains "UR" inside
+  // "FOUR" and must NOT be detected as UNRULED (this mis-filed 4L requirements).
+  if (/\bUR\b/.test(d) || d.includes('UNRULED')) return 'UNRULED';
   if (d.includes('MS') || d.includes('MED. SQ') || d.includes('SQUARE')) return 'MED. SQUARE';
   return 'SINGLE LINE';
 }
 
 /**
  * Helper: Derive Board Specifications for Respective Product Code
- * A4 (3rd digit '5'): 45.5 x 98 x 200 GSM, 3 ups
- * A5 (3rd digit '3'): 45.5 x 91 x 190 GSM, 8 ups
+ * A4 (3rd digit '5'): 45.5 x 91 sheet, 3 ups — pages <=175: 190 GSM, >175: 200 GSM
+ * A5 (3rd digit '3'): 77 x 98 x 190 GSM ALWAYS (page rule applies to A4 only), 8 ups
+ *   (A5 sheet is halved at print: 4 covers per half = 8 covers per full sheet)
  */
 function getRespectiveBoardSpecs(code, desc = '', size = '') {
   const codeStr = String(code || '').trim();
@@ -13162,20 +13227,21 @@ function getRespectiveBoardSpecs(code, desc = '', size = '') {
                (desc && desc.toUpperCase().includes('A4'));
   
   if (isA4) {
+    // pages unknown here — callers apply the <=175 / >175 GSM rule themselves
     return {
       boardGsm: 200,
       sheetWidthCm: 45.5,
-      sheetLengthCm: 98,
+      sheetLengthCm: 91,
       boardSpec: '45.5x91x200',
       boardUps: 3
     };
   } else {
-    // A5 / Standard
+    // A5 / Standard — ALWAYS 77 x 98 x 190 (no page rule for A5)
     return {
       boardGsm: 190,
-      sheetWidthCm: 45.5,
-      sheetLengthCm: 91,
-      boardSpec: '45.5x91x190',
+      sheetWidthCm: 77,
+      sheetLengthCm: 98,
+      boardSpec: '77x98x190',
       boardUps: 8
     };
   }
@@ -13315,8 +13381,25 @@ function normalizeBoardData() {
   }
 }
 
+// One-time SKU data corrections (user-confirmed, 26/Oct/2026):
+//   1132103092 = "A5 SC Brown SL 92Pg Copy" — size field was wrongly stored as
+//   'A4 Longbook', and ups/paperSpec/indexSpec had followed that wrong A4 identity.
+//   Fixing size+ups lets recalculateAllFormulas derive the correct A5 values
+//   (paperSpec 97x37x57, boardSpec 77x98x190, sheet math /8).
+function normalizeSkuData() {
+  (state.skus || []).forEach(s => {
+    if (String(s.barcode) === '1132103092') {
+      if (String(s.size || '').toUpperCase().includes('A4')) s.size = 'A5 Copy / Notebook';
+      if (s.ups !== 4) s.ups = 4;
+      if (s.indexSpec === '90x43x57') s.indexSpec = '';  // re-derive with A5 spec
+      if (s.paperSpec === '90x43x57') s.paperSpec = '';  // recalc sets 97x37x57
+    }
+  });
+}
+
 function recalculateAllFormulas() {
   normalizeBoardData();
+  normalizeSkuData();
   state.skus.forEach(s => {
     if (!s.vendor) s.vendor = "Camlin";
 
@@ -13398,14 +13481,21 @@ function recalculateAllFormulas() {
       if (!s.indexSpec) s.indexSpec = s.paperSpec;
     }
 
-    if (s.boardSpec && (s.boardSpec.includes('200') || s.boardSpec.includes('77') || s.boardSpec.includes('91'))) {
-      // keep user-specified spec
+    // Board Spec is always DERIVED (user rule):
+    //   Camlin A4 -> pages <= 175: '45.5x91x190',  > 175: '45.5x91x200'
+    //   Camlin A5 -> ALWAYS '77x98x190' (page rule is A4-only)
+    //   ITC A4    -> > 175: '46 x 91 x 250gsm',  else: '44 x 1010 x 250gsm'
+    //   ITC A5    -> > 56:  '76 x 98 x 230gsm',  else: '78 x 98 x 230gsm'
+    // Deriving every time also repairs legacy wrong data (e.g. '45.5x91x200'
+    // stored on <=175P A4 SKUs and on A5 copies).
+    if (isITCSku) {
+      s.boardSpec = isA4Sku
+        ? (((s.pages || 52) > 175) ? '46 x 91 x 250gsm' : '44 x 1010 x 250gsm')
+        : (((s.pages || 52) > 56) ? '76 x 98 x 230gsm' : '78 x 98 x 230gsm');
     } else if (isA4Sku) {
-      s.boardSpec = '45.5x91x200';
-    } else if (isA5Sku) {
-      s.boardSpec = ((s.pages || 52) <= 175) ? '77x98x190' : '45.5x91x190';
+      s.boardSpec = ((s.pages || 52) <= 175) ? '45.5x91x190' : '45.5x91x200';
     } else {
-      s.boardSpec = '45.5x91x200';
+      s.boardSpec = '77x98x190';
     }
   });
 
@@ -13424,10 +13514,24 @@ function recalculateAllFormulas() {
     p.wastageKg = wastage;
     p.reelsKg = Number(((p.openingReelsKg || 0) + inward - processed).toFixed(2));
 
-    // Total paper consumed in production for this paper spec
+    // Opening sync: the Material Stock form (ruling-wise) is the MASTER for openings —
+    // Papers screen opening follows it so both screens always show the same total.
+    if (state.materialStock && state.materialStock.paper && state.materialStock.paper[p.reelSize]) {
+      let openTotal = 0;
+      Object.values(state.materialStock.paper[p.reelSize]).forEach(v => { openTotal += Number(v) || 0; });
+      p.openingWipKg = Number(openTotal.toFixed(2));
+    }
+
+    // Total paper consumed in production for this spec — paper AND index both
+    // (index pages come from the same spec, so MRP and Papers screen must deduct
+    // the same amount to show one single number).
     const prodConsumed = (state.skus || [])
-      .filter(s => s.paperSpec === p.reelSize)
-      .reduce((sum, s) => sum + (s.paperConsumptionKg || 0), 0);
+      .reduce((sum, s) => {
+        let add = 0;
+        if (s.paperSpec === p.reelSize) add += (s.paperConsumptionKg || 0);
+        if ((s.indexSpec || s.paperSpec) === p.reelSize) add += (s.indexConsumptionKg || 0);
+        return sum + add;
+      }, 0);
 
     p.wipKg = Number(((p.openingWipKg || 0) + processed - wastage - prodConsumed).toFixed(2));
     p.amount = Number(((p.wipKg || 0) * (p.rate || 77)).toFixed(2));
@@ -13461,10 +13565,17 @@ function recalculateAllFormulas() {
 
     let godown = (b.openingGodownSheets || 0) + inward - outPrint + printedRecd;
     let printer = (b.openingPrinterSheets || 0) + outPrint - printedRecd;
-    // NOTE: prodBoardConsumed (= boardSheetsRequired) is the ORDER-BOOK REQUIREMENT
-    // (planning figure), NOT actual consumption. Physical stock = opening + movements.
-    // Production consumes board live via handleProductionLogSubmit; do NOT subtract
-    // the planned requirement here or available stock shows a false deficit.
+    // ACTUAL production consumption (boardSheetsRequired = ceil(production/ups))
+    // is subtracted HERE so boardSummary always holds the true available stock.
+    // Board screen, MRP "Board in Stock" and production validation then all read
+    // the SAME number (earlier, production was deducted only at MRP render-time,
+    // which made the Board screen keep showing stock that was already consumed).
+    // Printer stock consumed first, then our godown — same order as production submit.
+    if (prodBoardConsumed > 0) {
+      const fromPrinter = Math.min(printer, prodBoardConsumed);
+      printer -= fromPrinter;
+      godown -= (prodBoardConsumed - fromPrinter);
+    }
     b.ourGodownSheets = godown;
     b.printerSheets = printer;
     b.totalSheets = godown + printer;
@@ -15113,6 +15224,9 @@ function saveMatStock(e) {
     }
   };
 
+  // Recalc FIRST: papersSummary.openingWipKg follows the ruling-wise Material Stock
+  // totals, so the Papers screen + MRP must refresh before the state is persisted.
+  recalculateAllFormulas();
   saveState();
   renderMaterialPlanningDashboard();
   renderAllViews();
@@ -15122,6 +15236,7 @@ function saveMatStock(e) {
 function resetMatStockToMockup() {
   if (confirm("Reset all Paper and Board stock back to 0?")) {
     state.materialStock = JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK));
+    recalculateAllFormulas();
     saveState();
     openMatStockModal();
     renderMaterialPlanningDashboard();
@@ -15215,15 +15330,26 @@ function calculateMrpRequirements(vendor = 'all') {
     }
 
     if (s.paperSpec && paperSpecs.includes(s.paperSpec)) pSpec = s.paperSpec;
-    if (s.boardSpec && boardSpecs.includes(s.boardSpec)) bSpec = s.boardSpec;
-    if (s.ups) ups = s.ups;
+    // Board spec match must ignore spacing: SKU data stores '45.5x91x190'
+    // (compact) while the MRP spec lists use '45.5 x 91 x 190' (spaced).
+    if (s.boardSpec) {
+      const compactSb = String(s.boardSpec).replace(/\s+/g, '').toLowerCase();
+      const specHit = boardSpecs.find(sp => sp.replace(/\s+/g, '').toLowerCase() === compactSb);
+      if (specHit) bSpec = specHit;
+    }
+    // Sheet-math rule (user): A4 = 3 covers/sheet; A5 sheet is halved -> 4 covers
+    // per half -> ALWAYS divide by 8. Data field s.ups holds that half-sheet count
+    // (4) for A5, so never let it override the derived 3/8 rule when the barcode's
+    // 3rd digit identifies the size ('3' = A5, '5' = A4).
+    const bcThirdChar = String(s.barcode || '').trim().charAt(2);
+    if (s.ups && bcThirdChar !== '3' && bcThirdChar !== '5') ups = s.ups;
 
     // Ruling
     const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
     let rKey = 'Single Line';
     if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) {
       rKey = 'Double Rule';
-    } else if (rRaw.includes('UNRULED') || rRaw.includes('UR') || rRaw.includes('PLAIN')) {
+    } else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) {
       rKey = 'Unruled';
     } else if (rRaw.includes('FOUR') || rRaw.includes('4L')) {
       rKey = 'Four Line';
@@ -15319,6 +15445,12 @@ function renderMaterialPlanningDashboard() {
       specTotal += val;
     });
 
+    // Slitting (processed) adds WIP cut sheets and wastage removes them — per ruling
+    // via the ledger's wipType, keeping Box1 in step with papersSummary.wipKg.
+    (state.papersLedger || []).filter(l => l.reelSize === spec && l.wipType && inStockPaper[spec][l.wipType] !== undefined).forEach(l => {
+      inStockPaper[spec][l.wipType] += (Number(l.processedKg) || 0) - (Number(l.wastageKg) || 0);
+    });
+
     const pItem = Array.isArray(state.papersSummary) ? state.papersSummary.find(p => p.reelSize === spec) : null;
     if (pItem) {
       const reelVal = (pItem.reelsKg !== undefined) ? pItem.reelsKg : ((pItem.openingReelsKg || 0) + (pItem.inwardKg || 0) - (pItem.processedKg || 0));
@@ -15354,7 +15486,7 @@ function renderMaterialPlanningDashboard() {
     const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
     let rKey = 'Single Line';
     if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) rKey = 'Double Rule';
-    else if (rRaw.includes('UNRULED') || rRaw.includes('UR') || rRaw.includes('PLAIN')) rKey = 'Unruled';
+    else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) rKey = 'Unruled';
     else if (rRaw.includes('FOUR') || rRaw.includes('4L')) rKey = 'Four Line';
     else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) rKey = 'Med. Square';
     else if (rRaw.includes('INDEX')) rKey = 'Index';
@@ -15373,7 +15505,12 @@ function renderMaterialPlanningDashboard() {
     }
   });
 
-  // 2. Populate Board Stock from state.boardSummary and deduct actual production board consumed
+  // Round ruling cells so Box1 footers match the Papers screen exactly
+  paperSpecs.forEach(spec => { rulings.forEach(r => { inStockPaper[spec][r] = Math.round(inStockPaper[spec][r] * 100) / 100; }); });
+
+  // 2. Populate Board Stock from state.boardSummary — production consumption is
+  // already subtracted inside recalculateAllFormulas, so NO render-time deduction
+  // happens here (Board screen and MRP read the same number).
   boardSpecs.forEach(spec => {
     const compactSpec = spec.replace(/\s+/g, '').toLowerCase();
     const boardItem = (state.boardSummary || []).find(b => b.size && b.size.replace(/\s+/g, '').toLowerCase() === compactSpec);
@@ -15386,43 +15523,7 @@ function renderMaterialPlanningDashboard() {
     inStockBoard[spec] = initialSheets;
   });
 
-  // Deduct actual board consumed in production
-  (state.skus || []).filter(s => isMatchingVendor(s.vendor, selectedVendor)).forEach(s => {
-    const prodQty = s.production || 0;
-    if (prodQty <= 0) return;
-
-    const sVendor = (s.vendor && s.vendor.toUpperCase().includes('ITC')) ? 'ITC' : 'Camlin';
-    let bSpec = '';
-    let ups = 8;
-    const descUpper = String(s.description || '').toUpperCase();
-    const sizeUpper = String(s.size || '').toUpperCase();
-    const isA4 = descUpper.includes('A4') || sizeUpper.includes('A4');
-
-    if (sVendor === 'ITC') {
-      if (isA4) {
-        ups = 3;
-        bSpec = (s.pages && s.pages > 175) ? '46 x 91 x 250gsm' : '44 x 1010 x 250gsm';
-      } else {
-        ups = 8;
-        bSpec = (s.pages && s.pages > 56) ? '76 x 98 x 230gsm' : '78 x 98 x 230gsm';
-      }
-    } else {
-      if (isA4) {
-        ups = 3;
-        bSpec = ((s.pages || 52) <= 175) ? '45.5 x 91 x 190' : '45.5 x 91 x 200';
-      } else {
-        ups = 8;
-        bSpec = '77 x 98 x 190';
-      }
-    }
-    if (s.boardSpec && boardSpecs.includes(s.boardSpec)) bSpec = s.boardSpec;
-    if (s.ups) ups = s.ups;
-
-    const consumedSheets = Number(s.boardSheetsRequired) || Math.ceil(prodQty / ups);
-    if (inStockBoard[bSpec] !== undefined) {
-      inStockBoard[bSpec] -= consumedSheets;
-    }
-  });
+  // (Board production consumption is handled by recalculateAllFormulas — see above.)
 
   // Helper to build Paper Table HTML matching Dynamic Specifications
   function buildPaperTableHtml(dataSource, isDeficit = false) {
@@ -16891,7 +16992,7 @@ function renderDetailedStockReport() {
           const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
           let skuRuling = 'Single Line';
           if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) skuRuling = 'Double Rule';
-          else if (rRaw.includes('UNRULED') || rRaw.includes('UR') || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
+          else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
           else if (rRaw.includes('FOUR') || rRaw.includes('4L')) skuRuling = 'Four Line';
           else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) skuRuling = 'Med. Square';
           else if (rRaw.includes('INDEX')) skuRuling = 'Index';
@@ -17396,7 +17497,7 @@ function buildInventoryLedgerRows(itemKey) {
       const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
       let skuRuling = 'Single Line';
       if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) skuRuling = 'Double Rule';
-      else if (rRaw.includes('UNRULED') || rRaw.includes('UR') || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
+      else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
       else if (rRaw.includes('FOUR') || rRaw.includes('4L')) skuRuling = 'Four Line';
       else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) skuRuling = 'Med. Square';
       else if (rRaw.includes('INDEX')) skuRuling = 'Index';
@@ -20867,6 +20968,12 @@ function getAvailablePaperStock(spec, rulingKey) {
       baseOpening = Number(state.materialStock.paper[spec]['Med.Square'] || state.materialStock.paper[spec]['MED. SQUARE'] || state.materialStock.paper[spec]['Square'] || 0);
     }
   }
+  // Same ledger movements as MRP "Paper in Stock": slitting adds, wastage removes
+  (state.papersLedger || []).forEach(l => {
+    if (l.reelSize === spec && l.wipType === rulingKey) {
+      baseOpening += (Number(l.processedKg) || 0) - (Number(l.wastageKg) || 0);
+    }
+  });
   let consumed = 0;
   (state.skus || []).forEach(s => {
     const prod = Number(s.production || 0);
@@ -20896,7 +21003,7 @@ function getAvailablePaperStock(spec, rulingKey) {
     const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
     let rKey = 'Single Line';
     if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) rKey = 'Double Rule';
-    else if (rRaw.includes('UNRULED') || rRaw.includes('UR') || rRaw.includes('PLAIN')) rKey = 'Unruled';
+    else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) rKey = 'Unruled';
     else if (rRaw.includes('FOUR') || rRaw.includes('4L')) rKey = 'Four Line';
     else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) rKey = 'Med. Square';
     else rKey = 'Single Line';
@@ -20970,7 +21077,7 @@ function handleProductionLogSubmit(e) {
   const rRaw = String(sku.ruling || getRulingFromProductCode(sku.barcode, sku.description)).toUpperCase();
   let rKey = 'Single Line';
   if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) rKey = 'Double Rule';
-  else if (rRaw.includes('UNRULED') || rRaw.includes('UR') || rRaw.includes('PLAIN')) rKey = 'Unruled';
+  else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) rKey = 'Unruled';
   else if (rRaw.includes('FOUR') || rRaw.includes('4L')) rKey = 'Four Line';
   else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) rKey = 'Med. Square';
   else rKey = 'Single Line';
@@ -23958,7 +24065,7 @@ function updateBoardBarcodeDropdown() {
       const isA5 = (String(s.barcode).charAt(2) === '3') || (s.size && s.size.toUpperCase().includes('A5')) || (s.description && s.description.toUpperCase().includes('A5'));
       skuB = isA5 ? '77x98x190' : (((s.pages || 52) <= 175) ? '45.5x91x190' : '45.5x91x200');
     }
-    return skuB.includes(compactSize.slice(0, 5)) || compactSize.includes(skuB.slice(0, 5));
+    return skuB === compactSize;
   });
 
   matchingSkus.forEach(s => {
@@ -23982,8 +24089,8 @@ function renderBoardExecutiveMatrix() {
   tbody.innerHTML = '';
 
   const specs = [
-    { key: '45_5x91x190', size: '45.5 x 91 x 190', compact: '45.5x91x190', label: '45.5 × 91 × 190', desc: 'A5 Notebooks (8 ups)' },
-    { key: '45_5x91x200', size: '45.5 x 91 x 200', compact: '45.5x91x200', label: '45.5 × 91 × 200', desc: 'A4 Notebooks (3 ups)' },
+    { key: '45_5x91x190', size: '45.5 x 91 x 190', compact: '45.5x91x190', label: '45.5 × 91 × 190', desc: 'A4 Notebooks ≤175P (3 ups)' },
+    { key: '45_5x91x200', size: '45.5 x 91 x 200', compact: '45.5x91x200', label: '45.5 × 91 × 200', desc: 'A4 Notebooks >175P (3 ups)' },
     { key: '77x98x190',   size: '77 x 98 x 190',   compact: '77x98x190',   label: '77 × 98 × 190',   desc: 'A5 Regular Notebooks (8 ups)' },
     { key: '91x91x190',   size: '91 x 91 x 190',   compact: '91x91x190',   label: '91 × 91 × 190',   desc: 'Square Format' }
   ];
@@ -24134,20 +24241,17 @@ function isSkuBoardMatch(s, compactSpec) {
   const cTarget = (compactSpec || '').replace(/\s+/g, '').toLowerCase();
   let skuB = (s.boardSpec || '').replace(/\s+/g, '').toLowerCase();
 
-  const isA4 = (String(s.barcode).charAt(2) === '5') || (s.size && s.size.toUpperCase().includes('A4')) || (s.description && s.description.toUpperCase().includes('A4')) || (s.ups === 3);
-  const isA5 = (String(s.barcode).charAt(2) === '3') || (s.size && s.size.toUpperCase().includes('A5')) || (s.description && s.description.toUpperCase().includes('A5')) || (s.ups === 8);
+  const isA5 = (String(s.barcode).charAt(2) === '3') || (s.size && s.size.toUpperCase().includes('A5')) || (s.description && s.description.toUpperCase().includes('A5'));
 
   if (!skuB) {
-    skuB = isA4 ? '45.5x91x200' : (isA5 ? '77x98x190' : '45.5x91x190');
+    // derive per the rule when boardSpec is missing: A5 always 77x98x190,
+    // A4 <=175P -> 45.5x91x190, A4 >175P -> 45.5x91x200
+    skuB = isA5 ? '77x98x190' : (((s.pages || 52) <= 175) ? '45.5x91x190' : '45.5x91x200');
   }
 
-  if (skuB === cTarget) return true;
-  if (isA4 && cTarget.includes('200')) return true;
-  if (cTarget.includes('200') && skuB.includes('200')) return true;
-  if (cTarget.includes('77') && (skuB.includes('77') || (isA5 && !skuB.includes('91')))) return true;
-  if (cTarget.includes('91') && cTarget.includes('190') && (skuB.includes('91') || (isA5 && !skuB.includes('77')))) return true;
-
-  return false;
+  // Exact compact match only — the old fuzzy rules made every A4 SKU match the
+  // 200gsm row and made the 190/200 rows cross-match each other.
+  return skuB === cTarget;
 }
 
 /**
@@ -24474,7 +24578,7 @@ function saveBoardOpeningModal(e) {
   if (e && e.preventDefault) e.preventDefault();
 
   const sizes = [
-    { size: '45.5x91x190', desc: '45.5 x 91 x 190 (A5 Spec)' },
+    { size: '45.5x91x190', desc: '45.5 x 91 x 190 (A4 ≤175P, 3 ups)' },
     { size: '45.5x91x200', desc: '45.5 x 91 x 200 (A4 Spec)' },
     { size: '91x91x190', desc: '91 x 91 x 190' },
     { size: '77x98x190', desc: '77 x 98 x 190' }
@@ -24581,9 +24685,30 @@ function savePaperOpeningModal(e) {
     pItem.openingReelsKg = reelsVal;
     pItem.rate = rateVal;
 
-    // Sync to state.materialStock.paper for MRP calculations
+    // Sync to state.materialStock.paper — that ruling-wise split is the OPENING MASTER,
+    // so the total entered here must land on it (recalc sets openingWipKg = Σ rulings).
+    // Distribute the change proportionally so the existing ruling split keeps its shape.
     if (state.materialStock && state.materialStock.paper && state.materialStock.paper[spec]) {
-      state.materialStock.paper[spec]['Single Line'] = wipVal;
+      const ms = state.materialStock.paper[spec];
+      const msKeys = Object.keys(ms);
+      let msCur = 0;
+      msKeys.forEach(k => { msCur += Number(ms[k]) || 0; });
+      const msDelta = Math.round((wipVal - msCur) * 100) / 100;
+      if (msDelta !== 0) {
+        if (msCur > 0) {
+          let msApplied = 0;
+          msKeys.forEach((k, ki) => {
+            if (ki === msKeys.length - 1) return;  // last key adjusted for exact total
+            const add = Math.round(msDelta * ((Number(ms[k]) || 0) / msCur) * 100) / 100;
+            ms[k] = Math.round(((Number(ms[k]) || 0) + add) * 100) / 100;
+            msApplied = Math.round((msApplied + add) * 100) / 100;
+          });
+          const lastK = msKeys[msKeys.length - 1];
+          ms[lastK] = Math.round(((Number(ms[lastK]) || 0) + (msDelta - msApplied)) * 100) / 100;
+        } else {
+          ms['Single Line'] = Math.round(((Number(ms['Single Line']) || 0) + msDelta) * 100) / 100;
+        }
+      }
     }
 
     totalWipAdded += wipVal;
@@ -24602,8 +24727,8 @@ function savePaperOpeningModal(e) {
     ref: 'OPENING-MASTER'
   });
 
-  saveState();
   recalculateAllFormulas();
+  saveState();
   renderAllViews();
   closePaperOpeningModal();
   showToast(`Opening Balances Saved! Total WIP: ${totalWipAdded.toLocaleString()} Kg, Reels: ${totalReelsAdded.toLocaleString()} Kg`);
@@ -24624,6 +24749,9 @@ function savePaperEdit(e) {
   p.rate = parseFloat(document.getElementById('edit_paper_rate').value) || 77;
   p.amount = Math.round(p.wipKg * p.rate * 100) / 100;
 
+  // inward/processed/wastage/wip are LEDGER-DERIVED — recalc keeps this row in step
+  // with the ledger + Material Stock opening so Papers screen and MRP never diverge.
+  recalculateAllFormulas();
   saveState();
   renderAllViews();
   closeEditPaperModal();
@@ -24666,10 +24794,17 @@ function saveBoardEdit(e) {
   if (isNaN(idx) || !state.boardSummary[idx]) return;
   const b = state.boardSummary[idx];
 
+  const newGodown = parseFloat(document.getElementById('edit_board_godown').value) || 0;
+  const newPrinter = parseFloat(document.getElementById('edit_board_printer').value) || 0;
+  // recalculateAllFormulas rebuilds ourGodownSheets/printerSheets on EVERY run from
+  // opening + ledger − production, so a direct write would be wiped. Apply the edit
+  // as a DELTA ON THE OPENING so the change survives every recalculation.
+  b.openingGodownSheets = (b.openingGodownSheets || 0) + (newGodown - (b.ourGodownSheets || 0));
+  b.openingPrinterSheets = (b.openingPrinterSheets || 0) + (newPrinter - (b.printerSheets || 0));
   b.size = document.getElementById('edit_board_spec').value;
   b.gsm = parseFloat(document.getElementById('edit_board_gsm').value) || 200;
-  b.ourGodownSheets = parseFloat(document.getElementById('edit_board_godown').value) || 0;
-  b.printerSheets = parseFloat(document.getElementById('edit_board_printer').value) || 0;
+  b.ourGodownSheets = newGodown;
+  b.printerSheets = newPrinter;
   b.sheetWt = b.sheetWt || 0.08;
   b.rate = b.rate || 7.5;
   b.ourGodownKg = Math.round(b.ourGodownSheets * b.sheetWt * 100) / 100;
@@ -32472,7 +32607,7 @@ function renderPaperWipAuditDetails(spec, rKey) {
     const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
     let skuRuling = 'Single Line';
     if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) skuRuling = 'Double Rule';
-    else if (rRaw.includes('UNRULED') || rRaw.includes('UR') || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
+    else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
     else if (rRaw.includes('FOUR') || rRaw.includes('4L')) skuRuling = 'Four Line';
     else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) skuRuling = 'Med. Square';
     else if (rRaw.includes('INDEX')) skuRuling = 'Index';
@@ -32695,7 +32830,7 @@ function formatBoardSizeLabel(size) {
   const compact = normalizeBoardSizeKey(size);
   const labels = {
     '77x98x190': '77 × 98 × 190 (A5 Regular, 8 ups)',
-    '45.5x91x190': '45.5 × 91 × 190 (A5 Spec)',
+    '45.5x91x190': '45.5 × 91 × 190 (A4 ≤175P, 3 ups)',
     '45.5x91x200': '45.5 × 91 × 200 (A4 Spec)',
     '91x91x190': '91 × 91 × 190 (Square)',
     '46x91x250gsm': '46 × 91 × 250gsm (ITC A4)',
@@ -36393,7 +36528,7 @@ function deleteHundiRegisterEntry(id) {
         <label style="font-size:12px; font-weight:700; color:#475569;">Board Size:</label>
         <select id="bwa_size_select" onchange="onBoardWipFilterChange()" class="form-input" style="padding:5px 10px; font-size:12px; font-weight:700; border-radius:6px;">
           <option value="77x98x190">77 × 98 × 190 (A5 Regular, 8 ups)</option>
-          <option value="45.5x91x190">45.5 × 91 × 190 (A5 Spec)</option>
+          <option value="45.5x91x190">45.5 × 91 × 190 (A4 ≤175P, 3 ups)</option>
           <option value="45.5x91x200">45.5 × 91 × 200 (A4 Spec)</option>
           <option value="91x91x190">91 × 91 × 190 (Square)</option>
           <option value="46x91x250gsm">46 × 91 × 250gsm (ITC A4)</option>
