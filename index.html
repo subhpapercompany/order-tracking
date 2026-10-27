@@ -4617,7 +4617,7 @@ body.print-flash-mode .no-print {
               <tr>
                 <th style="width: 130px; text-align:left;">Category</th>
                 <th style="width: 110px; text-align:left;">Item Code</th>
-                <th style="text-align:left; min-width:240px;">Item Description / Specification</th>
+                <th style="text-align:left; min-width:240px;">Ruling Type</th>
                 <th class="num" style="width: 110px; background:#1e3a8a !important; color:#ffffff !important;">Opening Bal (From Date)</th>
                 <th class="num" style="width: 105px; background:#1e3a8a !important; color:#ffffff !important;">+ Total Inward</th>
                 <th class="num" style="width: 115px; background:#1e3a8a !important; color:#ffffff !important;">- Consumed / Out</th>
@@ -10818,7 +10818,7 @@ body.print-flash-mode .no-print {
               </thead>
               <tbody>
                 <tr style="background:#f0fdf4;">
-                  <td style="font-weight:800; color:#15803d;">Reel Form (Mother Reels)</td>
+                  <td style="font-weight:800; color:#15803d;">Reel Form</td>
                   <td><input type="number" step="any" min="0" class="form-input" id="stock_p_90_rf" style="padding:5px 8px; font-size:12px;" required></td>
                   <td><input type="number" step="any" min="0" class="form-input" id="stock_p_54_rf" style="padding:5px 8px; font-size:12px;" required></td>
                   <td><input type="number" step="any" min="0" class="form-input" id="stock_p_57_rf" style="padding:5px 8px; font-size:12px;" required></td>
@@ -10922,7 +10922,7 @@ body.print-flash-mode .no-print {
               </thead>
               <tbody>
                 <tr style="background:#f0fdf4;">
-                  <td style="font-weight:800; color:#15803d;">Reel Form (Mother Reels)</td>
+                  <td style="font-weight:800; color:#15803d;">Reel Form</td>
                   <td><input type="number" step="any" min="0" class="form-input" id="stock_p_itc_89_rf" style="padding:5px 8px; font-size:12px;" required></td>
                   <td><input type="number" step="any" min="0" class="form-input" id="stock_p_itc_96_rf" style="padding:5px 8px; font-size:12px;" required></td>
                 </tr>
@@ -17025,7 +17025,7 @@ function renderDetailedStockReport() {
         allInventoryItems.push({
           category: 'Paper WIP',
           code: spec,
-          description: `Paper Cut Size Sheets: ${spec} (${rKey})`,
+          description: rKey,
           opening: Number(periodOp.toFixed(2)),
           inward: Number(periodIn.toFixed(2)),
           outward: Number(periodOut.toFixed(2)),
@@ -17059,7 +17059,7 @@ function renderDetailedStockReport() {
       allInventoryItems.push({
         category: 'Paper (Reels)',
         code: spec,
-        description: `Paper Mother Reels: ${spec} (Godown Unprocessed)`,
+        description: 'Reel Form',
         opening: Number(rOp.toFixed(2)),
         inward: Number(rIn.toFixed(2)),
         outward: Number(rOut.toFixed(2)),
@@ -17102,7 +17102,7 @@ function renderDetailedStockReport() {
       allInventoryItems.push({
         category: 'Board (Raw Godown)',
         code: size,
-        description: `Title Cover Board: ${size} (Raw Mill Stock)`,
+        description: '—',
         opening: Math.round(bOp),
         inward: Math.round(bIn),
         outward: Math.round(bOut),
@@ -17142,7 +17142,7 @@ function renderDetailedStockReport() {
       allInventoryItems.push({
         category: 'Finished Goods',
         code: s.barcode,
-        description: `${s.description || 'Finished Goods SKU'} (${s.ruling || 'Std'})`,
+        description: `${s.ruling || 'Std'}`,
         opening: Math.round(fgOp),
         inward: Math.round(fgIn),
         outward: Math.round(fgOut),
@@ -17181,7 +17181,7 @@ function renderDetailedStockReport() {
       allInventoryItems.push({
         category: c.category,
         code: c.item.split(':')[0].trim(),
-        description: c.item,
+        description: '—',
         opening: Number(cOp.toFixed(2)),
         inward: Number(cIn.toFixed(2)),
         outward: Number(cOut.toFixed(2)),
@@ -17381,7 +17381,7 @@ function populateInventoryLedgerItems() {
 
   // Group 1: Paper (Reels & Cut Sheets WIP)
   const grpPaper = document.createElement('optgroup');
-  grpPaper.label = '📜 Paper (Reels & Cut Sheets WIP)';
+  grpPaper.label = '📜 Paper';
   const paperSpecs = ['90x43x57', '97x37x54', '97x37x57', '89.8x43x56', '96.7x37x56'];
   const rulings = ['Unruled', 'Single Line', 'Four Line', 'Med. Square', 'Double Rule', 'Index'];
   paperSpecs.forEach(spec => {
@@ -17392,12 +17392,12 @@ function populateInventoryLedgerItems() {
     rulings.forEach(r => {
       const opt = document.createElement('option');
       opt.value = `PAPER_WIP:${spec}:${r}`;
-      opt.textContent = `Paper - ${spec} : ${r} (Cut Sheets WIP)`;
+      opt.textContent = `Paper - ${spec} : ${r}`;
       grpPaper.appendChild(opt);
     });
     const optReel = document.createElement('option');
     optReel.value = `PAPER_REELS:${spec}`;
-    optReel.textContent = `Paper - ${spec} : Mother Reels (Reel Form)`;
+    optReel.textContent = `Paper - ${spec} : Reel Form`;
     grpPaper.appendChild(optReel);
   });
   sel.appendChild(grpPaper);
@@ -17501,7 +17501,7 @@ function buildInventoryLedgerRows(itemKey) {
     unit = 'Kg';
     rate = pSum ? (Number(pSum.rate) || 77) : 77;
     base = 0;
-    const childDefs = [{ key: `PAPER_REELS:${spec}`, icon: '🧻', label: 'Reel Form (Mother Reels)' }];
+    const childDefs = [{ key: `PAPER_REELS:${spec}`, icon: '🧻', label: 'Reel Form' }];
     ['Single Line', 'Double Rule', 'Unruled', 'Four Line', 'Med. Square', 'Index'].forEach(rr => {
       childDefs.push({ key: `PAPER_WIP:${spec}:${rr}`, icon: '📄', label: `WIP — ${rr}` });
     });
@@ -17586,7 +17586,7 @@ function buildInventoryLedgerRows(itemKey) {
     if (rKey === 'Med. Square' && !baseOpening && savedStock.paper && savedStock.paper[spec]) {
       baseOpening = savedStock.paper[spec]['Med.Square'] || savedStock.paper[spec]['MED. SQUARE'] || 0;
     }
-    title = `Paper - ${spec} : ${rKey} (Cut Sheets WIP)`;
+    title = `Paper - ${spec} : ${rKey}`;
     category = 'Paper WIP';
     unit = 'Kg';
     rate = 77.0;
@@ -17632,7 +17632,7 @@ function buildInventoryLedgerRows(itemKey) {
   } else if (itemKey.indexOf('PAPER_REELS:') === 0) {
     const spec = itemKey.split(':')[1];
     const pSum = (state.papersSummary || []).find(p => p.reelSize === spec);
-    title = `Paper - ${spec} : Mother Reels (Reel Form)`;
+    title = `Paper - ${spec} : Reel Form`;
     category = 'Paper (Reels)';
     unit = 'Kg';
     rate = 77.0;
@@ -17671,14 +17671,14 @@ function buildInventoryLedgerRows(itemKey) {
       }
     });
     groups = [
-      { key: `BOARD_RAW:${size}`, icon: '🏛', label: 'Subh / Self (Raw Godown)', lvl: 'Godown', child: buildInventoryLedgerRows(`BOARD_RAW:${size}`) }
+      { key: `BOARD_RAW:${size}`, icon: '🏛', label: 'Subh', lvl: 'Godown', child: buildInventoryLedgerRows(`BOARD_RAW:${size}`) }
     ];
     partyForSize.sort().forEach(p => {
       groups.push({
         key: `PARTY_SZ:${size}::${p}`,
         icon: '🖨',
         label: `${p} (Raw Board → Print)`,
-        lvl: 'Party',
+        lvl: 'Godown',
         child: buildInventoryLedgerRows(`PARTY_SZ:${size}::${p}`)
       });
     });
@@ -17997,7 +17997,8 @@ function renderInventoryLedger() {
   let html = '';
   if (d.groups) {
     // CONSOLIDATED: ek summary row per godown/party — click par datewise drill-down
-    const lvlWord = d.category === 'Stock with Party' ? 'Party' : 'Godown';
+    // Party ka naam bhi ek godown hi hai (printer = godown) — isliye sab 'Godown'
+    const lvlWord = 'Godown';
     d.groups.forEach(g => {
       const gs = _invLedgerGroupStats(g.child, fromDate, toDate);
       const isOpen = !!_invLedgerExpanded[g.key];
