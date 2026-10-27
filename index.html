@@ -3956,6 +3956,9 @@ body.print-flash-mode .no-print {
       <!-- Critical Material Shortage Alert Banner on Dashboard -->
       <div id="dashboardMaterialShortageBanner" style="display:none;"></div>
 
+      <!-- 🔔 Alerts Panel — low stock / negative / PO blockers / overdue despatch -->
+      <div id="dashboardAlertsPanel"></div>
+
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title-group">
@@ -8391,9 +8394,11 @@ body.print-flash-mode .no-print {
             <!-- Live Stock Availability & Negative Shortage Alert -->
             <div id="eb_stockDeficitAlert" style="display:none; margin-top:12px;"></div>
 
-            <div class="form-actions">
+            <div class="form-actions" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
               <button type="button" class="btn btn-secondary" onclick="resetOrderBookingForm()">Clear Form</button>
               <button type="submit" class="btn btn-primary" id="btnSaveOrder">💾 Save Order to Master <span class="kbd-hint">Ctrl+A</span></button>
+              <button type="button" class="btn btn-outline" onclick="addMoreEntry('formOrderBooking')" style="font-weight:800; font-size:13px; padding:9px 16px;" title="Save karke agli entry — Vendor & Month bache rehte hain">➕ Add More</button>
+              <span style="font-size:11.5px; color:#64748b; font-weight:600;">💡 Serial entry: <strong>Vendor + Month</strong> rehte hain, sirf product fields clear hote hain</span>
             </div>
           </form>
         </div>
@@ -8572,7 +8577,7 @@ body.print-flash-mode .no-print {
 
             <div class="form-actions" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
               <button type="submit" class="btn btn-primary" id="btnSaveProd">💾 Commit Production &amp; Consumption <span class="kbd-hint">Ctrl+A</span></button>
-              <button type="button" class="btn btn-outline" onclick="addMoreProductionEntry()" style="font-weight:800; font-size:13px; padding:9px 16px;" title="Sirf SKU/Qty clear hota hai — Date & Machine bache rehte hain">➕ Add More</button>
+              <button type="button" class="btn btn-outline" onclick="addMoreProductionEntry()" style="font-weight:800; font-size:13px; padding:9px 16px;" title="Save karke agli entry — Date & Machine bache rehte hain">➕ Add More</button>
               <span style="font-size:11.5px; color:#64748b; font-weight:600;">💡 Serial entry: <strong>Date + Machine</strong> rehte hain, sirf SKU/Qty clear hota hai</span>
             </div>
           </form>
@@ -8682,7 +8687,7 @@ body.print-flash-mode .no-print {
 
             <div class="form-actions" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
               <button type="submit" id="btn_submit_despatch" class="btn btn-primary">💾 Commit Despatch Entry <span class="kbd-hint">Ctrl+A</span></button>
-              <button type="button" class="btn btn-outline" onclick="addMoreDespatchEntry()" style="font-weight:800; font-size:13px; padding:9px 16px;" title="Sirf SKU/Qty/Invoice/Vehicle clear hota hai — Date, Vendor & Destination bache rehte hain">➕ Add More</button>
+              <button type="button" class="btn btn-outline" onclick="addMoreDespatchEntry()" style="font-weight:800; font-size:13px; padding:9px 16px;" title="Save karke agli entry - Date, Vendor & Destination bache rehte hain">➕ Add More</button>
               <span style="font-size:11.5px; color:#64748b; font-weight:600;">💡 Serial entry: <strong>Date + Vendor + Destination</strong> rehte hain, sirf SKU/Qty/Invoice clear hota hai</span>
             </div>
           </form>
@@ -9259,9 +9264,11 @@ body.print-flash-mode .no-print {
               <div class="formula-preview-value" id="poreq_previewTotal">-</div>
             </div>
 
-            <div class="form-actions">
+            <div class="form-actions" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
               <button type="reset" class="btn btn-secondary">Clear Form</button>
               <button type="submit" class="btn btn-primary" id="btnSavePoReq">💾 Save PO Request Record <span class="kbd-hint">Ctrl+A</span></button>
+              <button type="button" class="btn btn-outline" onclick="addMoreEntry('formPoRequest')" style="font-weight:800; font-size:13px; padding:9px 16px;" title="Save karke agli entry — Request Date bachi rahegi">➕ Add More</button>
+              <span style="font-size:11.5px; color:#64748b; font-weight:600;">💡 Serial entry: <strong>Request Date</strong> bachi rahegi, code select karke agli product ki entry</span>
             </div>
           </form>
         </div>
@@ -9343,9 +9350,11 @@ body.print-flash-mode .no-print {
               <div class="formula-preview-value" id="porel_previewValue">₹ 0</div>
             </div>
 
-            <div class="form-actions" style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-color);">
+            <div class="form-actions" style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-color); display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
               <button type="reset" class="btn btn-secondary">Clear Form</button>
               <button type="submit" class="btn btn-primary" id="btnSavePoRel">💾 Save &amp; Release Purchase Order <span class="kbd-hint">Ctrl+A</span></button>
+              <button type="button" class="btn btn-outline" onclick="addMoreEntry('formPoRelease')" style="font-weight:800; font-size:13px; padding:9px 16px;" title="Save karke agli entry — Month, Destination & PO Date bache rehte hain">➕ Add More</button>
+              <span style="font-size:11.5px; color:#64748b; font-weight:600;">💡 Serial entry: <strong>Month, Destination &amp; PO Date</strong> rehte hain, sirf code/qty/rate clear hota hai</span>
             </div>
           </form>
         </div>
@@ -15956,6 +15965,7 @@ function initKeyboardNavigation() {
 
 function renderAllViews() {
   renderKPIs();
+  renderDashboardAlerts();
   renderDashboardTable();
   renderOrderSheet();
   renderManufacturingSheet();
@@ -15973,6 +15983,125 @@ function renderAllViews() {
   renderDetailedStockReport();
   renderInventoryLedger();
   renderDaybook();
+}
+
+/* ================================================================
+   🔔 DASHBOARD ALERTS PANEL
+   Low stock / negative stock / PO blockers / overdue despatch —
+   ek jagah, click karke seedha relevant screen par.
+   ================================================================ */
+function renderDashboardAlerts() {
+  const host = document.getElementById('dashboardAlertsPanel');
+  if (!host) return;
+
+  const TH = { paperKg: 1000, indexKg: 150, boardSheets: 3000, cfcBoxes: 30 };  // low-stock thresholds
+  const alerts = [];
+  const add = (sev, icon, title, detail, action) => alerts.push({ sev: sev, icon: icon, title: title, detail: detail, action: action });
+  const nf = (n, d) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: (d === undefined ? 0 : d), minimumFractionDigits: (d || 0) });
+  const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  // ---- 1. Paper / Index reels (Kg) ----
+  (state.papersSummary || []).forEach(p => {
+    const nm = `${p.reelSize || 'Paper'}${p.wipType ? ' (' + p.wipType + ')' : ''}`;
+    const kg = Number(p.reelsKg || 0);
+    const isIndex = String(p.wipType || '').toLowerCase().indexOf('index') >= 0;
+    const th = isIndex ? TH.indexKg : TH.paperKg;
+    if (kg < 0) add('critical', '🚨', `Paper ${nm} — NEGATIVE stock`, `${nf(kg, 2)} Kg — turant inward karein`, `switchSheet('papers')`);
+    else if (kg < th) add('low', '⚠️', `Paper ${nm} — low stock`, `${nf(kg, 2)} Kg available (threshold ${nf(th)} Kg)`, `switchSheet('papers')`);
+    if (Number(p.wipKg || 0) < 0) add('low', '📉', `WIP deficit — ${nm}`, `${nf(p.wipKg, 2)} Kg kam pad raha hai`, `switchSheet('papers')`);
+  });
+
+  // ---- 2. Title Cover Board (Sheets) ----
+  (state.boardSummary || []).forEach(b => {
+    const tot = Number(b.totalSheets || 0);
+    if (tot < 0) add('critical', '🚨', `Board ${b.size} — NEGATIVE`, `${nf(tot)} Sheets`, `switchSheet('board')`);
+    else if (tot < TH.boardSheets) add('low', '⚠️', `Board ${b.size} — low stock`, `${nf(tot)} Sheets available (threshold ${nf(TH.boardSheets)})`, `switchSheet('board')`);
+  });
+
+  // ---- 3. Consumables — sabse zyada CFC (carton) matter karta hai ----
+  (state.consumables || []).forEach(c => {
+    const stock = Number(c.stock || 0);
+    const item = String(c.item || '');
+    if (!item) return;
+    if (stock < 0) add('critical', '🚨', `${item} — NEGATIVE`, `${nf(stock)} Box`, `switchSheet('consumables')`);
+    else if (/: CFC$/i.test(item) && stock < TH.cfcBoxes) add('low', '⚠️', `${item} — low carton`, `${nf(stock)} Boxes (threshold ${TH.cfcBoxes})`, `switchSheet('consumables')`);
+  });
+
+  // ---- 4. FG stock negative ----
+  (state.skus || []).forEach(s => {
+    const fg = Number(s.oldStock || 0) + Number(s.production || 0) - Number(s.despatched || 0);
+    if (fg < 0) add('critical', '🚨', `FG stock negative — ${s.barcode}`, `${esc(s.description || '')}: ${nf(fg)} Pcs`, `switchSheet('despatched')`);
+  });
+
+  // ---- 5. PO Release blocker + overdue/pending despatch ----
+  const nowMonth = new Date().toISOString().slice(0, 7);
+  const isYm = m => /^\d{4}-\d{2}$/.test(String(m || ''));
+  const poBlocked = [];
+  let pendSkus = 0, pendPcs = 0, overSkus = 0, overPcs = 0, prodOverSkus = 0, prodOverPcs = 0;
+  (state.skus || []).forEach(s => {
+    const dueDesp = Number(s.orderQty || 0) - Number(s.despatched || 0);
+    const dueProd = Math.max(0, Number(s.orderQty || 0) - Number(s.oldStock || 0) - Number(s.production || 0));
+    const m = isYm(s.month) ? s.month : '';
+    if (dueDesp > 0) {
+      pendSkus++; pendPcs += dueDesp;
+      if (m && m < nowMonth) { overSkus++; overPcs += dueDesp; }
+      let released = true;
+      try { released = !!(getSkuPoReleaseInfo(s.barcode, s.month) || {}).isReleased; } catch (_) {}
+      if (!released) poBlocked.push(s.barcode);
+    }
+    if (dueProd > 0 && m && m < nowMonth) { prodOverSkus++; prodOverPcs += dueProd; }
+  });
+  if (poBlocked.length) add('blocker', '🔒', `${poBlocked.length} SKU par PO Release nahi hua`, `${poBlocked.slice(0, 4).map(esc).join(', ')}${poBlocked.length > 4 ? ' +' + (poBlocked.length - 4) + ' aur' : ''} — inka despatch blocked hai`, `switchSheet('porelease')`);
+  if (overSkus) add('blocker', '⏰', `Purane month ka despatch pending`, `${overSkus} SKU · ${nf(overPcs)} Pcs — despatch karein`, `switchSheet('despatched')`);
+  if (prodOverSkus) add('blocker', '🏭', `Purane month ka production pending`, `${prodOverSkus} SKU · ${nf(prodOverPcs)} Pcs — production karein`, `switchSheet('manufacturing')`);
+  if (pendSkus) add('info', '🚚', `Despatch pending (is month me)`, `${pendSkus} SKU · ${nf(pendPcs)} Pcs baaki`, `switchSheet('despatched')`);
+
+  // ---- 6. PO Request missing ----
+  const noPoReq = (state.skus || []).filter(s => !(state.poRequests || []).some(r => String(r.productCode) === String(s.barcode))).map(s => s.barcode);
+  if (noPoReq.length) add('info', '📄', `${noPoReq.length} SKU ka PO Request nahi bana`, `${noPoReq.slice(0, 4).map(esc).join(', ')}${noPoReq.length > 4 ? ' +' + (noPoReq.length - 4) + ' aur' : ''}`, `switchSheet('porequest')`);
+
+  // ---- Render ----
+  const SEV = {
+    critical: { c: '#b91c1c', bg: '#fef2f2', bd: '#fca5a5', label: 'CRITICAL', ord: 0 },
+    blocker:  { c: '#b45309', bg: '#fffbeb', bd: '#fcd34d', label: 'BLOCKED', ord: 1 },
+    low:      { c: '#a16207', bg: '#fefce8', bd: '#fde68a', label: 'LOW', ord: 2 },
+    info:     { c: '#1e40af', bg: '#eff6ff', bd: '#bfdbfe', label: 'PENDING', ord: 3 }
+  };
+  alerts.sort((a, b) => SEV[a.sev].ord - SEV[b.sev].ord);
+  const crit = alerts.filter(a => a.sev === 'critical' || a.sev === 'blocker').length;
+
+  if (!alerts.length) {
+    host.innerHTML = `
+      <div class="panel" style="margin-bottom:16px; border:1px solid #bbf7d0; background:#f0fdf4;">
+        <div style="padding:12px 16px; display:flex; align-items:center; gap:10px; font-weight:800; color:#15803d; font-size:13.5px;">
+          <span style="font-size:20px;">✅</span> Sab kuch theek hai — koi low stock / pending alert nahi
+        </div>
+      </div>`;
+    return;
+  }
+
+  const rows = alerts.slice(0, 10).map(a => {
+    const s = SEV[a.sev];
+    return `<div onclick="${a.action}" title="Click to open" style="display:flex; align-items:center; gap:10px; padding:8px 12px; border-left:4px solid ${s.c}; background:${s.bg}; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:filter .15s;">
+      <span style="font-size:16px; flex-shrink:0;">${a.icon}</span>
+      <span style="font-size:10.5px; font-weight:900; letter-spacing:.5px; color:${s.c}; background:#ffffff; border:1px solid ${s.bd}; border-radius:4px; padding:1px 6px; flex-shrink:0;">${s.label}</span>
+      <span style="font-size:12.5px; font-weight:800; color:#0f172a; flex-shrink:0; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(a.title)}</span>
+      <span style="font-size:12px; color:#475569; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(a.detail)}</span>
+      <span style="font-size:12px; color:#94a3b8; flex-shrink:0;">→</span>
+    </div>`;
+  }).join('');
+
+  host.innerHTML = `
+    <div class="panel" style="margin-bottom:16px; border:1px solid #e2e8f0; overflow:hidden;">
+      <div class="panel-header" style="padding:10px 16px; background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);">
+        <div class="panel-title-group">
+          <div class="panel-title" style="color:#ffffff; font-size:14px;">🔔 Alerts <span style="background:${crit ? '#dc2626' : '#2563eb'}; color:#fff; border-radius:10px; padding:1px 8px; font-size:11.5px; margin-left:6px;">${alerts.length}</span></div>
+          <div class="formula-indicator" style="color:#93c5fd;">Low stock · Negative stock · PO blockers · Overdue despatch — click karke us screen par jao</div>
+        </div>
+      </div>
+      <div>${rows}</div>
+      ${alerts.length > 10 ? `<div style="padding:8px 14px; font-size:11.5px; color:#64748b; font-weight:700; background:#f8fafc;">+ ${alerts.length - 10} aur alerts</div>` : ''}
+    </div>`;
 }
 
 function isPaperMatchingVendor(reelSize, vendor, activeVendor) {
@@ -21192,6 +21321,35 @@ function exportTodayTransactionsCSV() {
  * FORM SUBMIT HANDLERS WITH TODAY'S TRANSACTION LOGGING
  * =========================================================
  */
+// ---------------------------------------------------------------
+// ADD MORE (common) — Order / Production / Despatch / PO Request /
+// PO Release: "➕ Add More" click = form save + common fields rakhte
+// hue form agle product ke liye ready. Form ke dataset flag se pata
+// chalta hai ki submit add-more ke liye hua hai.
+// ---------------------------------------------------------------
+function addMoreEntry(formId) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  form.dataset.addMore = '1';
+  // requestSubmit = native validation bhi chalti hai (required check)
+  if (typeof form.requestSubmit === 'function') form.requestSubmit();
+  else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+}
+
+// Validation fail hone par flag hata do (warna agli normal save bhi preserve karega)
+document.addEventListener('invalid', function (e) {
+  const f = e.target && e.target.form;
+  if (f && f.dataset) delete f.dataset.addMore;
+}, true);
+
+// Flag consume karo (ek submit par ek baar kaam karta hai)
+function isAddMore(formId) {
+  const form = document.getElementById(formId);
+  if (!form) return false;
+  if (form.dataset.addMore === '1') { delete form.dataset.addMore; return true; }
+  return false;
+}
+
 function handleOrderBookingSubmit(e) {
   e.preventDefault();
   const vendorType = document.getElementById('eb_vendor').value;
@@ -21297,7 +21455,9 @@ function handleOrderBookingSubmit(e) {
   // Screen stays stable on form without jumping to bottom
 
   // Auto-clear form immediately after save
-  resetOrderBookingForm();
+  // ➕ Add More = Vendor + Month rakho, sirf product fields clear
+  if (isAddMore('formOrderBooking')) resetOrderBookingFormForNextEntry();
+  else resetOrderBookingForm();
   
   // Real-time deficit check on submit
   const subStock = getMaterialStockForSpec(
@@ -21357,6 +21517,32 @@ function resetOrderBookingForm() {
       try { barcodeInput.focus(); } catch (_) {}
     }, 50);
   }
+}
+
+// ---------------------------------------------------------------
+// ADD MORE (Order) — Vendor + Month bache; baaki sab product fields
+// (Barcode / Desc / Qty / Specs / Consumption) clear.
+// ---------------------------------------------------------------
+function resetOrderBookingFormForNextEntry() {
+  const vEl = document.getElementById('eb_vendor');
+  const keepVendor = vEl ? vEl.value : '';
+  const otherEl = document.getElementById('eb_vendor_other');
+  const keepVendorOther = otherEl ? otherEl.value.trim() : '';
+  const mEl = document.getElementById('eb_month');
+  const keepMonth = mEl ? mEl.value : '';
+
+  resetOrderBookingForm();
+
+  if (vEl && keepVendor) {
+    vEl.value = keepVendor;
+    const g = document.getElementById('group_vendor_other');
+    if (keepVendor === 'Others') {
+      if (g) g.style.display = 'block';
+      if (otherEl) otherEl.value = keepVendorOther;
+    }
+  }
+  if (mEl && keepMonth) mEl.value = keepMonth;
+  showToast('➕ Ready for next Order entry — Vendor & Month bache rehte hain.');
 }
 
 
@@ -21683,6 +21869,7 @@ function handleProductionLogSubmit(e) {
   showToast(`Logged +${addQty.toLocaleString()} pcs output! Paper: ${batchPaper.toLocaleString()} Kg${hasIndex ? ' | Index: ' + batchIndex.toLocaleString() + ' Kg' : ''}`);
 
   // ADD MORE FLOW — Date & Machine rehne do, sirf entry fields clear
+  isAddMore('formProductionLog');   // add-more flag consume (reset dono case me hota hai)
   resetProductionFormForNextEntry();
 }
 
@@ -21716,8 +21903,8 @@ function resetProductionFormForNextEntry() {
 }
 
 function addMoreProductionEntry() {
-  resetProductionFormForNextEntry();
-  showToast('➕ Ready for next Production entry — Date & Machine same rahenge.');
+  // ➕ Save karke agli entry ready — handler khud Date & Machine rakhta hai
+  addMoreEntry('formProductionLog');
 }
 
 function handleDespatchLogSubmit(e) {
@@ -21805,6 +21992,7 @@ function handleDespatchLogSubmit(e) {
 
   // Clear all form inputs cleanly
   // ADD MORE FLOW — Date, Vendor & Destination rehne do; sirf entry fields clear
+  isAddMore('formDespatchLog');     // add-more flag consume (reset dono case me hota hai)
   resetDespatchFormForNextEntry();
 }
 
@@ -21834,8 +22022,8 @@ function resetDespatchFormForNextEntry() {
 }
 
 function addMoreDespatchEntry() {
-  resetDespatchFormForNextEntry();
-  showToast('➕ Ready for next Despatch entry — Date, Vendor & Destination same rahenge.');
+  // ➕ Save karke agli entry ready — handler khud Date, Vendor & Destination rakhta hai
+  addMoreEntry('formDespatchLog');
 }
 
 // ============================================================
@@ -26072,11 +26260,59 @@ function handlePoRequestSubmit(e) {
   showToast(`PO Request for Product ${item.productCode} (${item.vendor}) saved! Produced so far (Production Log): ${cumProdForCode.toLocaleString()} | Due: ${Math.max(0, origOrderTotal - cumProdForCode).toLocaleString()}`);
 
   // Clear form inputs cleanly
+  const keepReqDate = item.requestDate;
+  const _gPm = document.getElementById('group_poreq_paperMill_other');
+  const _gBm = document.getElementById('group_poreq_boardMill_other');
+  const keepReq = {
+    poreq_month: (document.getElementById('poreq_month') || {}).value || '',
+    poreq_paperRate: (document.getElementById('poreq_paperRate') || {}).value || '',
+    poreq_paperTax: (document.getElementById('poreq_paperTax') || {}).value || '',
+    poreq_paperMill: (document.getElementById('poreq_paperMill') || {}).value || '',
+    poreq_boardRate: (document.getElementById('poreq_boardRate') || {}).value || '',
+    poreq_boardTax: (document.getElementById('poreq_boardTax') || {}).value || '',
+    poreq_boardMill: (document.getElementById('poreq_boardMill') || {}).value || '',
+    paperMillOther: (document.getElementById('poreq_paperMill_other') || {}).value || '',
+    boardMillOther: (document.getElementById('poreq_boardMill_other') || {}).value || ''
+  };
   const formPoReq = document.getElementById('formPoRequest');
   if (formPoReq) formPoReq.reset();
   if (document.getElementById('poreq_paperMill_other')) document.getElementById('poreq_paperMill_other').style.display = 'none';
   if (document.getElementById('poreq_boardMill_other')) document.getElementById('poreq_boardMill_other').style.display = 'none';
-  switchSheet('porequest');
+  if (isAddMore('formPoRequest')) {
+    // ➕ Add More — Request Date + Month + Paper/Board Rate & Mill bache;
+    //    code select karte hi specs auto-fill ho jayengi.
+    const dEl = document.getElementById('poreq_date');
+    if (dEl && keepReqDate) dEl.value = keepReqDate;
+    ['poreq_month', 'poreq_paperRate', 'poreq_paperTax', 'poreq_paperMill',
+     'poreq_boardRate', 'poreq_boardTax', 'poreq_boardMill'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && keepReq[id] !== undefined && keepReq[id] !== '') el.value = keepReq[id];
+    });
+    if (keepReq.poreq_paperMill === 'Others') {
+      const g = document.getElementById('group_poreq_paperMill_other');
+      if (g) g.style.display = 'block';
+      const o = document.getElementById('poreq_paperMill_other');
+      if (o) o.value = keepReq.paperMillOther;
+    }
+    if (keepReq.poreq_boardMill === 'Others') {
+      const g = document.getElementById('group_poreq_boardMill_other');
+      if (g) g.style.display = 'block';
+      const o = document.getElementById('poreq_boardMill_other');
+      if (o) o.value = keepReq.boardMillOther;
+    }
+    const codeSel = document.getElementById('poreq_code');
+    if (codeSel) codeSel.value = '';
+    try { onPoReqCodeChange(''); } catch (_) {}
+    // Hidden/auto fields stale purane product ke na rahein
+    ['poreq_orderQty', 'poreq_producedQty'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    if (codeSel) codeSel.focus();
+    showToast(`➕ Ready for next PO Request — Date, Month, Rates & Mills bache rehte hain.`);
+  } else {
+    switchSheet('porequest');
+  }
 }
 
 // PO Release live preview, destination switch & submit
@@ -26256,10 +26492,39 @@ function handlePoReleaseSubmit(e) {
   showToast(`PO ${item.poNumber} (${item.vendor}) released for ${item.destination}!${isMismatch ? ' (Rate Mismatch Noted)' : ''}`);
 
   // Clear form inputs cleanly
+  const keepRel = {
+    month: (document.getElementById('porel_month') || {}).value || '',
+    dest: (document.getElementById('porel_dest') || {}).value || '',
+    destOther: (document.getElementById('porel_dest_other') || {}).value || '',
+    poDate: (document.getElementById('porel_poDate') || {}).value || ''
+  };
   const formPoRel = document.getElementById('formPoRelease');
   if (formPoRel) formPoRel.reset();
   if (document.getElementById('group_porel_dest_other')) document.getElementById('group_porel_dest_other').style.display = 'none';
-  switchSheet('porelease');
+  if (isAddMore('formPoRelease')) {
+    // ➕ Add More — Month, Destination & PO Date bache; code/qty/rate clear
+    const mEl = document.getElementById('porel_month'); if (mEl && keepRel.month) mEl.value = keepRel.month;
+    const dEl = document.getElementById('porel_dest'); if (dEl && keepRel.dest) dEl.value = keepRel.dest;
+    const pEl = document.getElementById('porel_poDate'); if (pEl && keepRel.poDate) pEl.value = keepRel.poDate;
+    if (keepRel.dest === 'Others') {
+      const g = document.getElementById('group_porel_dest_other');
+      if (g) g.style.display = 'block';
+      const dO = document.getElementById('porel_dest_other');
+      if (dO) dO.value = keepRel.destOther;
+    }
+    try { onPoRelDestChange(); } catch (_) {}
+    try { onPoRelCodeChange(''); } catch (_) {}
+    const codeEl = document.getElementById('porel_code');
+    if (codeEl) { codeEl.value = ''; codeEl.focus(); }
+    // Hidden auto-filled fields stale na rahein (purane product ka qty/rate na chipke)
+    ['porel_orderQty', 'porel_producedQty', 'porel_kclRate'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    showToast('➕ Ready for next PO Release — Month, Destination & PO Date bache rehte hain.');
+  } else {
+    switchSheet('porelease');
+  }
 }
 
 // PO Tracking live preview & submit
