@@ -1802,7 +1802,7 @@
     body.print-legal-mode #tablePoRequest th,
     table.data-table.legal-wide-table th {
       font-size: 6.8pt !important;
-      padding: 3px 4px !important;
+      padding: 2px 3px !important;
       white-space: nowrap !important;
       word-break: keep-all !important;
       overflow-wrap: normal !important;
@@ -1812,7 +1812,7 @@
     body.print-legal-mode #tablePoRequest td,
     table.data-table.legal-wide-table td {
       font-size: 6.5pt !important;
-      padding: 2.5px 4px !important;
+      padding: 2px 3px !important;
       white-space: nowrap !important;
       word-break: keep-all !important;
       overflow-wrap: normal !important;
@@ -1824,7 +1824,7 @@
       white-space: nowrap !important;
       word-break: keep-all !important;
       font-size: 6.8pt !important;
-      padding: 3px 4px !important;
+      padding: 2px 3px !important;
     }
   }
 
@@ -22823,6 +22823,73 @@ function preparePrintLetterhead(sheet) {
   }
 }
 
+/* ============ PO REQUEST LEGAL PRINT — PAGE-WIDTH FIT ============
+   35 columns hain (nowrap) — agar natural width legal landscape ki printable
+   width (14" − margins) se zyada ho to right side ke columns kat jate the.
+   Har print se pehle table ki real width naap kar utna hi chhota font-size
+   choose kiya jata hai jo page me fit ho jaye. */
+function poRequestPrintFit() {
+  const tb = document.getElementById('tablePoRequest');
+  // 14" legal landscape, 4mm margins, thoda buffer
+  const avail = Math.round((14 * 96) - 2 * (4 * 96 / 25.4)) - 8;
+  // Har candidate = { font-size, kaisa wrap, padding }: pehle bada font + normal
+  // wrap, phir chhota font / tight padding, aakhri me anywhere-wrap.
+  const pts = [
+    { pt: 7.0, th: 7.2 }, { pt: 6.8, th: 7.0 }, { pt: 6.6, th: 6.8 },
+    { pt: 6.4, th: 6.6 }, { pt: 6.2, th: 6.4 }, { pt: 6.0, th: 6.2 }
+  ];
+  const candidates = [];
+  pts.forEach(p => candidates.push({ pt: p.pt, th: p.th, ow: 'break-word', pad: '3px 4px' }));
+  pts.forEach(p => candidates.push({ pt: p.pt, th: p.th, ow: 'anywhere', pad: '3px 4px' }));
+  pts.forEach(p => candidates.push({ pt: p.pt, th: p.th, ow: 'anywhere', pad: '2px 3px' }));
+  candidates.push({ pt: 5.8, th: 6.0, ow: 'anywhere', pad: '2px 2px' });
+  if (!tb || !tb.rows || tb.rows.length === 0) return { pt: 6.5, th: 6.8, ow: 'break-word', avail: avail, measured: 0 };
+
+  const clone = tb.cloneNode(true);
+  clone.removeAttribute('id');
+  clone.className = '';
+  clone.setAttribute('style', 'position:absolute;left:-99999px;top:0;visibility:hidden;width:auto;border-collapse:collapse;');
+  document.body.appendChild(clone);
+
+  // Print me last column (Actions) chhupa hota hai — measurement me bhi hatao
+  Array.prototype.forEach.call(clone.querySelectorAll('tr'), row => {
+    if (row.cells.length > 2) row.deleteCell(row.cells.length - 1);
+  });
+
+  let chosen = candidates[candidates.length - 1];
+  let measured = 0;
+  try {
+    const styleFor = (c) => {
+      clone.style.fontSize = c.pt + 'pt';
+      Array.prototype.forEach.call(clone.querySelectorAll('thead th'), e =>
+        e.setAttribute('style', 'font-size:' + c.th + 'pt;padding:' + c.pad + ';white-space:normal;line-height:1.15;text-align:center;font-weight:700;word-break:normal;overflow-wrap:' + c.ow + ';'));
+      Array.prototype.forEach.call(clone.querySelectorAll('tbody td, tfoot td'), e =>
+        e.setAttribute('style', 'font-size:' + c.pt + 'pt;padding:' + c.pad + ';white-space:normal;line-height:1.2;word-break:normal;overflow-wrap:' + c.ow + ';'));
+      // Numbers + Date/Product Code print me wrap nahi hote (jaise asli print CSS)
+      Array.prototype.forEach.call(clone.querySelectorAll('td.num, td.keep-wrap, th.num'), e => {
+        e.style.whiteSpace = 'nowrap';
+        e.style.overflowWrap = 'normal';
+      });
+      Array.prototype.forEach.call(clone.querySelectorAll('.po-prod-detail'), e => {
+        e.style.whiteSpace = 'normal';
+      });
+      // Checkbox column print me almost zero-width (text/inputs nahi chahiye)
+      Array.prototype.forEach.call(clone.querySelectorAll('thead th:first-child, tbody td:first-child'), e =>
+        e.setAttribute('style', 'width:6px;padding:1px;font-size:1px;white-space:nowrap;'));
+      Array.prototype.forEach.call(clone.querySelectorAll('input'), e => e.setAttribute('style', 'display:none;'));
+    };
+    for (let i = 0; i < candidates.length; i++) {
+      styleFor(candidates[i]);
+      measured = Math.round(clone.getBoundingClientRect().width);
+      chosen = candidates[i];
+      // 3% margin chhodo — data badalne par bhi fit rahe
+      if (measured <= avail * 0.97) break;
+    }
+  } catch (_) { /* measurement fail → fallback */ }
+  clone.remove();
+  return { pt: chosen.pt, th: chosen.th, ow: chosen.ow, pad: chosen.pad, avail: avail, measured: measured };
+}
+
 function applyDynamicPrintPageStyle(sheet) {
   const isLegal = (sheet === 'porequest');
   let pageStyleEl = document.getElementById('dynamicPrintPageStyle');
@@ -22866,10 +22933,77 @@ function applyDynamicPrintPageStyle(sheet) {
 
   if (isLegal) {
     document.body.classList.add('print-legal-mode');
+    const fit = poRequestPrintFit();
     pageStyleEl.textContent = `
       @page {
         size: legal landscape !important;
-        margin: 6mm 4mm 6mm 4mm !important;
+        margin: 4mm !important;
+      }
+      @media print {
+      /* PO Request — page width me fit (auto font-size + wrap) */
+      body.print-legal-mode #tablePoRequest {
+        font-size: ${fit.pt}pt !important;
+        width: 100% !important;
+        table-layout: auto !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: ${fit.ow} !important;
+      }
+      body.print-legal-mode #tablePoRequest th {
+        font-size: ${fit.th}pt !important;
+        padding: ${fit.pad} !important;
+        line-height: 1.15 !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: ${fit.ow} !important;
+      }
+      body.print-legal-mode #tablePoRequest td {
+        font-size: ${fit.pt}pt !important;
+        padding: ${fit.pad} !important;
+        line-height: 1.2 !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: ${fit.ow} !important;
+      }
+      body.print-legal-mode #tablePoRequest tfoot td {
+        font-size: ${fit.th}pt !important;
+        padding: ${fit.pad} !important;
+        white-space: normal !important;
+        overflow-wrap: ${fit.ow} !important;
+      }
+      /* Numbers/koine wrap nahi — chhote column bane rahein */
+      body.print-legal-mode #tablePoRequest td.num,
+      body.print-legal-mode #tablePoRequest th.num {
+        white-space: nowrap !important;
+        overflow-wrap: normal !important;
+      }
+      /* Date & Product Code kabhi beech se na toote */
+      body.print-legal-mode #tablePoRequest td.keep-wrap {
+        white-space: nowrap !important;
+        overflow-wrap: normal !important;
+        word-break: keep-all !important;
+      }
+      /* Produced Qty ka detail block (Total/Less/Due) print me wrap ho */
+      body.print-legal-mode #tablePoRequest .po-prod-detail {
+        white-space: normal !important;
+        overflow-wrap: break-word !important;
+      }
+      body.print-legal-mode #tablePoRequest thead {
+        display: table-header-group !important;
+      }
+      /* Checkbox column — sirf 6px, input chhupa (column alignment bani rahe) */
+      body.print-legal-mode #tablePoRequest thead th:first-child,
+      body.print-legal-mode #tablePoRequest tbody td:first-child {
+        width: 6px !important;
+        min-width: 6px !important;
+        padding: 1px !important;
+        font-size: 1px !important;
+        overflow: hidden !important;
+      }
+      body.print-legal-mode #tablePoRequest thead th:first-child input,
+      body.print-legal-mode #tablePoRequest tbody td:first-child input {
+        display: none !important;
+      }
       }
     `;
   } else {
@@ -26648,11 +26782,11 @@ function renderPoRequestSheet() {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td style="text-align: center;"><input type="checkbox" class="poreq-chk" value="${code}" onchange="updateSelectedPoReqCount()"></td>
-        <td>${reqDate}</td>
+        <td class="keep-wrap">${reqDate}</td>
         <td>${bindingType}</td>
         <td><strong>${productSize}</strong></td>
         <td>${cover}</td>
-        <td><strong style="color:#1e3a8a;">${code}</strong></td>
+        <td class="keep-wrap"><strong style="color:#1e3a8a;">${code}</strong></td>
         <td class="num">${pages}</td>
         <td>${ruling}</td>
         <td class="num">₹ ${mrp.toFixed(2)}</td>
@@ -26661,7 +26795,7 @@ function renderPoRequestSheet() {
         <td class="num" style="background:#f0fdf4; font-weight:700;"><strong>${totalOrderQty.toLocaleString()}</strong></td>
         <td class="num" style="color:#1e40af; font-weight:700; background:#eff6ff; vertical-align:top; padding: 4px 6px;">
           <div style="font-size:12px; font-weight:800; color:#1e40af;">${cumulativeProduced.toLocaleString()}</div>
-          <div style="font-size: 8.5px; font-weight: 600; color: #475569; line-height: 1.25; margin-top: 3px; padding-top: 2px; border-top: 1px dashed #cbd5e1; white-space: nowrap; text-align: right;">
+          <div class="po-prod-detail" style="font-size: 8.5px; font-weight: 600; color: #475569; line-height: 1.25; margin-top: 3px; padding-top: 2px; border-top: 1px dashed #cbd5e1; white-space: nowrap; text-align: right;">
             Total Order: ${totalOrderQty.toLocaleString()}<br>
             Less : Produced Qty: ${cumulativeProduced.toLocaleString()}<br>
             <span style="color: ${dueForProduced > 0 ? '#b91c1c' : '#166534'}; font-weight: 700;">Due for Produced = ${dueForProduced.toLocaleString()}</span>
