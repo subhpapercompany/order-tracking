@@ -3493,7 +3493,7 @@ body.print-flash-mode .no-print {
           
         </div>
         <div class="reporting-nav-item" data-sheet="board" onclick="switchSheet('board')">
-          <span><span class="tally-hotkey">B</span>oard Stock</span>
+          <span><span class="tally-hotkey">B</span>oard Stock (Godown Wise)</span>
           
         </div>
         <div class="reporting-nav-item" data-sheet="consumables" onclick="switchSheet('consumables')">
@@ -4367,7 +4367,7 @@ body.print-flash-mode .no-print {
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <div class="panel-title">Board Stock Summary by Size & Location</div>
+            <div class="panel-title">Board Stock Summary by Size &amp; Godown (Wise)</div>
             <div class="formula-indicator">Stock = Opening Sheets + Inward - Consumed</div>
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
@@ -4384,11 +4384,14 @@ body.print-flash-mode .no-print {
                 <th class="num">Rate / Sheet (₹)</th>
                 <th class="num" style="background:#fef3c7; color:#92400e;">Opening Godown</th>
                 <th class="num" style="background:#fefce8; color:#854d0e;">Opening Printer</th>
-                <th class="num" style="background:#0f172a; color:#38bdf8;">Our Godown (Sheets)</th>
-                <th class="num">Our Godown (Kg)</th>
-                <th class="num" style="background:#0f172a; color:#fde047;">Printer Godown (Sheets)</th>
-                <th class="num">Printer Godown (Kg)</th>
+                <th class="num" style="background:#0f172a; color:#38bdf8;">Subh (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#fde047;">Fortune (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#fde047;">Rich (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#fde047;">Vishruta (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#fde047;">Salasar (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#cbd5e1;">Other (Sheets)</th>
                 <th class="num" style="background:#0f172a; color:#86efac;">Total Stock (Sheets)</th>
+                <th class="num">Total Stock (Kg)</th>
                 <th class="num">Total Valuation (₹)</th>
                 <th style="width: 75px; text-align: center;">Action</th>
               </tr>
@@ -4403,11 +4406,14 @@ body.print-flash-mode .no-print {
                 <td>-</td>
                 <td class="num" id="boardFootOpGodown" style="color:#92400e; font-weight:800;">0</td>
                 <td class="num" id="boardFootOpPrinter" style="color:#854d0e; font-weight:800;">0</td>
-                <td class="num" id="boardFootOurSheets" style="color:#1e3a8a; font-weight:800;">0</td>
-                <td class="num" id="boardFootOurKg">0.00 Kg</td>
-                <td class="num" id="boardFootPrintSheets" style="color:#b45309; font-weight:800;">0</td>
-                <td class="num" id="boardFootPrintKg">0.00 Kg</td>
+                <td class="num" id="boardFootSubh" style="color:#1e3a8a; font-weight:800;">0</td>
+                <td class="num" id="boardFootFortune" style="color:#854d0e; font-weight:800;">0</td>
+                <td class="num" id="boardFootRich" style="color:#854d0e; font-weight:800;">0</td>
+                <td class="num" id="boardFootVishruta" style="color:#854d0e; font-weight:800;">0</td>
+                <td class="num" id="boardFootSalasar" style="color:#854d0e; font-weight:800;">0</td>
+                <td class="num" id="boardFootOther" style="color:#475569; font-weight:800;">0</td>
                 <td class="num" id="boardFootTotSheets" style="color:#059669; font-weight:800;">0</td>
+                <td class="num" id="boardFootTotKg">0.00 Kg</td>
                 <td class="num" id="boardFootTotVal" style="color:#059669; font-weight:800;">₹ 0</td>
                 <td></td>
               </tr>
@@ -16711,7 +16717,49 @@ function renderBoardSheet() {
   const tbody = document.getElementById('boardSummaryBody');
   tbody.innerHTML = '';
 
-  let ourSheets = 0, ourKg = 0, printSheets = 0, printKg = 0, totSheets = 0, totVal = 0;
+  // Godown list — party ka naam hi godown hai (Subh = hamara raw godown,
+  // baaki printer godowns). Figure boardLedger se auto calculate hote hain.
+  const GODOWN_KEYS = ['Subh', 'Fortune', 'Rich', 'Vishruta', 'Salasar', 'Other'];
+
+  let ourSheets = 0, ourKg = 0, printSheets = 0, printKg = 0, totSheets = 0, totVal = 0, totKg = 0;
+  const godownTot = { Subh: 0, Fortune: 0, Rich: 0, Vishruta: 0, Salasar: 0, Other: 0 };
+
+  // Ek board size ke liye party-wise (godown-wise) balance.
+  // Summary ka printer/godown figure production consumption bhi kaat-ta hai
+  // (printer pehle, phir godown) — wo adjustment yahan bhi lagani warna
+  // godown columns ka total "Total Stock" se nahi milega.
+  const sizePartyBal = (b) => {
+    const compact = String(b.size || '').replace(/\s+/g, '').toLowerCase();
+    const nets = {};
+    (state.boardLedger || []).forEach(bl => {
+      if (String(bl.size || '').replace(/\s+/g, '').toLowerCase() !== compact) return;
+      if (bl.notes === 'Opening Board Entry') return;
+      const net = Number(bl.outPrint || 0) - Number(bl.printedRecd || 0);
+      if (!net) return;
+      const p = String(bl.party || '').toLowerCase();
+      let key = 'Other';
+      if (p.indexOf('fortune') >= 0) key = 'Fortune';
+      else if (p.indexOf('vishruta') >= 0) key = 'Vishruta';
+      else if (p.indexOf('salasar') >= 0) key = 'Salasar';
+      else if (p.indexOf('rich') >= 0) key = 'Rich';
+      else if (p.indexOf('subh') >= 0 || p.indexOf('our godown') >= 0 || p.indexOf('self') >= 0) key = 'Subh';
+      nets[key] = (nets[key] || 0) + net;
+    });
+
+    const bal = { Subh: Number(b.ourGodownSheets || 0), Fortune: 0, Rich: 0, Vishruta: 0, Salasar: 0, Other: Number(b.openingPrinterSheets || 0) };
+
+    // Kitna production consumption printer se kaata gaya (summary vs raw ledger)
+    const rawPrinter = Number(b.openingPrinterSheets || 0) + Object.keys(nets).reduce((a, k) => a + nets[k], 0);
+    let cut = rawPrinter - Number(b.printerSheets || 0);
+    if (cut > 0) {
+      Object.keys(nets).forEach(k => { const c = Math.min(nets[k], cut); nets[k] -= c; cut -= c; });
+      bal.Other = Math.max(0, bal.Other - cut);   // bacha hua opening printer se
+    } else if (cut < 0) {
+      Object.keys(nets).forEach(k => { nets[k] -= cut; cut = 0; });
+    }
+    Object.keys(nets).forEach(k => { bal[k] = (bal[k] || 0) + nets[k]; });
+    return bal;
+  };
 
   state.boardSummary.forEach((b, idx) => {
     ourSheets += (b.ourGodownSheets || 0);
@@ -16720,6 +16768,18 @@ function renderBoardSheet() {
     printKg += (b.printerKg || 0);
     totSheets += (b.totalSheets || 0);
     totVal += (b.totalValuation || 0);
+    totKg += ((b.ourGodownKg || 0) + (b.printerKg || 0));
+
+    const bal = sizePartyBal(b);
+    GODOWN_KEYS.forEach(k => { godownTot[k] += bal[k]; });
+
+    const cell = (k) => {
+      const v = bal[k];
+      const neg = v < 0;
+      const isSubh = k === 'Subh';
+      const isOther = k === 'Other';
+      return `<td class="num" style="font-weight:700; color:${neg ? '#dc2626' : (isSubh ? '#1e3a8a' : (isOther ? '#475569' : '#b45309'))}; background:${neg ? '#fee2e2' : (isSubh ? '#eff6ff' : (isOther ? '#f8fafc' : '#fef3c7'))};">${v.toLocaleString()}</td>`;
+    };
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -16728,11 +16788,9 @@ function renderBoardSheet() {
       <td class="num">₹ ${b.rate}</td>
       <td class="num" style="font-weight:700; color:#92400e; background:#fef3c7;">${(b.openingGodownSheets || 0).toLocaleString()}</td>
       <td class="num" style="font-weight:700; color:#854d0e; background:#fefce8;">${(b.openingPrinterSheets || 0).toLocaleString()}</td>
-      <td class="num" style="font-weight:700; color:${(b.ourGodownSheets || 0) < 0 ? '#dc2626' : '#1e3a8a'}; background:${(b.ourGodownSheets || 0) < 0 ? '#fee2e2' : '#eff6ff'};">${(b.ourGodownSheets || 0).toLocaleString()}</td>
-      <td class="num">${(b.ourGodownKg || 0).toLocaleString()} Kg</td>
-      <td class="num" style="font-weight:700; color:${(b.printerSheets || 0) < 0 ? '#dc2626' : '#b45309'}; background:${(b.printerSheets || 0) < 0 ? '#fee2e2' : '#fef3c7'};">${(b.printerSheets || 0).toLocaleString()}</td>
-      <td class="num">${(b.printerKg || 0).toLocaleString()} Kg</td>
+      ${GODOWN_KEYS.map(cell).join('')}
       <td class="num" style="font-weight:800; color:${(b.totalSheets || 0) < 0 ? '#dc2626' : '#059669'};">${(b.totalSheets || 0).toLocaleString()}</td>
+      <td class="num">${(((b.ourGodownKg || 0) + (b.printerKg || 0))).toLocaleString()} Kg</td>
       <td class="num" style="font-weight:800; color:${(b.totalValuation || 0) < 0 ? '#dc2626' : '#059669'};">₹ ${(b.totalValuation || 0).toLocaleString()}</td>
       <td style="text-align: center; white-space: nowrap;">
         <div style="display:inline-flex; gap:4px; align-items:center; justify-content:center;">
@@ -16750,12 +16808,17 @@ function renderBoardSheet() {
   if (elOpG) elOpG.textContent = sumOpGodown.toLocaleString();
   const elOpP = document.getElementById('boardFootOpPrinter');
   if (elOpP) elOpP.textContent = sumOpPrinter.toLocaleString();
-  document.getElementById('boardFootOurSheets').textContent = ourSheets.toLocaleString();
-  document.getElementById('boardFootOurKg').textContent = ourKg.toLocaleString() + ' Kg';
-  document.getElementById('boardFootPrintSheets').textContent = printSheets.toLocaleString();
-  document.getElementById('boardFootPrintKg').textContent = printKg.toLocaleString() + ' Kg';
+  GODOWN_KEYS.forEach(k => {
+    const el = document.getElementById('boardFoot' + k);
+    if (el) {
+      el.textContent = godownTot[k].toLocaleString();
+      el.style.color = godownTot[k] < 0 ? '#dc2626' : (k === 'Subh' ? '#1e3a8a' : (k === 'Other' ? '#475569' : '#b45309'));
+    }
+  });
   document.getElementById('boardFootTotSheets').textContent = totSheets.toLocaleString();
   document.getElementById('boardFootTotSheets').style.color = totSheets < 0 ? '#dc2626' : '#059669';
+  const elTotKg = document.getElementById('boardFootTotKg');
+  if (elTotKg) elTotKg.textContent = totKg.toLocaleString() + ' Kg';
   document.getElementById('boardFootTotVal').textContent = '₹ ' + totVal.toLocaleString();
   document.getElementById('boardFootTotVal').style.color = totVal < 0 ? '#dc2626' : '#059669';
 
@@ -22276,7 +22339,7 @@ function getSheetFriendlyName(sheetId) {
     despatched: 'Despatch Register',
     consumption: 'Paper Consumption',
     papers: 'Papers (Reels & WIP)',
-    board: 'Board Stock',
+    board: 'Board Stock (Godown Wise)',
     consumables: 'Consumables',
     invledger: 'Inventory Ledger',
     bookwt: 'BOOK WT Master',
@@ -27392,11 +27455,11 @@ function renderFlashFundsForm() {
         <td style="padding:10px 12px; text-align:right; font-weight:700; color:${open < 0 ? '#dc2626' : '#0f172a'};">
           ₹${open.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </td>
-        <td style="padding:10px 12px; text-align:right; font-weight:700; color:#15803d;">
-          ₹${tIn.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-        </td>
         <td style="padding:10px 12px; text-align:right; font-weight:700; color:#b91c1c;">
           ₹${tOut.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+        </td>
+        <td style="padding:10px 12px; text-align:right; font-weight:700; color:#15803d;">
+          ₹${tIn.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
         </td>
         <td style="padding:10px 12px; text-align:right; font-weight:900; color:${close < 0 ? '#dc2626' : '#15803d'};">
           ₹${Math.round(close).toLocaleString('en-IN')}
@@ -27416,8 +27479,8 @@ function renderFlashFundsForm() {
       <tr>
         <td style="padding:10px 12px; font-weight:900; color:#1e1b4b;">Total Available Funds</td>
         <td style="padding:10px 12px; text-align:right; font-weight:900;">₹${totOpen.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding:10px 12px; text-align:right; font-weight:900; color:#15803d;">₹${totIn.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
         <td style="padding:10px 12px; text-align:right; font-weight:900; color:#b91c1c;">₹${totOut.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
+        <td style="padding:10px 12px; text-align:right; font-weight:900; color:#15803d;">₹${totIn.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
         <td style="padding:10px 12px; text-align:right; font-weight:900; color:${totClose < 0 ? '#dc2626' : '#15803d'};">₹${Math.round(totClose).toLocaleString('en-IN')}</td>
         <td></td>
       </tr>
@@ -29572,204 +29635,7 @@ function exportDailyFlashReportToExcel() {
     <head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
     <x:Name>Daily Flash Report</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>
     </x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>
-    <body>${tableHtml}
-<!-- ========================================================================= -->
-<!-- MODAL: PAPER WIP AUDIT TRAIL & SHORTAGE BREAKDOWN (DRILL-DOWN)           -->
-<!-- ========================================================================= -->
-<div id="modalPaperWipAudit" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.8); backdrop-filter:blur(4px); z-index:10005; align-items:center; justify-content:center; padding:16px;">
-  <div style="background:#ffffff; border-radius:12px; width:100%; max-width:980px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); border:1px solid #cbd5e1; overflow:hidden;">
-    <!-- Modal Header -->
-    <div style="background:linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); color:#ffffff; padding:16px 20px; display:flex; justify-content:space-between; align-items:center;">
-      <div style="display:flex; align-items:center; gap:12px;">
-        <span style="font-size:24px;">🔍</span>
-        <div>
-          <h3 style="margin:0; font-size:17px; font-weight:800; color:#f8fafc; letter-spacing:0.3px;" id="pwa_title">Paper WIP Stock Audit &amp; Shortage Breakdown</h3>
-          <p style="margin:2px 0 0 0; font-size:12px; color:#93c5fd;">Drill-down into Opening Stock, Reel Slitting Inward, and SKU-level Production Consumption</p>
-        </div>
-      </div>
-      <button type="button" onclick="closePaperWipAuditModal()" style="background:transparent; border:none; color:#ffffff; font-size:24px; cursor:pointer; line-height:1; padding:4px 8px; border-radius:4px;" title="Close Modal">&times;</button>
-    </div>
-
-    <!-- Filter Bar with Date Range, Spec & Ruling -->
-    <div style="background:#f8fafc; padding:12px 20px; border-bottom:1px solid #e2e8f0; display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
-      <div style="display:flex; align-items:center; gap:6px;">
-        <label style="font-size:12px; font-weight:700; color:#0f172a;">📅 From:</label>
-        <input type="date" id="pwa_fromDate" onchange="onPaperWipFilterChange()" style="padding:5px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:12px; font-weight:600;">
-      </div>
-
-      <div style="display:flex; align-items:center; gap:6px;">
-        <label style="font-size:12px; font-weight:700; color:#0f172a;">📅 To:</label>
-        <input type="date" id="pwa_toDate" onchange="onPaperWipFilterChange()" style="padding:5px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:12px; font-weight:600;">
-      </div>
-
-      <div style="display:flex; align-items:center; gap:6px;">
-        <label style="font-size:12px; font-weight:700; color:#475569;">Paper Spec:</label>
-        <select id="pwa_spec_select" onchange="onPaperWipFilterChange()" class="form-input" style="padding:5px 10px; font-size:12px; font-weight:700; border-radius:6px;">
-          <option value="90x43x57">90x43x57 (Camlin A4 Longbook)</option>
-          <option value="97x37x54">97x37x54 (Camlin A5 56P)</option>
-          <option value="97x37x57">97x37x57 (Camlin A5 >56P)</option>
-          <option value="89.8x43x56">89.8x43x56 (ITC A4)</option>
-          <option value="96.7x37x56">96.7x37x56 (ITC A5)</option>
-        </select>
-      </div>
-
-      <div style="display:flex; align-items:center; gap:6px;">
-        <label style="font-size:12px; font-weight:700; color:#475569;">Ruling Type:</label>
-        <select id="pwa_ruling_select" onchange="onPaperWipFilterChange()" class="form-input" style="padding:5px 10px; font-size:12px; font-weight:700; border-radius:6px;">
-          <option value="Unruled" selected>Unruled (Plain)</option>
-          <option value="Single Line">Single Line</option>
-          <option value="Four Line">Four Line</option>
-          <option value="Med. Square">Med. Square</option>
-          <option value="Double Rule">Double Rule</option>
-          <option value="Index">Index Sheet</option>
-          <option value="ALL">All Rulings (Consolidated)</option>
-        </select>
-      </div>
-
-      <div style="margin-left:auto; display:flex; gap:8px;">
-        <button type="button" class="btn btn-outline" onclick="printPaperWipAudit()" style="font-size:11.5px; padding:4px 10px; font-weight:700;">
-          🖨️ Print Audit
-        </button>
-      </div>
-    </div>
-
-    <!-- Modal Body (Scrollable) -->
-    <div style="padding:20px; overflow-y:auto; flex:1;" id="pwa_modal_body">
-      <!-- KPI Metric Cards -->
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:18px;">
-        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px;">
-          <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">1. Initial Opening Stock</div>
-          <div style="font-size:20px; font-weight:900; color:#0f172a; margin-top:4px;" id="pwa_card_opening">0 Kg</div>
-          <div style="font-size:11px; color:#64748b; margin-top:2px;">Physical cut sheets at start</div>
-        </div>
-        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px 14px;">
-          <div style="font-size:11px; font-weight:700; color:#15803d; text-transform:uppercase;">2. + Reel Slitting Inward</div>
-          <div style="font-size:20px; font-weight:900; color:#16a34a; margin-top:4px;" id="pwa_card_inward">0 Kg</div>
-          <div style="font-size:11px; color:#15803d; margin-top:2px;">Reels cut into sheets</div>
-        </div>
-        <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:12px 14px;">
-          <div style="font-size:11px; font-weight:700; color:#b45309; text-transform:uppercase;">3. - Production Consumed</div>
-          <div style="font-size:20px; font-weight:900; color:#d97706; margin-top:4px;" id="pwa_card_consumed">0 Kg</div>
-          <div style="font-size:11px; color:#b45309; margin-top:2px;">Used in finished goods</div>
-        </div>
-        <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:12px 14px;" id="pwa_card_balance_box">
-          <div style="font-size:11px; font-weight:700; color:#b91c1c; text-transform:uppercase;">4. = Current Net WIP Stock</div>
-          <div style="font-size:22px; font-weight:900; color:#dc2626; margin-top:4px;" id="pwa_card_balance">0 Kg</div>
-          <div style="font-size:11px; font-weight:700; color:#b91c1c; margin-top:2px;" id="pwa_card_balance_sub">Shortage Deficit</div>
-        </div>
-      </div>
-
-      <!-- Explanation & Resolution Guide Banner -->
-      <div id="pwa_explanation_banner" style="background:#fff1f2; border:1px solid #fecdd3; border-radius:8px; padding:12px 16px; margin-bottom:18px;">
-        <div style="display:flex; gap:10px; align-items:flex-start;">
-          <span style="font-size:20px; line-height:1;">💡</span>
-          <div style="font-size:12.5px; color:#881337; line-height:1.5;">
-            <strong>WIP Negative / Shortage Kyu Aaya?</strong><br>
-            Factory me <span id="pwa_banner_ruling" style="font-weight:700;">Unruled</span> Notebooks ka Production log kiya gaya hai jisme kul <strong id="pwa_banner_consumed">0 Kg</strong> paper consume hua. Lekin factory inventory me is ruling ke Cut Sheets ki Opening Stock enter nahi thi (ya Reel Slitting Entry pass nahi hui thi), is wajah se stock negative (<span id="pwa_banner_deficit" style="font-weight:800;">-0 Kg</span>) show ho raha hai.<br>
-            <strong>Ise Theek Kaise Karein?</strong>
-            <ul style="margin:4px 0 0 16px; padding:0;">
-              <li>Agar reels se cutting ho chuki hai, to niche <strong>"Log Reel Cutting Entry"</strong> button dabayein aur sheets add karein.</li>
-              <li>Agar factory me physical cut sheets pehle se uplabdh thi, to <strong>"Set Opening Cut Sheets"</strong> button dabakar initial stock fill karein.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Breakdown Table: Products & Production Logs that Consumed this Paper -->
-      <div style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-        <h4 style="margin:0; font-size:14px; font-weight:800; color:#0f172a;">SKU-Wise Production Consumption Ledger</h4>
-        <span style="font-size:11.5px; color:#64748b;" id="pwa_table_count">Showing 0 matching products</span>
-      </div>
-
-      <div class="table-responsive" style="border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
-        <table class="data-table" style="margin:0; width:100%; font-size:12px;">
-          <thead>
-            <tr style="background:#0f172a; color:#ffffff;">
-              <th style="width:36px; text-align:center;">#</th>
-              <th style="width:90px; text-align:center;">Date</th>
-              <th style="width:105px;">Product Code</th>
-              <th>Product Description / Voucher Ref</th>
-              <th class="num" style="width:90px; background:#1e293b; color:#cbd5e1;">Opening (Kg)</th>
-              <th class="num" style="width:85px; color:#ffffff !important; font-weight:700;">In (+)</th>
-              <th class="num" style="width:95px; color:#ffffff !important; font-weight:700;">Out (-)</th>
-              <th class="num" style="width:105px; background:#1e3a8a; color:#38bdf8; font-weight:800;">Closing (Kg)</th>
-              <th class="num" style="width:85px;">Prod (Pcs)</th>
-              <th class="num" style="width:80px;">Book Wt</th>
-            </tr>
-          </thead>
-          <tbody id="pwa_table_body">
-            <!-- Populated via renderPaperWipAuditDetails -->
-          </tbody>
-          <tfoot id="pwa_table_foot" style="background:#f1f5f9; font-weight:800;">
-            <!-- Populated via renderPaperWipAuditDetails -->
-          </tfoot>
-        </table>
-      </div>
-    </div>
-
-    <!-- Modal Footer Actions -->
-    <div style="background:#f8fafc; padding:12px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-      <div style="display:flex; gap:10px;">
-        <button type="button" class="btn btn-primary" onclick="closePaperWipAuditModal(); switchMode('entry'); switchEntryTab('papers');" style="background:#0284c7; border-color:#0284c7; font-weight:700;">
-          ✂️ Log Reel Cutting (Paper Inward &amp; Process)
-        </button>
-        <button type="button" class="btn btn-secondary" onclick="closePaperWipAuditModal(); openPaperOpeningModal();" style="background:#f0fdfa; color:#0f766e; border-color:#99f6e4; font-weight:700;">
-          📝 Set Opening Cut Sheets Stock
-        </button>
-      </div>
-      <button type="button" class="btn btn-secondary" onclick="closePaperWipAuditModal()" style="font-weight:700;">
-        Close
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ========================================================================= -->
-<!-- MODAL: FINANCIAL RECONCILIATION STATEMENT A4 PRINT PREVIEW               -->
-<!-- ========================================================================= -->
-<div id="modalFinancialPrintPreview" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(4px); z-index:10006; align-items:center; justify-content:center; padding:16px;">
-  <div style="background:#ffffff; border-radius:12px; width:100%; max-width:1100px; max-height:94vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); border:1px solid #cbd5e1; overflow:hidden;">
-    <!-- Modal Header -->
-    <div style="background:#0f172a; color:#ffffff; padding:14px 20px; display:flex; justify-content:space-between; align-items:center;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <span style="font-size:22px;">👁️</span>
-        <div>
-          <h3 style="margin:0; font-size:16px; font-weight:800; color:#f8fafc;">Financial Statement &bull; Print Preview (A4 Page Fit)</h3>
-          <p style="margin:2px 0 0 0; font-size:11.5px; color:#94a3b8;">Party Open Advance &amp; Stock Reconciliation Statement &bull; Subh Paper Company</p>
-        </div>
-      </div>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <button type="button" class="btn btn-primary" onclick="printFinancialStatement()" style="font-size:12px; font-weight:700; padding:6px 14px;">
-          🖨️ Print Now
-        </button>
-        <button type="button" class="btn btn-outline" onclick="downloadFinancialsPDF()" style="font-size:12px; font-weight:700; padding:6px 14px; background:#ffffff; color:#0f172a;">
-          📄 Download PDF
-        </button>
-        <button type="button" class="btn btn-secondary" onclick="exportFinancialsToExcel()" style="font-size:12px; font-weight:700; padding:6px 14px; background:#f0fdf4; color:#15803d; border-color:#86efac;">
-          📊 Export Excel
-        </button>
-        <button type="button" onclick="closeModal('modalFinancialPrintPreview')" style="background:transparent; border:none; color:#ffffff; font-size:24px; cursor:pointer; line-height:1; margin-left:8px;" title="Close Preview">&times;</button>
-      </div>
-    </div>
-
-    <!-- Preview Container (Paper Simulation) -->
-    <div style="padding:24px; overflow-y:auto; flex:1; background:#64748b; display:flex; justify-content:center;">
-      <div id="finPreviewPaperSheet" style="background:#ffffff; width:100%; max-width:920px; padding:28px 32px; box-shadow:0 10px 25px rgba(0,0,0,0.3); border-radius:4px;">
-        <!-- Injected dynamically via previewFinancialStatement() -->
-      </div>
-    </div>
-
-    <!-- Preview Footer -->
-    <div style="background:#f8fafc; padding:10px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-      <span style="font-size:12px; color:#64748b;">Preview formatted for standard A4 Portrait paper dimensions.</span>
-      <button type="button" class="btn btn-secondary" onclick="closeModal('modalFinancialPrintPreview')" style="font-weight:700;">
-        Close Preview
-      </button>
-    </div>
-  </div>
-</div>
-
-</body></html>
+    <body>${tableHtml}</body></html>
   `;
   const base64 = s => window.btoa(unescape(encodeURIComponent(s)));
   const link = document.createElement('a');
@@ -31806,6 +31672,37 @@ function hundiNormalizeDate(d) {
   return s;
 }
 
+// Invoice date ('04-09-2026' / '2026-09-04' / '04.09.2026') → 'yyyy-mm-dd'
+// (HTML date input sirf ISO format accept karta hai)
+function hundiDateToIso(d) {
+  if (!d) return '';
+  const s = String(d).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+  m = s.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/);
+  if (m) return `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
+  const dt = new Date(s);
+  if (!isNaN(dt.getTime())) {
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  }
+  return '';
+}
+
+// Selected invoice ki date → "Date of Bill of Exchange" me daalo
+// aur Due Date auto +90 din (ya hundi tenor) kar do.
+function applyHundiBillDateFromInvoice(h) {
+  if (!h) return;
+  const inv = (h.invoices && h.invoices[0]) || null;
+  const iso = hundiDateToIso(inv ? inv.invoiceDate : '');
+  if (!iso) return;
+  h.billDate = iso;
+  h.displayBillDate = formatHundiDateDisplay(iso);
+  const d = new Date(iso);
+  d.setDate(d.getDate() + (Number(h.tenorDays) || 90));
+  h.dueDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  h.displayDueDate = formatHundiDateDisplay(h.dueDate);
+}
+
 // Dropdown ko sources se dobara bharo (selection bacha ke rakho)
 function populateHundiInvoiceDropdown() {
   const sel = document.getElementById('hnd_doc_invoiceSelect');
@@ -31932,7 +31829,7 @@ function onHundiDocDateChange() {
   h.displayBillDate = formatHundiDateDisplay(bDateStr);
 
   const dt = new Date(bDateStr);
-  dt.setDate(dt.getDate() + 90);
+  dt.setDate(dt.getDate() + (Number(h.tenorDays) || 90));
   const yyyy = dt.getFullYear();
   const mm = String(dt.getMonth() + 1).padStart(2, '0');
   const dd = String(dt.getDate()).padStart(2, '0');
@@ -31943,6 +31840,7 @@ function onHundiDocDateChange() {
 
   const elDue = document.getElementById('hnd_doc_dueDate');
   if (elDue) elDue.value = dueStr;
+  if (typeof syncHundiInputsForPrint === 'function') syncHundiInputsForPrint();
 }
 
 function onHundiDocDueDateManualChange() {
@@ -31951,6 +31849,7 @@ function onHundiDocDueDateManualChange() {
   const dueVal = document.getElementById('hnd_doc_dueDate').value;
   h.dueDate = dueVal;
   h.displayDueDate = formatHundiDateDisplay(dueVal);
+  if (typeof syncHundiInputsForPrint === 'function') syncHundiInputsForPrint();
 }
 
 function onHundiDocInvoiceSelect(invNo) {
@@ -31972,8 +31871,10 @@ function onHundiDocInvoiceSelect(invNo) {
     h.amount = customAmt;
     h.amountWords = numberToIndianWordsRupees(customAmt).replace(/^Rupees\s+/, '');
     if (customParty) h.draweeName = customParty;
+    applyHundiBillDateFromInvoice(h);
 
     renderHundiScreen();
+    if (typeof syncHundiInputsForPrint === 'function') syncHundiInputsForPrint();
     showToast(`✅ Custom Invoice ${customNo} applied to Hundi!`);
     return;
   }
@@ -32003,8 +31904,10 @@ function onHundiDocInvoiceSelect(invNo) {
     if (src.party) h.draweeName = src.party;
   }
 
+  applyHundiBillDateFromInvoice(h);
   renderHundiScreen();
-  showToast(`✅ Selected Invoice ${invNo} - Bill Amount & Party updated!`);
+  if (typeof syncHundiInputsForPrint === 'function') syncHundiInputsForPrint();
+  showToast(`✅ Selected Invoice ${invNo} - Bill Amount, Date & Party updated!`);
 }
 
 function formatHundiDateDisplay(dtStr) {
