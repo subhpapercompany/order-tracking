@@ -4504,6 +4504,7 @@ body.print-flash-mode .no-print {
             <div class="formula-indicator">Stock = Opening Sheets + Inward - Consumed</div>
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
+            <button class="btn btn-outline" onclick="printPartyStockStatement()" style="font-weight:700; border-color:#1e3a8a; color:#1e3a8a; background:#eef2ff;" title="Godown-wise party stock statement — A4 portrait print">🖨 Party Stock Statement</button>
             <button class="btn btn-outline" onclick="openBoardOpeningModal()" style="font-weight:700; border-color:#b45309; color:#b45309; background:#fffbeb;">📦 Set Opening Balance (Board)</button>
             <button class="btn btn-primary" onclick="quickLogBoard()">+ Add Board Movement Entry</button>
           </div>
@@ -34592,6 +34593,174 @@ function renderBoardWipAuditDetails(size) {
   }
 }
 
+/* ==== Party-wise Board Stock Statement (A4 portrait print) ====
+   Printer ka godown bhi APNA godown hai. Har size ki statement me rows:
+   1) Subh raw godown   = opening + mill inward − printer ko bheja
+   2) Subh WIP godown   = received printed covers − production consumption
+   3) har printer slab  = usko bheja − usse received (opening slab + consumption
+      ka hissa bhi usi par — WIP-first rule ledger wala hi)
+   TOTAL row = column sums (internal transfer cancel ho jata hai) — closing
+   hamesha Board Screen ke totalSheets se match karta hai. */
+function buildPartyStockStatementHtml() {
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const fmt = n => Number(n || 0).toLocaleString('en-IN');
+  const fmtV = n => '₹ ' + Math.round(Number(n || 0)).toLocaleString('en-IN');
+  const summaries = (state.boardSummary || []);
+  if (!summaries.length) return '';
+
+  let sections = '';
+  let grandSheets = 0, grandKg = 0, grandVal = 0, sizeCount = 0;
+
+  summaries.forEach(b => {
+    const size = b.size || '';
+    const compactB = String(size).replace(/\s+/g, '').toLowerCase();
+    const rate = Number(b.rate) || 7.5;
+    const sheetWt = Number(b.sheetWt) || 0;
+    const openG = Number(b.openingGodownSheets || 0);
+    const openP = Number(b.openingPrinterSheets || 0);
+
+    const ledRows = (state.boardLedger || []).filter(l =>
+      String(l.size || '').replace(/\s+/g, '').toLowerCase() === compactB && l.notes !== 'Opening Board Entry');
+    let inward = 0, sent = 0, received = 0;
+    const partyMap = {};
+    ledRows.forEach(l => {
+      inward += Number(l.inward || 0);
+      const qS = Number(l.outPrint || 0), qR = Number(l.printedRecd || 0);
+      sent += qS; received += qR;
+      if (l.party && l.party !== 'Opening Stock') {
+        if (!partyMap[l.party]) partyMap[l.party] = { sent: 0, recd: 0 };
+        partyMap[l.party].sent += qS;
+        partyMap[l.party].recd += qR;
+      }
+    });
+
+    const prod = _boardProdConsumedFor(compactB);           // total consumption + matched SKUs
+    const cons = _boardWipConsSplit(size);                  // WIP-first split
+    const rawClose = openG + inward - sent;
+    const wipClose = received - cons.fromWIP;
+
+    const parties = Object.keys(partyMap).sort();
+    const holder = openP > 0 ? (_boardConsParty(size) || parties[0] || 'Printers (Opening)') : '';
+    if (openP > 0 && holder && !partyMap[holder]) partyMap[holder] = { sent: 0, recd: 0 };
+    if (openP > 0 && parties.indexOf(holder) < 0) parties.push(holder);
+
+    const partyRows = parties.map(p => {
+      const pm = partyMap[p];
+      const open = (p === holder) ? openP : 0;
+      const inQ = pm.sent;
+      const outQ = pm.recd + ((p === holder) ? cons.fromPrinter : 0);
+      return { p: p, open: open, in: inQ, out: outQ, close: open + inQ - outQ };
+    });
+    const totalClose = rawClose + wipClose + partyRows.reduce((a, r) => a + r.close, 0);
+    const anyActivity = openG || openP || inward || sent || received || prod.total || totalClose;
+    if (!anyActivity) return;
+    sizeCount++;
+
+    const row = (cls, label, open, inQ, outQ) => {
+      const close = open + inQ - outQ;
+      return `<tr>
+        <td class="lbl">${cls} ${esc(label)}</td>
+        <td class="num">${fmt(open)}</td>
+        <td class="num">${fmt(inQ)}</td>
+        <td class="num">${fmt(outQ)}</td>
+        <td class="num" style="font-weight:800;${close < 0 ? ' color:#b91c1c;' : ''}">${fmt(close)}</td>
+        <td class="num">${fmtV(close * rate)}</td>
+      </tr>`;
+    };
+
+    const tOpen = openG + openP + partyRows.reduce((a, r) => a + r.open, 0);
+    const tIn = inward + received + partyRows.reduce((a, r) => a + r.in, 0);
+    const tOut = sent + cons.fromWIP + partyRows.reduce((a, r) => a + r.out, 0);
+
+    sections += `
+      <h3>Board ${esc(size)} ${sheetWt ? '· ' + sheetWt.toFixed(3) + ' Kg/sheet' : ''} · Rate ₹ ${rate.toFixed(2)}/sheet</h3>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30%;">Godown / Party</th>
+            <th>Opening</th>
+            <th>In (Inward / Received / Sent)</th>
+            <th>Out (Sent / Received / Consumed)</th>
+            <th>Closing (Sheets)</th>
+            <th>Value (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${row('🏛', 'Subh Godown — Raw Sheet', openG, inward, sent)}
+          ${row('📄', 'Subh Godown — WIP Received (Net)', 0, received, cons.fromWIP)}
+          ${partyRows.map(r => row('🖨', r.p + ' — Raw Slab', r.open, r.in, r.out)).join('')}
+          ${prod.total > 0 ? `<tr><td colspan="6" style="font-size:7.5px; color:#475569; font-style:italic; border-top:none;">Production consumption ${fmt(prod.total)} Sheets (${prod.matched.length} SKU) — WIP se ${fmt(cons.fromWIP)} + Slab se ${fmt(cons.fromPrinter)} (WIP-first rule)</td></tr>` : ''}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="lbl">Size Total — ${esc(size)}</td>
+            <td class="num">${fmt(tOpen)}</td>
+            <td class="num">${fmt(tIn)}</td>
+            <td class="num">${fmt(tOut)}</td>
+            <td class="num">${fmt(totalClose)}</td>
+            <td class="num">${fmtV(totalClose * rate)}</td>
+          </tr>
+        </tfoot>
+      </table>`;
+
+    grandSheets += totalClose;
+    grandKg += totalClose * sheetWt;
+    grandVal += totalClose * rate;
+  });
+
+  if (!sizeCount) return '';
+  const today = new Date();
+
+  return `
+    <div class="ps-brand">SUBH PAPER COMPANY</div>
+    <div class="ps-title">Party-Wise Board Stock Statement (Godown-wise)</div>
+    <div class="ps-meta">Date: ${today.toLocaleDateString('en-GB')} &nbsp;•&nbsp; Generated: ${today.toLocaleString('en-GB')} &nbsp;•&nbsp; Sizes: ${sizeCount} &nbsp;•&nbsp; Unit: Sheets</div>
+
+    ${sections}
+
+    <h3>Grand Total — All Sizes</h3>
+    <table>
+      <tbody>
+        <tr>
+          <td class="lbl" style="width:40%;">Total Board Stock (Consolidated)</td>
+          <td class="num" style="width:20%; font-weight:900;">${fmt(grandSheets)} Sheets</td>
+          <td class="num" style="width:20%; font-weight:900;">${fmtV(grandVal)}</td>
+          <td class="num" style="width:20%; color:#475569;">${fmt(Math.round(grandKg * 100) / 100)} Kg</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="ps-note">
+      <strong>Note:</strong> Printer ka godown bhi company ka apna godown hai — uske raw slab party-wise diye gaye hain.
+      Production consumption WIP (received printed covers) se pehle kata jaata hai; agar WIP kam pade to baaki usi size ke raw slab se.
+      In/Out ke columns me internal transfer (Subh ↔ Printer) bhi dikhta hai, lekin uska net effect closing par zero hota hai —
+      isliye har size ka Total Closing Board Screen ke <strong>Total Stock (Sheets)</strong> se exactly match karta hai.
+    </div>
+
+    <div class="ps-sign">
+      <span>Prepared By</span>
+      <span>Checked By</span>
+      <span>Authorised Signatory</span>
+    </div>`;
+}
+
+/** Statement ko print-mode me daal ke A4 print kholta hai (Cancel par wapas screen). */
+function printPartyStockStatement() {
+  const holder = document.getElementById('partyStatementPrint');
+  if (!holder) return;
+  const html = buildPartyStockStatementHtml();
+  if (!html) { showToast('Board data khaali hai — statement nahi ban saka'); return; }
+  holder.innerHTML = html;
+  const oldTitle = document.title;
+  document.title = 'Party Stock Statement - ' + new Date().toISOString().slice(0, 10);
+  document.body.classList.add('print-party-statement-mode');
+  window.print();
+  setTimeout(() => {
+    document.body.classList.remove('print-party-statement-mode');
+    document.title = oldTitle;
+  }, 1000);
+}
+
 function printBoardWipAudit() {
   const modalBody = document.getElementById('bwa_modal_body');
   if (!modalBody) return;
@@ -38671,6 +38840,9 @@ function deleteHundiRegisterEntry(id) {
     </div>
   </div>
 </div>
+
+<!-- Party-wise Board Stock Statement — screen par hidden, sirf print/PDF me -->
+<div id="partyStatementPrint"></div>
 
 </body>
 </html>
