@@ -518,58 +518,60 @@
     border-top: 2px solid #cbd5e1;
   }
 
-  /* Badges & Status */
+  /* Badges & Status - Clean borderless value display (Outline box removed) */
   .badge-status {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 8px;
-    border-radius: 12px;
+    padding: 0;
+    border: none !important;
+    background: transparent !important;
+    border-radius: 0 !important;
     font-size: 11px;
     font-weight: 700;
   }
 
   .badge-completed {
-    background: var(--success-bg);
+    background: transparent !important;
     color: var(--success-text);
-    border: 1px solid var(--success-border);
+    border: none !important;
   }
 
   .badge-pending {
-    background: var(--warning-bg);
+    background: transparent !important;
     color: var(--warning-text);
-    border: 1px solid var(--warning-border);
+    border: none !important;
   }
 
   .badge-deficit {
-    background: var(--danger-bg);
+    background: transparent !important;
     color: var(--danger-text);
-    border: 1px solid var(--danger-border);
+    border: none !important;
   }
 
   .badge-info {
-    background: var(--info-bg);
+    background: transparent !important;
     color: var(--info-text);
-    border: 1px solid var(--info-border);
+    border: none !important;
   }
 
-  /* Vendor Badges */
+  /* Vendor Badges - Clean borderless */
   .badge-vendor-camlin {
-    background: #eff6ff;
+    background: transparent !important;
     color: #1d4ed8;
-    border: 1px solid #bfdbfe;
+    border: none !important;
     font-weight: 700;
   }
   .badge-vendor-itc {
-    background: #fff7ed;
+    background: transparent !important;
     color: #c2410c;
-    border: 1px solid #fed7aa;
+    border: none !important;
     font-weight: 700;
   }
   .badge-vendor-others {
-    background: #f5f3ff;
+    background: transparent !important;
     color: #6d28d9;
-    border: 1px solid #ddd6fe;
+    border: none !important;
     font-weight: 700;
   }
 
@@ -1588,6 +1590,7 @@
     .toast,
     .modal,
     .modal-backdrop,
+    #dashboardMaterialShortageBanner,
     .no-print,
     #saveStatusIndicator,
     th:last-child,
@@ -1782,8 +1785,9 @@
     }
 
     .badge-status {
-      border: 1px solid #64748b !important;
-      padding: 1px 4px !important;
+      border: none !important;
+      background: transparent !important;
+      padding: 0 !important;
       font-size: 6.5pt !important;
     }
 
@@ -3503,6 +3507,8 @@ body.print-flash-mode .no-print {
   .modal-header h1, .modal-header h2, .modal-header h3, .modal-header h4,
   .modal-header p, .modal-header strong,
   .costing-panel-header h3,
+  .costing-panel-header .costing-panel-title,
+  .costing-panel-header .costing-panel-title span,
   .payslip-header h3, .payslip-header h4 {
     color: #ffffff !important;
   }
@@ -4217,10 +4223,7 @@ body.print-flash-mode .no-print {
       </div>
 
       <!-- Critical Material Shortage Alert Banner on Dashboard -->
-      <div id="dashboardMaterialShortageBanner" style="display:none;"></div>
-
-      <!-- 🔔 Alerts Panel — low stock / negative / PO blockers / overdue despatch -->
-      <div id="dashboardAlertsPanel"></div>
+      <div id="dashboardMaterialShortageBanner" class="no-print" style="display:none;"></div>
 
       <div class="panel">
         <div class="panel-header">
@@ -4304,6 +4307,17 @@ body.print-flash-mode .no-print {
           <div class="panel-title-group">
             <div class="panel-title">Purchase Order Details (Camlin / ITC / Others)</div>
             <div class="formula-indicator">Multi-Vendor Purchase Order Master | Book Wt = (Reel &times; Cut &times; GSM)/20000/500 &times; (Pages / 16 if 3rd digit is 3, Pages / 12 if 3rd digit is 5)</div>
+          </div>
+          <div class="toolbar-group no-print" style="display:flex; gap:8px; align-items:center;">
+            <button type="button" class="btn btn-outline" onclick="printOrderSheetReport()" title="Print Total Order Sheet in A4 Portrait" style="font-size:12px; font-weight:700; color:#1e3a8a; border-color:#93c5fd; background:#eff6ff;">
+              <span>🖨️</span> Print Order Sheet (A4)
+            </button>
+            <button type="button" class="btn btn-primary" onclick="downloadOrderSheetPDF()" title="Download Total Order Sheet as PDF (A4 Portrait)" style="font-size:12px; font-weight:700; background:linear-gradient(135deg, #0284c7, #0369a1); box-shadow:0 2px 6px rgba(2, 132, 199, 0.4);">
+              <span>📥</span> Download PDF
+            </button>
+            <button type="button" class="btn btn-outline" onclick="exportOrderSheetExcel()" title="Export Order Sheet to Formatted Excel" style="font-size:12px; font-weight:700; color:#15803d; border-color:#86efac; background:#f0fdf4;">
+              <span>📊</span> Excel
+            </button>
           </div>
         </div>
         <div class="table-responsive">
@@ -8120,7 +8134,7 @@ body.print-flash-mode .no-print {
             <span style="font-size: 20px;">📊</span>
             <div>
               <div class="panel-title">All Master SKUs Costing &amp; Pricing Matrix</div>
-              <div style="font-size: 11px; color: #64748b;">Instant cost comparison of all 63 SKUs based on current active rate master</div>
+              <div style="font-size: 11px; color: #93c5fd;">Instant cost comparison of all 63 SKUs based on current active rate master</div>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -14983,7 +14997,9 @@ function switchSheet(sheetId, clickedEl) {
   // Update export button label with active sheet name
   updateExportButtonLabel();
 
-  if (sheetId === 'daybook') {
+  if (sheetId === 'ordersheet') {
+    renderOrderSheet();
+  } else if (sheetId === 'daybook') {
     renderDaybook();
   } else if (sheetId === 'hundi') {
     renderHundiScreen();
@@ -16247,7 +16263,6 @@ function initKeyboardNavigation() {
 
 function renderAllViews() {
   renderKPIs();
-  renderDashboardAlerts();
   renderDashboardTable();
   renderOrderSheet();
   renderManufacturingSheet();
@@ -16265,125 +16280,6 @@ function renderAllViews() {
   renderDetailedStockReport();
   renderInventoryLedger();
   renderDaybook();
-}
-
-/* ================================================================
-   🔔 DASHBOARD ALERTS PANEL
-   Low stock / negative stock / PO blockers / overdue despatch —
-   ek jagah, click karke seedha relevant screen par.
-   ================================================================ */
-function renderDashboardAlerts() {
-  const host = document.getElementById('dashboardAlertsPanel');
-  if (!host) return;
-
-  const TH = { paperKg: 1000, indexKg: 150, boardSheets: 3000, cfcBoxes: 30 };  // low-stock thresholds
-  const alerts = [];
-  const add = (sev, icon, title, detail, action) => alerts.push({ sev: sev, icon: icon, title: title, detail: detail, action: action });
-  const nf = (n, d) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: (d === undefined ? 0 : d), minimumFractionDigits: (d || 0) });
-  const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-  // ---- 1. Paper / Index reels (Kg) ----
-  (state.papersSummary || []).forEach(p => {
-    const nm = `${p.reelSize || 'Paper'}${p.wipType ? ' (' + p.wipType + ')' : ''}`;
-    const kg = Number(p.reelsKg || 0);
-    const isIndex = String(p.wipType || '').toLowerCase().indexOf('index') >= 0;
-    const th = isIndex ? TH.indexKg : TH.paperKg;
-    if (kg < 0) add('critical', '🚨', `Paper ${nm} — NEGATIVE stock`, `${nf(kg, 2)} Kg — turant inward karein`, `switchSheet('papers')`);
-    else if (kg < th) add('low', '⚠️', `Paper ${nm} — low stock`, `${nf(kg, 2)} Kg available (threshold ${nf(th)} Kg)`, `switchSheet('papers')`);
-    if (Number(p.wipKg || 0) < 0) add('low', '📉', `WIP deficit — ${nm}`, `${nf(p.wipKg, 2)} Kg kam pad raha hai`, `switchSheet('papers')`);
-  });
-
-  // ---- 2. Title Cover Board (Sheets) ----
-  (state.boardSummary || []).forEach(b => {
-    const tot = Number(b.totalSheets || 0);
-    if (tot < 0) add('critical', '🚨', `Board ${b.size} — NEGATIVE`, `${nf(tot)} Sheets`, `switchSheet('board')`);
-    else if (tot < TH.boardSheets) add('low', '⚠️', `Board ${b.size} — low stock`, `${nf(tot)} Sheets available (threshold ${nf(TH.boardSheets)})`, `switchSheet('board')`);
-  });
-
-  // ---- 3. Consumables — sabse zyada CFC (carton) matter karta hai ----
-  (state.consumables || []).forEach(c => {
-    const stock = Number(c.stock || 0);
-    const item = String(c.item || '');
-    if (!item) return;
-    if (stock < 0) add('critical', '🚨', `${item} — NEGATIVE`, `${nf(stock)} Box`, `switchSheet('consumables')`);
-    else if (/: CFC$/i.test(item) && stock < TH.cfcBoxes) add('low', '⚠️', `${item} — low carton`, `${nf(stock)} Boxes (threshold ${TH.cfcBoxes})`, `switchSheet('consumables')`);
-  });
-
-  // ---- 4. FG stock negative ----
-  (state.skus || []).forEach(s => {
-    const fg = Number(s.oldStock || 0) + Number(s.production || 0) - Number(s.despatched || 0);
-    if (fg < 0) add('critical', '🚨', `FG stock negative — ${s.barcode}`, `${esc(s.description || '')}: ${nf(fg)} Pcs`, `switchSheet('despatched')`);
-  });
-
-  // ---- 5. PO Release blocker + overdue/pending despatch ----
-  const nowMonth = new Date().toISOString().slice(0, 7);
-  const isYm = m => /^\d{4}-\d{2}$/.test(String(m || ''));
-  const poBlocked = [];
-  let pendSkus = 0, pendPcs = 0, overSkus = 0, overPcs = 0, prodOverSkus = 0, prodOverPcs = 0;
-  (state.skus || []).forEach(s => {
-    const dueDesp = Number(s.orderQty || 0) - Number(s.despatched || 0);
-    const dueProd = Math.max(0, Number(s.orderQty || 0) - Number(s.oldStock || 0) - Number(s.production || 0));
-    const m = isYm(s.month) ? s.month : '';
-    if (dueDesp > 0) {
-      pendSkus++; pendPcs += dueDesp;
-      if (m && m < nowMonth) { overSkus++; overPcs += dueDesp; }
-      let released = true;
-      try { released = !!(getSkuPoReleaseInfo(s.barcode, s.month) || {}).isReleased; } catch (_) {}
-      if (!released) poBlocked.push(s.barcode);
-    }
-    if (dueProd > 0 && m && m < nowMonth) { prodOverSkus++; prodOverPcs += dueProd; }
-  });
-  if (poBlocked.length) add('blocker', '🔒', `${poBlocked.length} SKU par PO Release nahi hua`, `${poBlocked.slice(0, 4).map(esc).join(', ')}${poBlocked.length > 4 ? ' +' + (poBlocked.length - 4) + ' aur' : ''} — inka despatch blocked hai`, `switchSheet('porelease')`);
-  if (overSkus) add('blocker', '⏰', `Purane month ka despatch pending`, `${overSkus} SKU · ${nf(overPcs)} Pcs — despatch karein`, `switchSheet('despatched')`);
-  if (prodOverSkus) add('blocker', '🏭', `Purane month ka production pending`, `${prodOverSkus} SKU · ${nf(prodOverPcs)} Pcs — production karein`, `switchSheet('manufacturing')`);
-  if (pendSkus) add('info', '🚚', `Despatch pending (is month me)`, `${pendSkus} SKU · ${nf(pendPcs)} Pcs baaki`, `switchSheet('despatched')`);
-
-  // ---- 6. PO Request missing ----
-  const noPoReq = (state.skus || []).filter(s => !(state.poRequests || []).some(r => String(r.productCode) === String(s.barcode))).map(s => s.barcode);
-  if (noPoReq.length) add('info', '📄', `${noPoReq.length} SKU ka PO Request nahi bana`, `${noPoReq.slice(0, 4).map(esc).join(', ')}${noPoReq.length > 4 ? ' +' + (noPoReq.length - 4) + ' aur' : ''}`, `switchSheet('porequest')`);
-
-  // ---- Render ----
-  const SEV = {
-    critical: { c: '#b91c1c', bg: '#fef2f2', bd: '#fca5a5', label: 'CRITICAL', ord: 0 },
-    blocker:  { c: '#b45309', bg: '#fffbeb', bd: '#fcd34d', label: 'BLOCKED', ord: 1 },
-    low:      { c: '#a16207', bg: '#fefce8', bd: '#fde68a', label: 'LOW', ord: 2 },
-    info:     { c: '#1e40af', bg: '#eff6ff', bd: '#bfdbfe', label: 'PENDING', ord: 3 }
-  };
-  alerts.sort((a, b) => SEV[a.sev].ord - SEV[b.sev].ord);
-  const crit = alerts.filter(a => a.sev === 'critical' || a.sev === 'blocker').length;
-
-  if (!alerts.length) {
-    host.innerHTML = `
-      <div class="panel" style="margin-bottom:16px; border:1px solid #bbf7d0; background:#f0fdf4;">
-        <div style="padding:12px 16px; display:flex; align-items:center; gap:10px; font-weight:800; color:#15803d; font-size:13.5px;">
-          <span style="font-size:20px;">✅</span> Sab kuch theek hai — koi low stock / pending alert nahi
-        </div>
-      </div>`;
-    return;
-  }
-
-  const rows = alerts.slice(0, 10).map(a => {
-    const s = SEV[a.sev];
-    return `<div onclick="${a.action}" title="Click to open" style="display:flex; align-items:center; gap:10px; padding:8px 12px; border-left:4px solid ${s.c}; background:${s.bg}; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:filter .15s;">
-      <span style="font-size:16px; flex-shrink:0;">${a.icon}</span>
-      <span style="font-size:10.5px; font-weight:900; letter-spacing:.5px; color:${s.c}; background:#ffffff; border:1px solid ${s.bd}; border-radius:4px; padding:1px 6px; flex-shrink:0;">${s.label}</span>
-      <span style="font-size:12.5px; font-weight:800; color:#0f172a; flex-shrink:0; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(a.title)}</span>
-      <span style="font-size:12px; color:#475569; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(a.detail)}</span>
-      <span style="font-size:12px; color:#94a3b8; flex-shrink:0;">→</span>
-    </div>`;
-  }).join('');
-
-  host.innerHTML = `
-    <div class="panel" style="margin-bottom:16px; border:1px solid #e2e8f0; overflow:hidden;">
-      <div class="panel-header" style="padding:10px 16px; background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);">
-        <div class="panel-title-group">
-          <div class="panel-title" style="color:#ffffff; font-size:14px;">🔔 Alerts <span style="background:${crit ? '#dc2626' : '#2563eb'}; color:#fff; border-radius:10px; padding:1px 8px; font-size:11.5px; margin-left:6px;">${alerts.length}</span></div>
-          <div class="formula-indicator" style="color:#93c5fd;">Low stock · Negative stock · PO blockers · Overdue despatch — click karke us screen par jao</div>
-        </div>
-      </div>
-      <div>${rows}</div>
-      ${alerts.length > 10 ? `<div style="padding:8px 14px; font-size:11.5px; color:#64748b; font-weight:700; background:#f8fafc;">+ ${alerts.length - 10} aur alerts</div>` : ''}
-    </div>`;
 }
 
 function isPaperMatchingVendor(reelSize, vendor, activeVendor) {
@@ -16562,7 +16458,7 @@ function renderKPIs() {
     if (hasPaperDeficit || hasBoardDeficit) {
       bannerEl.style.display = 'block';
       bannerEl.innerHTML = `
-        <div style="background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%); color: #ffffff; border-radius: 10px; padding: 12px 18px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 4px 12px rgba(185, 28, 28, 0.25);">
+        <div class="no-print" style="background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%); color: #ffffff; border-radius: 10px; padding: 12px 18px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 4px 12px rgba(185, 28, 28, 0.25);">
           <div style="display: flex; align-items: center; gap: 12px;">
             <span style="font-size: 26px;">🚨</span>
             <div>
@@ -16576,9 +16472,12 @@ function renderKPIs() {
               </div>
             </div>
           </div>
-          <button type="button" onclick="switchSheet('matplan')" class="btn" style="background:#ffffff; color:#b91c1c; font-weight:800; font-size:11.5px; border:none; padding:7px 14px; border-radius:6px; cursor:pointer;">
-            📋 View Procurement Deficit →
-          </button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" onclick="switchSheet('matplan')" class="btn" style="background:#ffffff; color:#b91c1c; font-weight:800; font-size:11.5px; border:none; padding:7px 14px; border-radius:6px; cursor:pointer;">
+              📋 View Procurement Deficit →
+            </button>
+            <button type="button" onclick="document.getElementById('dashboardMaterialShortageBanner').style.display='none'" title="Close Alert" style="background:rgba(255,255,255,0.2); color:#ffffff; font-weight:bold; font-size:14px; border:none; padding:6px 10px; border-radius:6px; cursor:pointer;">✕</button>
+          </div>
         </div>
       `;
     } else {
@@ -16762,7 +16661,7 @@ function renderDashboardTable() {
       <td class="num" style="background:${hasMaterialShortage ? '#fef2f2' : '#eff6ff'};">
         <div style="font-weight:800; color:${hasMaterialShortage ? '#b91c1c' : '#854d0e'};">${Math.round(duePaper).toLocaleString()} Kg <span style="font-size:10px; font-weight:normal; color:#b45309;">(Due Req)</span></div>
         <div style="font-size:10.5px; font-weight:600; color:#059669;">Prod: ${(sku.paperConsumptionKg || 0).toLocaleString()} Kg</div>
-        ${hasMaterialShortage ? `<div style="font-size:9.5px; font-weight:800; color:#dc2626; background:#fee2e2; border:1px solid #fca5a5; border-radius:4px; padding:1px 5px; margin-top:2px; display:inline-block;">🚨 Negative Stock (${skuPaperShortage < 0 ? Math.round(skuPaperShortage) + 'Kg' : ''}${skuBoardShortage < 0 ? ` ${skuBoardShortage}Brd` : ''})</div>` : ''}
+        ${hasMaterialShortage ? `<div style="font-size:9.5px; font-weight:800; color:#dc2626; margin-top:2px; display:inline-block;">🚨 Negative Stock (${skuPaperShortage < 0 ? Math.round(skuPaperShortage) + 'Kg' : ''}${skuBoardShortage < 0 ? ` ${skuBoardShortage}Brd` : ''})</div>` : ''}
       </td>
       <td>
         <div class="progress-cell">
@@ -23799,7 +23698,7 @@ function closeDataManagementModal() {
 
 function getSheetFriendlyName(sheetId) {
   const map = {
-    dashboard: 'Dash Board (Master)',
+    dashboard: 'Order Sheet (PO)',
     daybook: 'Daybook (All Entries)',
     ordersheet: 'Order Sheet (PO)',
     matplan: 'Paper & Board MRP Plan',
@@ -24227,10 +24126,18 @@ function masterPrintCurrentReport() {
 // Global browser print event listeners to handle Ctrl+P natively
 window.addEventListener('beforeprint', () => {
   const sheet = state.activeSheet || 'dashboard';
+  preparePrintLetterhead(sheet);
   applyDynamicPrintPageStyle(sheet);
+  document.querySelectorAll('.sheet-screen').forEach(s => s.classList.remove('active-print-screen'));
+  const target = document.getElementById('screen-' + sheet);
+  if (target) {
+    target.style.display = 'block';
+    target.classList.add('active-print-screen');
+  }
 });
 window.addEventListener('afterprint', () => {
   clearDynamicPrintPageStyle();
+  document.querySelectorAll('.sheet-screen').forEach(s => s.classList.remove('active-print-screen'));
 });
 
 /* ==========================================================================
@@ -24257,11 +24164,167 @@ document.addEventListener('click', function(e) {
   }
 });
 
+
+/* ==========================================================================
+   ORDER SHEET (PO) DEDICATED PRINT & PDF ENGINE (A4 Portrait)
+   ========================================================================== */
+function printOrderSheetReport() {
+  state.activeSheet = 'ordersheet';
+  renderOrderSheet();
+  preparePrintLetterhead('ordersheet');
+  applyDynamicPrintPageStyle('ordersheet');
+
+  document.querySelectorAll('.sheet-screen').forEach(s => s.classList.remove('active-print-screen'));
+  const target = document.getElementById('screen-ordersheet');
+  if (target) {
+    target.style.display = 'block';
+    target.classList.add('active-print-screen');
+  }
+
+  const oldTitle = document.title;
+  const activeV = state.activeVendor || 'all';
+  const vTag = activeV === 'all' ? 'CONSOLIDATED' : activeV.toUpperCase();
+  const isoDate = new Date().toISOString().slice(0, 10);
+  document.title = `SUBH_${vTag}_ORDER_SHEET_PO_A4_PORTRAIT_${isoDate}`;
+
+  showToast(`🖨️ Opening print preview for 'Order Sheet (PO)' (${vTag}) in A4 Portrait...`);
+
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => {
+      document.title = oldTitle;
+      if (target) target.classList.remove('active-print-screen');
+      clearDynamicPrintPageStyle();
+    }, 1000);
+  }, 250);
+}
+
+function downloadOrderSheetPDF() {
+  state.activeSheet = 'ordersheet';
+  renderOrderSheet();
+  preparePrintLetterhead('ordersheet');
+  applyDynamicPrintPageStyle('ordersheet');
+
+  const activeV = state.activeVendor || 'all';
+  const vTag = activeV === 'all' ? 'CONSOLIDATED' : activeV.toUpperCase();
+  const isoDate = new Date().toISOString().slice(0, 10);
+  const filename = `SUBH_${vTag}_ORDER_SHEET_PO_${isoDate}.pdf`;
+
+  if (window.html2pdf) {
+    showToast(`📥 Generating PDF for Order Sheet (PO)...`);
+    const container = document.createElement('div');
+    container.style.padding = '8px 12px';
+    container.style.background = '#ffffff';
+    container.style.color = '#0f172a';
+    container.style.fontFamily = "'Inter', sans-serif";
+
+    const letterhead = document.getElementById('printLetterhead');
+    if (letterhead) {
+      const lhClone = letterhead.cloneNode(true);
+      lhClone.style.display = 'block';
+      container.appendChild(lhClone);
+    }
+
+    const orderScreen = document.getElementById('screen-ordersheet');
+    if (orderScreen) {
+      const osClone = orderScreen.cloneNode(true);
+      osClone.style.display = 'block';
+      osClone.querySelectorAll('.toolbar-group, th:last-child, td:last-child, .no-print').forEach(el => el.remove());
+      container.appendChild(osClone);
+    }
+
+    const opt = {
+      margin: [6, 5, 6, 5],
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(container).save().then(() => {
+      showToast(`✅ Order Sheet (PO) PDF downloaded successfully!`);
+    }).catch(err => {
+      console.warn('html2pdf failed, falling back to window.print', err);
+      printOrderSheetReport();
+    });
+  } else {
+    printOrderSheetReport();
+  }
+}
+
+function exportOrderSheetExcel() {
+  const activeV = state.activeVendor || 'all';
+  const vTag = activeV === 'all' ? 'CONSOLIDATED' : activeV.toUpperCase();
+  const filteredSkus = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV));
+
+  let totOrder = 0, totPaper = 0, totBoard = 0;
+  const rows = filteredSkus.map(s => {
+    totOrder += (s.orderQty || 0);
+    totPaper += (s.plannedPaperConsumptionKg || 0);
+    totBoard += (s.plannedBoardSheets || 0);
+    return [
+      getSkuOrderMonth(s),
+      s.vendor || 'Camlin',
+      s.barcode || '',
+      s.description || '',
+      (s.mrp !== undefined && s.mrp !== null ? s.mrp : 40).toFixed(2),
+      s.size || 'A4 Longbook',
+      s.paperPages ? `${s.paperPages}p+${s.indexPages}p` : `${s.pages || 52}p`,
+      s.binding || 'BACK PRESSED',
+      s.ruling || 'Single Line',
+      s.inner || '-',
+      s.caseQty || '-',
+      s.orderQty || 0,
+      s.bookWt || 0,
+      s.plannedPaperConsumptionKg || 0,
+      s.plannedBoardSheets || 0
+    ];
+  });
+
+  const columns = [
+    { title: "Order Month", align: "center", type: "text" },
+    { title: "Customer / Vendor", align: "left", type: "text" },
+    { title: "SKU Barcode", align: "center", type: "code" },
+    { title: "Description", align: "left", type: "text" },
+    { title: "MRP (₹)", align: "right", type: "dec" },
+    { title: "Category / Size", align: "left", type: "text" },
+    { title: "Pages", align: "center", type: "text" },
+    { title: "Binding Type", align: "center", type: "text" },
+    { title: "Ruling Type", align: "center", type: "text" },
+    { title: "Inner", align: "center", type: "text" },
+    { title: "Case Qty", align: "right", type: "num" },
+    { title: "Order Quantity", align: "right", type: "num" },
+    { title: "Book Wt (Kg)", align: "right", type: "dec" },
+    { title: "Paper Req (Kg)", align: "right", type: "dec" },
+    { title: "Board Req (Sheets)", align: "right", type: "num" }
+  ];
+
+  const totalsRow = [
+    "TOTAL / SUMMARY", "", "", `${filteredSkus.length} SKUs`, "", "", "", "", "", "", "",
+    totOrder, "", `${Math.round(totPaper).toLocaleString()} Kg`, totBoard
+  ];
+
+  buildAndDownloadProfessionalExcel({
+    reportTitle: `ORDER SHEET (PO) MASTER REPORT`,
+    reportSubtitle: `PURCHASE ORDER REQUIREMENTS & SPECIFICATIONS - ${vTag}`,
+    divisionName: (activeV === 'Camlin') ? 'KOKUYO CAMLIN DIVISION' : (activeV === 'ITC') ? 'ITC LIMITED DIVISION' : 'CONSOLIDATED MASTER DIVISION',
+    scopeText: `Scope: ${vTag} Purchase Orders • Subh Enterprise ERP`,
+    columns: columns,
+    dataRows: rows,
+    totalsRow: totalsRow,
+    filename: `Order_Sheet_PO_${vTag}_${new Date().toISOString().slice(0, 10)}.xls`
+  });
+}
+
 // 1. GLOBAL PRINT ROUTER
 function globalPrintCurrentView() {
   const sheet = state.activeSheet || 'dashboard';
   if (state.mode === 'entry') {
     window.print();
+    return;
+  }
+  if (sheet === 'ordersheet') {
+    printOrderSheetReport();
     return;
   }
   if (sheet === 'financials') {
@@ -24290,6 +24353,10 @@ function globalPrintCurrentView() {
 // 2. GLOBAL DOWNLOAD PDF ROUTER
 function globalDownloadPDF() {
   const sheet = state.activeSheet || 'dashboard';
+  if (sheet === 'ordersheet') {
+    downloadOrderSheetPDF();
+    return;
+  }
   if (sheet === 'financials') {
     if (typeof downloadFinancialsPDF === 'function') {
       downloadFinancialsPDF();
@@ -29690,15 +29757,25 @@ function renderFlashReportsScreen() {
   // Sort descending by date
   filtered.sort((a, b) => b.date.localeCompare(a.date));
 
-  // Compute KPI summaries
-  const countReports = reports.length;
-  let totalRec = 0;
-  let totalPay = 0;
-
+  // Deduplicate reports by date to prevent duplicate records
+  const uniqueReportsMap = new Map();
   reports.forEach(r => {
-    totalRec += (r.totalReceivables || 0);
-    totalPay += (r.totalPayables || 0);
+    if (r && r.date && !uniqueReportsMap.has(r.date)) {
+      uniqueReportsMap.set(r.date, r);
+    }
   });
+  const uniqueReports = Array.from(uniqueReportsMap.values());
+  if (uniqueReports.length !== reports.length) {
+    state.dailyFlashReports = uniqueReports;
+    saveDailyFlashReports();
+  }
+
+  // Compute KPI summaries based on the active/filtered latest closing position
+  // (Receivables & Payables are as-of date balances, NOT accumulated over multiple days)
+  const countReports = filtered.length;
+  const latestReport = (filtered && filtered.length > 0) ? filtered[0] : (uniqueReports[0] || null);
+  const totalRec = latestReport ? (Number(latestReport.totalReceivables) || 0) : 0;
+  const totalPay = latestReport ? (Number(latestReport.totalPayables) || 0) : 0;
 
   // Update KPI Elements
   const elCount = document.getElementById('flashKpiReportsCount');
