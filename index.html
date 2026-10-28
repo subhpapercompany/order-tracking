@@ -2919,7 +2919,7 @@ body.print-flash-mode .no-print {
       print-color-adjust: exact !important;
     }
     .app-header, .app-sidebar, .entry-sidebar, .command-bar, .tally-status-bar,
-    #screen-hundi > *:not(#hundiEditorContainer),
+    #screen-hundi > *:not(#hundiEditorContainer):not(#hundiRegisterContainer),
     #hundiEditorContainer > *:not(#hundiPrintArea),
     #screen-hr-leave-slip > *:not(#leaveSlipPrintArea),
     #hundiPrintArea > *:not(#printableHundiSheet),
@@ -2931,6 +2931,19 @@ body.print-flash-mode .no-print {
       padding: 0 !important;
       background: #ffffff !important;
       display: block !important;
+    }
+    /* Register view ka print — screen jaisa ditto, par scroll-clip nahi
+       (screen par max-height+overflow tha, warna print me rows kat jati).
+       display yahan FORCE nahi — editor/register view ka inline style hi
+       decide karega kaunsa container print me jayega. */
+    #hundiRegisterContainer .table-responsive {
+      max-height: none !important;
+      overflow: visible !important;
+    }
+    #hundiRegisterContainer {
+      background: #ffffff !important;
+      border: none !important;
+      box-shadow: none !important;
     }
     .hundi-print-only {
       display: inline-block !important;
