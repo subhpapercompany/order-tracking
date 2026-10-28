@@ -2074,6 +2074,131 @@ body.print-flash-mode .no-print {
   }
 
   /* ========================================================
+     PARTY-WISE BOARD STOCK STATEMENT (A4 portrait print)
+     Screen par hidden; print me sirf yahi dikhta hai.
+     ======================================================== */
+  #partyStatementPrint {
+    display: none !important;
+  }
+
+  @media print {
+    /* Party statement mode: app chhupo, sirf statement chhapo */
+    body.print-party-statement-mode > *:not(#partyStatementPrint) {
+      display: none !important;
+    }
+    body.print-party-statement-mode #partyStatementPrint {
+      display: block !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    body.print-party-statement-mode {
+      background: #ffffff !important;
+    }
+    /* Last column (Value) print me chahiye — generic rule ka opt-out */
+    body.print-party-statement-mode #partyStatementPrint th:last-child,
+    body.print-party-statement-mode #partyStatementPrint td:last-child {
+      display: table-cell !important;
+    }
+
+    #partyStatementPrint .ps-brand {
+      text-align: center;
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 0.6px;
+      color: #0f172a;
+    }
+    #partyStatementPrint .ps-title {
+      text-align: center;
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #1e3a8a;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-top: 2px;
+    }
+    #partyStatementPrint .ps-meta {
+      text-align: center;
+      font-size: 8.5px;
+      color: #475569;
+      margin-top: 2px;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 5px;
+    }
+    #partyStatementPrint h3 {
+      font-size: 10.5px;
+      font-weight: 900;
+      margin: 12px 0 5px;
+      color: #0f172a;
+      text-transform: uppercase;
+      page-break-after: avoid;
+    }
+    #partyStatementPrint table {
+      width: 100% !important;
+      table-layout: fixed !important;
+      border-collapse: collapse !important;
+      font-size: 8.5pt !important;
+      page-break-inside: auto;
+    }
+    #partyStatementPrint thead {
+      display: table-header-group !important;
+    }
+    #partyStatementPrint tbody tr {
+      page-break-inside: avoid;
+    }
+    #partyStatementPrint th {
+      background: #e2e8f0 !important;
+      color: #0f172a !important;
+      font-weight: 800 !important;
+      font-size: 7.8pt !important;
+      text-align: center !important;
+      border: 1px solid #334155 !important;
+      padding: 3px 5px !important;
+      line-height: 1.2 !important;
+    }
+    #partyStatementPrint td {
+      border: 1px solid #94a3b8 !important;
+      padding: 3px 5px !important;
+      line-height: 1.25 !important;
+      vertical-align: middle !important;
+    }
+    #partyStatementPrint td.num {
+      text-align: right !important;
+      white-space: nowrap !important;
+      font-variant-numeric: tabular-nums;
+    }
+    #partyStatementPrint td.lbl {
+      font-weight: 700 !important;
+      white-space: nowrap !important;
+    }
+    #partyStatementPrint tfoot td {
+      font-weight: 900 !important;
+      background: #f1f5f9 !important;
+      border-top: 2px solid #0f172a !important;
+    }
+    #partyStatementPrint .ps-note {
+      font-size: 7.5px;
+      color: #475569;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+    #partyStatementPrint .ps-sign {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 34px;
+      font-size: 9px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    #partyStatementPrint .ps-sign span {
+      border-top: 1px dotted #334155;
+      padding-top: 3px;
+      min-width: 130px;
+      text-align: center;
+    }
+  }
+
+  /* ========================================================
      RANJIT BILL — SCREEN PREVIEW AS AN A4 PORTRAIT PAGE
      (Sirf screen par; print/PDF par asli @page rule apply hota hai)
      A4 = 210mm x 297mm  ->  @96dpi = 794px x 1123px
@@ -4693,6 +4818,9 @@ body.print-flash-mode .no-print {
           </div>
         </div>
       </div>
+
+      <!-- Godown / Stage wise breakup cards (grouped views: Board, Paper, Party) -->
+      <div id="invled_bucketGrid" style="display:none; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:16px;"></div>
 
       <!-- KPI Cards -->
       <div class="kpi-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:16px;">
@@ -17652,6 +17780,13 @@ function populateInventoryLedgerItems() {
   const grpBoard = document.createElement('optgroup');
   grpBoard.label = '📦 Title Cover Board (Raw & WIP Printed Covers)';
   const boardSizes = ['45.5 x 91 x 190', '45.5 x 91 x 200', '77 x 98 x 190', '44 x 1010 x 250gsm', '46 x 91 x 250gsm', '78 x 98 x 230gsm', '76 x 98 x 230gsm'];
+  // Data me koi aur size bhi ho (boardSummary) to wo bhi dropdown me aa jaye
+  (state.boardSummary || []).forEach(bSum => {
+    const s0 = String(bSum.size || '').trim();
+    if (!s0) return;
+    const c0 = s0.replace(/\s+/g, '').toLowerCase();
+    if (!boardSizes.some(x => x.replace(/\s+/g, '').toLowerCase() === c0)) boardSizes.push(s0.replace(/x/gi, ' x '));
+  });
   boardSizes.forEach(size => {
     const o0 = document.createElement('option');
     o0.value = `BOARD_ALL:${size}`;
@@ -17722,6 +17857,63 @@ function populateInventoryLedgerItems() {
   }
 }
 
+/* ==== Board ledger helpers ====
+   Calculation (USER RULE): printer ke slabs bhi APNA godown hain. Consolidated
+   In/Out me SIRF asli movement aata hai — In = mill inward, Out = production
+   consumption. Consumption ka board WIP (received printed covers) se pehle
+   kat-ta hai, uske baad (agar WIP kam pada) printer raw slab se. Size-match
+   formula Board Summary (recalculateAllFormulas) wala hi — taki ledger ka
+   total hamesha Board Screen ke totalSheets = rahe. */
+function _boardProdConsumedFor(compactB) {
+  const matched = (state.skus || []).filter(s => {
+    let skuB = (s.boardSpec || '').replace(/\s+/g, '').toLowerCase();
+    if (!skuB) {
+      const isA5 = (String(s.barcode).charAt(2) === '3') || (s.size && s.size.toUpperCase().includes('A5')) || (s.description && s.description.toUpperCase().includes('A5'));
+      skuB = isA5 ? '77x98x190' : (((s.pages || 52) <= 175) ? '45.5x91x190' : '45.5x91x200');
+    }
+    if (skuB === compactB) return true;
+    if (compactB.includes('200') && skuB.includes('200')) return true;
+    if (compactB.includes('77') && skuB.includes('77')) return true;
+    if (compactB.includes('190') && compactB.includes('45.5') && skuB.includes('190') && skuB.includes('45.5')) return true;
+    return false;
+  });
+  let total = 0, lastDate = '';
+  matched.forEach(s => {
+    total += Number(s.boardSheetsRequired || 0);
+    const d = String(s.lastProdDate || '');
+    if (d > lastDate) lastDate = d;
+  });
+  return { matched: matched, total: total, lastDate: lastDate };
+}
+
+/** Consumption ka split (USER RULE): production ka board WIP stock (received printed
+    covers) se pehle kat-ta hai — uske baad (agar WIP kam pada ho) printer ke raw slab se. */
+function _boardWipConsSplit(size) {
+  const compact = String(size || '').replace(/\s+/g, '').toLowerCase();
+  let received = 0;
+  (state.boardLedger || []).forEach(l => {
+    if (String(l.size || '').replace(/\s+/g, '').toLowerCase() !== compact) return;
+    received += Number(l.printedRecd || 0);
+  });
+  const total = _boardProdConsumedFor(compact).total;
+  const fromWIP = Math.max(0, Math.min(received, total || 0));
+  return { received: received, total: total, fromWIP: fromWIP, fromPrinter: Math.max(0, (total || 0) - fromWIP) };
+}
+
+/** Consumption printer par hai — kaun sa printer? (sabse zyada balance rakhne wala) */
+function _boardConsParty(size) {
+  const compact = String(size || '').replace(/\s+/g, '').toLowerCase();
+  const bal = {};
+  (state.boardLedger || []).forEach(l => {
+    if (String(l.size || '').replace(/\s+/g, '').toLowerCase() !== compact) return;
+    if (!l.party || l.party === 'Opening Stock') return;
+    bal[l.party] = (bal[l.party] || 0) + Number(l.outPrint || 0) - Number(l.printedRecd || 0);
+  });
+  let best = '', bestBal = -1;
+  Object.keys(bal).forEach(p => { if (bal[p] > bestBal) { best = p; bestBal = bal[p]; } });
+  return bestBal > 0 ? best : '';
+}
+
 /**
  * Ek item ki saari dated movements + opening base.
  * Returns { title, category, unit, rate, base, rows[], liveStock }
@@ -17736,6 +17928,7 @@ function buildInventoryLedgerRows(itemKey) {
   let base = 0;
   const rows = [];
   let groups = null;   // consolidated mode: per-godown child ledgers (BOARD_ALL only)
+  let realKpi = false; // BOARD_ALL: KPI = asli movement (internal transfer count nahi)
 
   if (itemKey.indexOf('PAPER_ALL:') === 0) {
     // SPEC-level main group: Reel Form + har WIP ruling ek-ek summary row,
@@ -17751,8 +17944,32 @@ function buildInventoryLedgerRows(itemKey) {
     ['Single Line', 'Double Rule', 'Unruled', 'Four Line', 'Med. Square', 'Index'].forEach(rr => {
       childDefs.push({ key: `PAPER_WIP:${spec}:${rr}`, icon: '📄', label: `WIP — ${rr}` });
     });
-    groups = childDefs.map(cd => ({ key: cd.key, icon: cd.icon, label: cd.label, child: buildInventoryLedgerRows(cd.key) }));
-    groups.forEach(g => { base += Number(g.child.base || 0); g.child.rows.forEach(r => rows.push(r)); });
+    groups = childDefs.map(cd => ({ key: cd.key, icon: cd.icon, label: cd.label, lvl: 'Stage', child: buildInventoryLedgerRows(cd.key) }));
+    groups.forEach(g => { base += Number(g.child.base || 0); });
+    // SAME treatment jaise Board: In = mill inward, Out = production consumption.
+    // Slitting andaruni stage hai — uska churn total In/Out me count nahi hota
+    // (detail Reel / WIP ruling groups me rehti hai). Closing = reel + WIP − consumed.
+    (state.papersLedger || []).forEach(pl => {
+      if (pl.reelSize !== spec) return;
+      if (pl.notes === 'Opening Stock Entry') return;
+      const qIn = Number(pl.inwardKg || 0);
+      if (qIn > 0) rows.push({ date: pl.date || '2026-10-05', type: 'Mill Inward (Reel)', ref: pl.inv || '-', qtyIn: qIn, qtyOut: 0, rate: Number(pl.rate) || 0, notes: pl.notes || '' });
+    });
+    (state.skus || []).forEach(s => {
+      if ((s.production || 0) <= 0) return;
+      const descUpper = String(s.description || '').toUpperCase();
+      const sizeUpper = String(s.size || '').toUpperCase();
+      const isA4 = descUpper.indexOf('A4') >= 0 || sizeUpper.indexOf('A4') >= 0 || String(s.barcode).startsWith('115') || (s.reelSize && (s.reelSize === 89.8 || Math.round(s.reelSize) === 90));
+      const sVendor = (s.vendor && s.vendor.toUpperCase().includes('ITC')) ? 'ITC' : 'Camlin';
+      let pSpec = sVendor === 'ITC' ? (isA4 ? '89.8x43x56' : '96.7x37x56') : (isA4 ? '90x43x57' : (((s.pages || 52) <= 56) ? '97x37x54' : '97x37x57'));
+      if (s.paperSpec) pSpec = s.paperSpec;
+      if (pSpec === spec) {
+        const bWt = s.bookWtPaper || s.bookWt || 0;
+        const consKg = Number(s.paperConsumptionKg) || ((s.production || 0) * bWt * 1.0025);
+        if (consKg > 0) rows.push({ date: s.lastProdDate || '2026-10-15', type: 'Production Consumption (FG)', ref: s.barcode || '-', qtyIn: 0, qtyOut: consKg, rate: Number(s.paperRate) || 0, notes: s.description || '' });
+      }
+    });
+    realKpi = true;
 
   } else if (itemKey.indexOf('PARTY_BOARD:') === 0) {
     // STOCK WITH PRINTER (party-wise): party ke paas Subh ka board kitna hai.
@@ -17816,13 +18033,20 @@ function buildInventoryLedgerRows(itemKey) {
       if (qIn <= 0 && qOut <= 0) return;
       if (Number(bl.rate) > 0) rate = Number(bl.rate);
       const bcTxt = bl.barcode ? ` • ${bl.barcode}` : '';
+      const typeTxt = (qIn > 0 && qOut > 0) ? `Sent + Received Back — ${pSize}` : (qIn > 0 ? `Sent to Printer — ${pSize}` : `Printed Received Back — ${pSize}`);
       rows.push({
         date: bl.date || '2026-10-05',
-        type: `${qIn > 0 ? 'Sent to Printer' : 'Printed Received Back'} — ${pSize}${bcTxt}`,
+        type: `${typeTxt}${bcTxt}`,
         ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, rate: Number(bl.rate) || 0,
         notes: bl.notes || ''
       });
     });
+    // Production consumption ka fallback: pura consumption WIP se nahi hua
+    // (WIP kam pada) to baaki printer slab se — wahi slab (holder) par.
+    const szCons = _boardWipConsSplit(pSize);
+    if (szCons.fromPrinter > 0 && _boardConsParty(pSize) === party) {
+      rows.push({ date: _boardProdConsumedFor(compactP).lastDate || '2026-10-15', type: `Production Consumption (FG) — ${pSize}`, ref: 'PROD', qtyIn: 0, qtyOut: szCons.fromPrinter, rate: rate, notes: 'WIP kam pada — printer raw slab se consume' });
+    }
 
   } else if (itemKey.indexOf('PAPER_WIP:') === 0) {
     const parts = itemKey.split(':');
@@ -17895,9 +18119,12 @@ function buildInventoryLedgerRows(itemKey) {
     });
 
   } else if (itemKey.indexOf('BOARD_ALL:') === 0) {
-    // CONSOLIDATED godown-wise view: Our Godown (raw) + Printer (WIP printed covers).
-    // Each group carries its own child ledger; the renderer shows one summary row per
-    // godown and expands the child's datewise rows on row-click (drill-down).
+    // CONSOLIDATED = sab apna ek hi godown. Teen buckets:
+    //   1) Subh raw godown (opening − printer ko bheja + mill inward)
+    //   2) Subh WIP (received printed covers − production consumption)
+    //   3) har printer ka raw slab (bheja − received)
+    // Consolidated In/Out me SIRF asli movement (mill inward / production), internal
+    // transfer sirf buckets me. Total = Board Screen ke totalSheets.
     const size = itemKey.slice('BOARD_ALL:'.length);
     const compactB = size.replace(/\s+/g, '').toLowerCase();
     const bSum = (state.boardSummary || []).find(b => (b.size || '').replace(/\s+/g, '').toLowerCase() === compactB);
@@ -17906,9 +18133,6 @@ function buildInventoryLedgerRows(itemKey) {
     unit = 'Sheets';
     rate = bSum ? (bSum.rate || 7.50) : 7.50;
     base = bSum ? (Number(bSum.openingGodownSheets || 0) + Number(bSum.openingPrinterSheets || 0)) : 0;
-    // Groups: 1) Subh / Self ka apna godown, 2) har printer ka apna slab — jisse
-    // pata chalta hai kis size ka raw board kaun sa printer paas gaya, kitna return
-    // aaya aur abhi Subh ka kitna stock uske paas hai.
     const partyForSize = [];
     (state.boardLedger || []).forEach(bl => {
       if (String(bl.size || '').replace(/\s+/g, '').toLowerCase() !== compactB) return;
@@ -17916,22 +18140,43 @@ function buildInventoryLedgerRows(itemKey) {
         partyForSize.push(bl.party);
       }
     });
+    // Asli consolidated movement: mill inward (In) + production consumption (Out)
+    (state.boardLedger || []).forEach(bl => {
+      if (String(bl.size || '').replace(/\s+/g, '').toLowerCase() !== compactB) return;
+      if (bl.notes === 'Opening Board Entry') return;
+      const qIn = Number(bl.inward || 0);
+      if (qIn > 0) rows.push({ date: bl.date || '2026-10-05', type: 'Mill Inward (All Godowns)', ref: bl.inv || '-', qtyIn: qIn, qtyOut: 0, rate: Number(bl.rate) || 0, notes: bl.party || bl.notes || '' });
+    });
+    const allProd = _boardProdConsumedFor(compactB);
+    if (allProd.total > 0) {
+      rows.push({ date: allProd.lastDate || '2026-10-15', type: 'Production Consumption (FG)', ref: 'PROD', qtyIn: 0, qtyOut: allProd.total, rate: rate, notes: `${allProd.matched.length} SKU — production me board consume` });
+    }
     groups = [
-      { key: `BOARD_RAW:${size}`, icon: '🏛', label: 'Subh', lvl: 'Godown', child: buildInventoryLedgerRows(`BOARD_RAW:${size}`) }
+      { key: `BOARD_RAW:${size}`, icon: '🏛', label: 'Subh Godown — Raw Sheet', lvl: 'Godown', child: buildInventoryLedgerRows(`BOARD_RAW:${size}`) },
+      { key: `BOARD_WIP:${size}`, icon: '📄', label: 'Subh Godown — WIP Received (Net)', lvl: 'Godown', child: buildInventoryLedgerRows(`BOARD_WIP:${size}`) }
     ];
     partyForSize.sort().forEach(p => {
       groups.push({
         key: `PARTY_SZ:${size}::${p}`,
         icon: '🖨',
-        label: `${p} (Raw Board → Print)`,
+        label: `${p} Godown — Raw Sheet`,
         lvl: 'Godown',
         child: buildInventoryLedgerRows(`PARTY_SZ:${size}::${p}`)
       });
     });
-    // merged movement list -> generic KPI math (opening/in/out/closing) stays correct
-    groups.forEach(g => g.child.rows.forEach(r => rows.push(Object.assign({}, r, { godown: g.label }))));
+    // Opening printer stock (agar ho) usi printer slab me — warna raw group me
+    const openPrinter = bSum ? Number(bSum.openingPrinterSheets || 0) : 0;
+    if (openPrinter > 0) {
+      const holder = _boardConsParty(size);
+      const pg = holder ? groups.find(g => g.key === `PARTY_SZ:${size}::${holder}`) : null;
+      if (pg) pg.child.base = Number(pg.child.base || 0) + openPrinter;
+      else groups[0].child.base = Number(groups[0].child.base || 0) + openPrinter;
+    }
+    realKpi = true;   // KPI cards = asli movement (group In/Out sirf bucket-detail)
 
   } else if (itemKey.indexOf('BOARD_RAW:') === 0) {
+    // APNA RAW GODOWN: mill inward (In), printer se printed cover wapas aana (In),
+    // printer ko bhejna (Out) aur production consumption ka godown-share (Out).
     const size = itemKey.slice('BOARD_RAW:'.length);
     const compactB = size.replace(/\s+/g, '').toLowerCase();
     const bSum = (state.boardSummary || []).find(b => (b.size || '').replace(/\s+/g, '').toLowerCase() === compactB);
@@ -17946,12 +18191,16 @@ function buildInventoryLedgerRows(itemKey) {
       if (bl.notes === 'Opening Board Entry') return;
       const qIn = Number(bl.inward || 0);
       const qOut = Number(bl.outPrint || 0);
-      if (qIn > 0 || qOut > 0) {
-        rows.push({ date: bl.date || '2026-10-05', type: qIn > 0 ? 'Mill Inward (Godown)' : 'Sent to Printer', ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, rate: Number(bl.rate) || 0, notes: bl.party || bl.notes || '' });
-      }
+      if (qIn > 0) rows.push({ date: bl.date || '2026-10-05', type: 'Mill Inward (Godown)', ref: bl.inv || '-', qtyIn: qIn, qtyOut: 0, rate: Number(bl.rate) || 0, notes: bl.party || bl.notes || '' });
+      // Raw godown se sirf bahar jaata hai (printer ko) — printed cover wapas aana
+      // WIP bucket me jaata hai, production consumption WIP se kat-ta hai.
+      if (qOut > 0) rows.push({ date: bl.date || '2026-10-05', type: 'Sent to Printer (→ Apna Godown Slab)', ref: bl.inv || '-', qtyIn: 0, qtyOut: qOut, rate: Number(bl.rate) || 0, notes: bl.party || bl.notes || '' });
     });
 
   } else if (itemKey.indexOf('BOARD_WIP:') === 0) {
+    // WIP bucket = apne godown me received printed covers. In = printer se received,
+    // Out = production consumption (USER RULE: consumption WIP stock se hi kat-ta hai).
+    // Closing = WIP received − consumed (jaise 11,500 − 1,055 = 10,445).
     const size = itemKey.slice('BOARD_WIP:'.length);
     const compactB = size.replace(/\s+/g, '').toLowerCase();
     const bSum = (state.boardSummary || []).find(b => (b.size || '').replace(/\s+/g, '').toLowerCase() === compactB);
@@ -17959,17 +18208,18 @@ function buildInventoryLedgerRows(itemKey) {
     category = 'Board (WIP Printed)';
     unit = 'Sheets';
     rate = bSum ? (bSum.rate || 7.50) : 7.50;
-    base = bSum ? (bSum.openingPrinterSheets || 0) : 0;
+    base = 0;   // WIP ka opening nahi — opening sheet raw godown bucket me hai
 
     (state.boardLedger || []).forEach(bl => {
       if ((bl.size || '').replace(/\s+/g, '').toLowerCase() !== compactB) return;
       if (bl.notes === 'Opening Board Entry') return;
-      const qIn = Number(bl.outPrint || 0);
-      const qOut = Number(bl.printedRecd || 0);
-      if (qIn > 0 || qOut > 0) {
-        rows.push({ date: bl.date || '2026-10-10', type: qIn > 0 ? 'Sent to Printer' : 'Printed Received Back', ref: bl.inv || '-', qtyIn: qIn, qtyOut: qOut, rate: Number(bl.rate) || 0, notes: bl.party || bl.notes || '' });
-      }
+      const qRecd = Number(bl.printedRecd || 0);
+      if (qRecd > 0) rows.push({ date: bl.date || '2026-10-10', type: 'Printed Received Back (→ WIP Godown)', ref: bl.inv || '-', qtyIn: qRecd, qtyOut: 0, rate: Number(bl.rate) || 0, notes: bl.party || bl.notes || '' });
     });
+    const wipCons = _boardWipConsSplit(size);
+    if (wipCons.fromWIP > 0) {
+      rows.push({ date: _boardProdConsumedFor(compactB).lastDate || '2026-10-15', type: 'Production Consumption (FG — WIP se)', ref: 'PROD', qtyIn: 0, qtyOut: wipCons.fromWIP, rate: Number(bSum && bSum.rate) || 0, notes: 'WIP stock se production ke liye board consume' });
+    }
 
   } else if (itemKey.indexOf('FG:') === 0) {
     const barcode = itemKey.slice(3);
@@ -18010,7 +18260,7 @@ function buildInventoryLedgerRows(itemKey) {
   let live = base;
   rows.forEach(r => { live += (Number(r.qtyIn || 0) - Number(r.qtyOut || 0)); });
 
-  return { title: title, category: category, unit: unit, rate: rate, base: base, rows: rows, liveStock: Number(live.toFixed(2)), groups: groups };
+  return { title: title, category: category, unit: unit, rate: rate, base: base, rows: rows, liveStock: Number(live.toFixed(2)), groups: groups, realKpi: realKpi };
 }
 
 let _invLedgerView = null;
@@ -18185,7 +18435,9 @@ function renderInventoryLedger() {
 
   // CONSOLIDATED mode: KPI/footer group-stats se — summary rows aur upar ke cards
   // hamesha ek hi number dikhayen (FIFO layers child-wise bante hain).
-  if (d.groups) {
+  // BOARD_ALL (realKpi) me group In/Out sirf location-detail hain (internal
+  // transfer stock change nahi karta) — isliye wahan KPI = asli movement rehta hai.
+  if (d.groups && !d.realKpi) {
     let gOpen = 0, gIn = 0, gOut = 0, gInVal = 0, gOutVal = 0, gClose = 0, gCloseVal = 0;
     const merged = [{ openingRow: true, date: fromDate, type: 'Opening Balance', ref: 'OB', qtyIn: 0, qtyOut: 0, notes: `Opening as on ${fromDate}`, bal: 0, rateUsed: defRate, inVal: 0, outVal: 0, balVal: 0 }];
     d.groups.forEach(g => {
@@ -18227,6 +18479,28 @@ function renderInventoryLedger() {
   setTxt('invled_kpiClosingVal', `as on ${toDate}`);
   setTxt('invled_kpiValue', `₹ ${closingValue.toLocaleString()}`);
   setTxt('invled_kpiRate', `@ ₹ ${Number(d.rate).toFixed(2)} / ${d.unit}`);
+
+  // ---- Bucket cards: har godown/stage ka closing (grouped views) ----
+  // Board: Subh raw / WIP net / printer raw — Paper: Reel + WIP rulings — Party: per party.
+  const bucketGrid = document.getElementById('invled_bucketGrid');
+  if (bucketGrid) {
+    if (d.groups && d.groups.length) {
+      const bColors = [['#0f766e', '#f0fdfa'], ['#b45309', '#fffbeb'], ['#4338ca', '#eef2ff'], ['#7c3aed', '#f5f3ff'], ['#be123c', '#fff1f2'], ['#0369a1', '#f0f9ff'], ['#15803d', '#f7fee7'], ['#a16207', '#fefce8']];
+      bucketGrid.innerHTML = d.groups.map((g, i) => {
+        const gs = _invLedgerGroupStats(g.child, fromDate, toDate);
+        const c = bColors[i % bColors.length];
+        return `<div class="kpi-card" style="border-left:4px solid ${c[0]}; background:${c[1]};">
+          <div class="kpi-label">${_invLedgerEsc(g.label)}</div>
+          <div class="kpi-value" style="color:${c[0]}; font-size:19px;">${fmt(gs.closing)} ${d.unit}</div>
+          <div class="kpi-subtext">In ${gs.totIn > 0 ? '+' + fmt(gs.totIn) : '0'} · Out ${gs.totOut > 0 ? '-' + fmt(gs.totOut) : '0'}</div>
+        </div>`;
+      }).join('');
+      bucketGrid.style.display = 'grid';
+    } else {
+      bucketGrid.style.display = 'none';
+      bucketGrid.innerHTML = '';
+    }
+  }
 
   const titleEl = document.getElementById('invled_tableTitle');
   if (titleEl) titleEl.textContent = `${d.title} — ${fromDate} to ${toDate}`;
