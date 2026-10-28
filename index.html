@@ -2199,6 +2199,131 @@ body.print-flash-mode .no-print {
   }
 
   /* ========================================================
+     DETAILED STOCK STATEMENT — 4-level drill-down ka A4 print
+     (Screen par hidden; print me sirf yahi dikhta hai)
+     ======================================================== */
+  #detailedStockPrint {
+    display: none !important;
+  }
+
+  @media print {
+    /* DSS print mode: app chhupo, sirf statement chhapo */
+    body.print-dss-mode > *:not(#detailedStockPrint) {
+      display: none !important;
+    }
+    body.print-dss-mode #detailedStockPrint {
+      display: block !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    body.print-dss-mode {
+      background: #ffffff !important;
+    }
+    body.print-dss-mode #detailedStockPrint th:last-child,
+    body.print-dss-mode #detailedStockPrint td:last-child {
+      display: table-cell !important;
+    }
+
+    #detailedStockPrint .ps-brand {
+      text-align: center;
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 0.6px;
+      color: #0f172a;
+    }
+    #detailedStockPrint .ps-title {
+      text-align: center;
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #1e3a8a;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-top: 2px;
+    }
+    #detailedStockPrint .ps-meta {
+      text-align: center;
+      font-size: 8.5px;
+      color: #475569;
+      margin-top: 2px;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 5px;
+    }
+    #detailedStockPrint table {
+      width: 100% !important;
+      table-layout: fixed !important;
+      border-collapse: collapse !important;
+      font-size: 7.6pt !important;
+      page-break-inside: auto;
+      margin-top: 6px;
+    }
+    #detailedStockPrint thead {
+      display: table-header-group !important;
+    }
+    #detailedStockPrint tbody tr {
+      page-break-inside: avoid;
+    }
+    #detailedStockPrint th {
+      background: #1e3a8a !important;
+      color: #ffffff !important;
+      font-weight: 800 !important;
+      font-size: 7pt !important;
+      text-align: center !important;
+      border: 1px solid #334155 !important;
+      padding: 3px 4px !important;
+      line-height: 1.2 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    /* Group / subgroup / item / entry rows ka rang print me bhi chhape */
+    #detailedStockPrint tbody tr,
+    #detailedStockPrint td {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    #detailedStockPrint td {
+      border: 1px solid #94a3b8 !important;
+      padding: 2.5px 4px !important;
+      line-height: 1.22 !important;
+      vertical-align: middle !important;
+    }
+    #detailedStockPrint td.num {
+      text-align: right !important;
+      white-space: nowrap !important;
+      font-variant-numeric: tabular-nums;
+    }
+    /* Edit/Delete buttons print me nahi chahiye */
+    #detailedStockPrint button {
+      display: none !important;
+    }
+    #detailedStockPrint tfoot td {
+      font-weight: 900 !important;
+      background: #f1f5f9 !important;
+      border-top: 2px solid #0f172a !important;
+    }
+    #detailedStockPrint .ps-note {
+      font-size: 7.5px;
+      color: #475569;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+    #detailedStockPrint .ps-sign {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 34px;
+      font-size: 9px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    #detailedStockPrint .ps-sign span {
+      border-top: 1px dotted #334155;
+      padding-top: 3px;
+      min-width: 130px;
+      text-align: center;
+    }
+  }
+
+  /* ========================================================
      RANJIT BILL — SCREEN PREVIEW AS AN A4 PORTRAIT PAGE
      (Sirf screen par; print/PDF par asli @page rule apply hota hai)
      A4 = 210mm x 297mm  ->  @96dpi = 794px x 1123px
@@ -4753,15 +4878,15 @@ body.print-flash-mode .no-print {
           <table class="data-table keep-last-col" id="tableDetailedStock" style="width:100%; font-size:12px;">
             <thead>
               <tr>
-                <th style="width: 130px; text-align:left;">Category</th>
-                <th style="width: 110px; text-align:left;">Item Code</th>
-                <th style="text-align:left; min-width:240px;">Ruling Type</th>
-                <th class="num" style="width: 110px; background:#1e3a8a !important; color:#ffffff !important;">Opening Bal (From Date)</th>
-                <th class="num" style="width: 105px; background:#1e3a8a !important; color:#ffffff !important;">+ Total Inward</th>
-                <th class="num" style="width: 115px; background:#1e3a8a !important; color:#ffffff !important;">- Consumed / Out</th>
-                <th class="num" style="width: 130px; background:#0f172a !important; color:#38bdf8 !important; font-weight:800; font-size:13px;">Closing Stock (To Date)</th>
+                <th style="width: 150px; text-align:left;" title="L1-L3: Group / Item name — L4 (entry): Date">Group / Date</th>
+                <th style="width: 120px; text-align:left;" title="L1-L3: Item Code — L4 (entry): Order Month">Item Code / Order Month</th>
+                <th style="text-align:left; min-width:240px;" title="L1-L3: Ruling / Description — L4 (entry): Product Code + Particulars (Edit/Delete)">Ruling / Product &amp; Entry</th>
+                <th class="num" style="width: 110px; background:#1e3a8a !important; color:#ffffff !important;" title="L1-L3: Opening Balance — L4 (entry): Production Qty">Opening / Prod Qty</th>
+                <th class="num" style="width: 115px; background:#1e3a8a !important; color:#ffffff !important;" title="L1-L3: Total Inward — L4 (entry): Reel To Sheet (In)">+ Inward / Reel To Sheet (In)</th>
+                <th class="num" style="width: 125px; background:#1e3a8a !important; color:#ffffff !important;" title="L1-L3: Consumed / Out — L4 (entry): Paper Consumed / Out">- Consumed / Out</th>
+                <th class="num" style="width: 135px; background:#0f172a !important; color:#38bdf8 !important; font-weight:800; font-size:13px;">Closing Stock / Balance</th>
                 <th class="num" style="width: 85px; background:#1e3a8a !important; color:#ffffff !important;">Rate (₹)</th>
-                <th class="num" style="width: 125px; background:#1e3a8a !important; color:#ffffff !important; font-weight:800;">Valuation (₹)</th>
+                <th class="num" style="width: 125px; background:#1e3a8a !important; color:#ffffff !important; font-weight:800;">Valuation / Amount (₹)</th>
               </tr>
             </thead>
             <tbody id="detailedStockTableBody">
@@ -17297,6 +17422,88 @@ function ensureConsumableLedgerSeeded() {
 // 2. DETAILED STOCK STATEMENT (AS ON DATE) REPORTING ENGINE
 // =========================================================================
 
+/* ==== Detailed Stock Statement — drill-down tree (L1 group → L2 subgroup
+   → L3 item → L4 asli entry, entry alteration ke saath) ==== */
+let _dssExpanded = {};        // level keys ka expand/collapse state
+let _dssDefaultsDone = false; // pehli render par L1 groups default open
+let _dssPrintPending = false; // print click par render ke dauran print shell build hoga
+
+function toggleDssLevel(key) {
+  _dssExpanded[key] = !_dssExpanded[key];
+  renderDetailedStockReport();
+}
+
+/** SKU ruling ko L3 ruling key me normalize (Production entry wale logic se). */
+function _dssSkuRuling(sku) {
+  const rRaw = String((sku && sku.ruling) || (sku && getRulingFromProductCode(sku.barcode, sku.description)) || '').toUpperCase();
+  if (rRaw.indexOf('DOUBLE') >= 0 || rRaw.indexOf('2L') >= 0 || rRaw.indexOf('TWO LINE') >= 0 || rRaw.indexOf('2 LINE') >= 0) return 'Double Rule';
+  if (rRaw.indexOf('UNRULED') >= 0 || /\bUR\b/.test(rRaw) || rRaw.indexOf('PLAIN') >= 0) return 'Unruled';
+  if (rRaw.indexOf('FOUR') >= 0 || rRaw.indexOf('4L') >= 0) return 'Four Line';
+  if (rRaw.indexOf('SQUARE') >= 0 || rRaw.indexOf('MED') >= 0 || rRaw.indexOf('MS') >= 0) return 'Med. Square';
+  if (rRaw.indexOf('INDEX') >= 0) return 'Index';
+  return 'Single Line';
+}
+
+/** Period split (common): base + pre-range movement = Opening; range ke In/Out alag. */
+function _dssPeriodize(base, dtx, fromDate, toDate) {
+  let op = Number(base || 0), ti = 0, to = 0;
+  (dtx || []).forEach(t => {
+    if (t.date < fromDate) op += (Number(t.qIn || 0) - Number(t.qOut || 0));
+    else if (t.date <= toDate) { ti += Number(t.qIn || 0); to += Number(t.qOut || 0); }
+  });
+  return { op: op, ti: ti, to: to, close: op + ti - to };
+}
+
+/** L4 entry row ke edit/delete actions (poora alteration Daybook framework reuse). */
+function _dssEntryActions(r) {
+  if (r.agg || r.source === undefined || r.source === null) return '';
+  const escq = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  let edit = '', del = '';
+  if (r.source === 'today' && r.txId) {
+    edit = `openTxEntryEdit('${escq(r.txId)}')`;
+    del = `daybookDeleteEntry('today', ${Number(r.idx)})`;
+  } else {
+    edit = `daybookEditEntry('${escq(r.source)}', ${Number(r.idx)})`;
+    del = `daybookDeleteEntry('${escq(r.source)}', ${Number(r.idx)})`;
+  }
+  return `<span style="margin-left:6px; white-space:nowrap;">
+    <button type="button" title="Edit this entry" onclick="event.stopPropagation(); ${edit}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; border-radius:4px; padding:1px 5px; font-size:10.5px; cursor:pointer; line-height:1.3;">✏️</button>
+    <button type="button" title="Delete this entry" onclick="event.stopPropagation(); ${del}" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:4px; padding:1px 5px; font-size:10.5px; cursor:pointer; line-height:1.3;">🗑️</button>
+  </span>`;
+}
+
+/** L4 detail rows — L3 ke underlying txs hi (metadata ke saath), date-range me, running balance ke saath. */
+function _dssDetailHtml(item, fromDate, toDate) {
+  const dtx = (item.dtx || []).slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  let run = Number(item.opening || 0);   // period opening (L3 ke barabar)
+  let html = '';
+  let n = 0;
+  dtx.forEach(t => {
+    if (t.date < fromDate || t.date > toDate) return;   // sirf range ki entries detail me
+    n++;
+    const qIn = Number(t.qIn || 0), qOut = Number(t.qOut || 0);
+    run = run + qIn - qOut;
+    const d = String(t.date || '').split('-');
+    const dStr = d.length === 3 ? `${d[2]}-${d[1]}-${d[0].slice(2)}` : (t.date || '-');
+    const rate = Number(item.rate || 0);
+    html += `<tr style="border-bottom:1px dashed #e2e8f0; background:#fbfdff;">
+      <td style="white-space:nowrap; padding-left:34px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#334155; font-weight:700;">${dStr}</td>
+      <td style="font-size:11px; color:#475569; white-space:nowrap;">${t.month ? t.month : '—'}</td>
+      <td style="font-size:11.5px; color:#1e293b;">${t.label || '—'}${_dssEntryActions(t)}</td>
+      <td class="num" style="font-size:11.5px; color:#1e3a8a; font-weight:700; white-space:nowrap;">${t.prodQty ? Number(t.prodQty).toLocaleString() + ' Pcs' : '—'}</td>
+      <td class="num" style="color:#059669; font-weight:700; font-size:11.5px; white-space:nowrap;">${qIn > 0 ? '+' + qIn.toLocaleString() + ' ' + item.unit : '—'}</td>
+      <td class="num" style="color:#b91c1c; font-weight:700; font-size:11.5px; white-space:nowrap;">${qOut > 0 ? qOut.toLocaleString() + ' ' + item.unit : '—'}</td>
+      <td class="num" style="background:#f8fafc; font-weight:800; font-size:11.5px; color:${run < 0 ? '#dc2626' : '#0f172a'}; white-space:nowrap;">${run.toLocaleString()} ${item.unit}</td>
+      <td class="num" style="color:#64748b; font-size:11px; white-space:nowrap;">₹ ${rate.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+      <td class="num" style="font-weight:700; color:#047857; font-size:11.5px; white-space:nowrap;">₹ ${Math.round(run * rate).toLocaleString()}</td>
+    </tr>`;
+  });
+  if (!n) {
+    html = `<tr><td colspan="9" style="text-align:center; padding:10px; color:#94a3b8; font-size:11.5px; font-style:italic;">Is date range me koi entry nahi — sirf opening/closing balance dikha raha hai.</td></tr>`;
+  }
+  return html;
+}
+
 /**
  * Render Detailed Stock Report
  */
@@ -17344,12 +17551,12 @@ function renderDetailedStockReport() {
 
         const txs = [];
 
-        (state.papersLedger || []).forEach(pl => {
+        (state.papersLedger || []).forEach((pl, pli) => {
           if (pl.reelSize === spec && pl.wipType === rKey) {
             // Exclude initial opening marker
             if (pl.notes !== 'Opening Stock Entry') {
               const inKg = Number(pl.processedKg || pl.inwardKg || 0);
-              if (inKg > 0) txs.push({ date: pl.date || '2026-10-05', qIn: inKg, qOut: 0 });
+              if (inKg > 0) txs.push({ date: pl.date || '2026-10-05', qIn: inKg, qOut: 0, label: `Slitting — Reel To Sheet${pl.inv ? ' (Inv ' + pl.inv + ')' : ''}`, source: 'paper', idx: pli });
             }
           }
         });
@@ -17376,7 +17583,27 @@ function renderDetailedStockReport() {
           if (pSpec === spec && skuRuling === rKey) {
             const bWt = s.bookWtPaper || s.bookWt || 0;
             const consKg = Number(s.paperConsumptionKg) || (prodQty * bWt * 1.0025);
-            txs.push({ date: s.lastProdDate || '2026-10-15', qIn: 0, qOut: consKg });
+            if (consKg > 0) {
+              // L4 detail: asli production entries (datewise, Daybook alteration ke saath)
+              let covered = 0;
+              (state.todayTransactions || []).forEach((ptx, pti) => {
+                if (String(ptx.type || '').indexOf('Production') < 0) return;
+                if (String(ptx.barcode || '') !== String(s.barcode)) return;
+                const bd = Number((ptx.details || {}).batchPaper || 0);
+                if (bd <= 0) return;
+                covered += bd;
+                txs.push({ date: ptx.date || s.lastProdDate || '2026-10-15', qIn: 0, qOut: bd,
+                  month: formatOrderMonth(getSkuOrderMonthISO(s)), prodQty: Number((ptx.details || {}).addQty || 0),
+                  label: `${s.barcode} — Production`, source: 'today', idx: pti, txId: ptx.id });
+              });
+              // Balance (purani cumulative production) — closing barabar rahe isliye
+              const bal = Number((consKg - covered).toFixed(2));
+              if (bal > 0.009) {
+                txs.push({ date: s.lastProdDate || '2026-10-15', qIn: 0, qOut: bal, month: formatOrderMonth(getSkuOrderMonthISO(s)), prodQty: prodQty, agg: true, label: `${s.barcode} — Production (cumulative balance)` });
+              } else if (bal < -0.009) {
+                txs.push({ date: s.lastProdDate || '2026-10-15', qIn: -bal, qOut: 0, month: formatOrderMonth(getSkuOrderMonthISO(s)), agg: true, label: `${s.barcode} — Consumption adjustment` });
+              }
+            }
           }
         });
 
@@ -17408,7 +17635,8 @@ function renderDetailedStockReport() {
           unit: 'Kg',
           rate: rate,
           amount: Math.round(Math.max(0, periodClose) * rate),
-          itemKey: `PAPER_WIP:${spec}:${rKey}`
+          itemKey: `PAPER_WIP:${spec}:${rKey}`,
+          dtx: txs
         });
       });
 
@@ -17417,10 +17645,10 @@ function renderDetailedStockReport() {
       const baseReel = pSum ? (pSum.openingReelsKg || 0) : 0;
       const rTxs = [];
 
-      (state.papersLedger || []).forEach(pl => {
+      (state.papersLedger || []).forEach((pl, pli) => {
         if (pl.reelSize === spec && pl.notes !== 'Opening Stock Entry') {
-          if (Number(pl.inwardKg || 0) > 0) rTxs.push({ date: pl.date || '2026-10-05', qIn: Number(pl.inwardKg), qOut: 0 });
-          if (Number(pl.processedKg || 0) > 0) rTxs.push({ date: pl.date || '2026-10-10', qIn: 0, qOut: Number(pl.processedKg) });
+          if (Number(pl.inwardKg || 0) > 0) rTxs.push({ date: pl.date || '2026-10-05', qIn: Number(pl.inwardKg), qOut: 0, label: `Reel Inward${pl.inv ? ' (Inv ' + pl.inv + ')' : ''}`, source: 'paper', idx: pli });
+          if (Number(pl.processedKg || 0) > 0) rTxs.push({ date: pl.date || '2026-10-10', qIn: 0, qOut: Number(pl.processedKg), label: `Reel → Cut Sheets (Slitting)${pl.inv ? ' (Inv ' + pl.inv + ')' : ''}`, source: 'paper', idx: pli });
         }
       });
 
@@ -17442,7 +17670,8 @@ function renderDetailedStockReport() {
         unit: 'Kg',
         rate: 77.0,
         amount: Math.round(Math.max(0, rClose) * 77.0),
-        itemKey: `PAPER_REELS:${spec}`
+        itemKey: `PAPER_REELS:${spec}`,
+        dtx: rTxs
       });
     });
   }
@@ -17460,10 +17689,10 @@ function renderDetailedStockReport() {
       const rate = bSum ? (bSum.rate || 7.50) : 7.50;
 
       const bTxs = [];
-      (state.boardLedger || []).forEach(bl => {
+      (state.boardLedger || []).forEach((bl, bli) => {
         if ((bl.size || '').replace(/\s+/g, '').toLowerCase() === compactB && bl.notes !== 'Opening Board Entry') {
-          if (Number(bl.inward || 0) > 0) bTxs.push({ date: bl.date || '2026-10-05', qIn: Number(bl.inward), qOut: 0 });
-          if (Number(bl.outPrint || 0) > 0) bTxs.push({ date: bl.date || '2026-10-10', qIn: 0, qOut: Number(bl.outPrint) });
+          if (Number(bl.inward || 0) > 0) bTxs.push({ date: bl.date || '2026-10-05', qIn: Number(bl.inward), qOut: 0, label: `Mill Inward${bl.inv ? ' (Inv ' + bl.inv + ')' : ''}`, source: 'board', idx: bli });
+          if (Number(bl.outPrint || 0) > 0) bTxs.push({ date: bl.date || '2026-10-10', qIn: 0, qOut: Number(bl.outPrint), label: `Sent to Printer${bl.party ? ' — ' + bl.party : ''}${bl.inv ? ' (Inv ' + bl.inv + ')' : ''}`, source: 'board', idx: bli });
         }
       });
 
@@ -17485,7 +17714,8 @@ function renderDetailedStockReport() {
         unit: 'Sheets',
         rate: rate,
         amount: Math.round(Math.max(0, bClose) * rate),
-        itemKey: `BOARD_RAW:${size}`
+        itemKey: `BOARD_RAW:${size}`,
+        dtx: bTxs
       });
     });
   }
@@ -17498,13 +17728,43 @@ function renderDetailedStockReport() {
       if (!s.barcode) return;
       const oldStock = s.oldStock || 0;
       const fgTxs = [];
-
-      if ((s.production || 0) > 0) {
-        fgTxs.push({ date: s.lastProdDate || '2026-10-15', qIn: Number(s.production), qOut: 0 });
-      }
-      if ((s.despatched || 0) > 0) {
-        fgTxs.push({ date: s.lastDespDate || '2026-10-18', qIn: 0, qOut: Number(s.despatched) });
-      }
+      let fgCovIn = 0, fgCovOut = 0;
+      const fgMonth = formatOrderMonth(getSkuOrderMonthISO(s));
+      // L4 detail: asli Production / Despatch transactions (Daybook alteration ke saath)
+      (state.todayTransactions || []).forEach((t, ti) => {
+        if (String(t.barcode || '') !== String(s.barcode)) return;
+        const tt = String(t.type || '');
+        if (tt !== 'Production' && tt !== 'Despatch') return;
+        const det = t.details || {};
+        if (tt === 'Production') {
+          const net = (Number(det.addQty) || 0) - (Number(det.rejection) || 0);
+          if (net <= 0) return;
+          fgCovIn += net;
+          fgTxs.push({
+            date: t.date || s.lastProdDate || '2026-10-15', qIn: net, qOut: 0,
+            month: fgMonth, prodQty: Number(det.addQty) || 0,
+            label: `${s.barcode} — Production${det.machine ? ' (' + det.machine + ')' : ''}`,
+            source: 'today', idx: ti, txId: t.id
+          });
+        } else {
+          const q = Number(det.addQty) || 0;
+          if (q <= 0) return;
+          fgCovOut += q;
+          fgTxs.push({
+            date: t.date || s.lastDespDate || '2026-10-18', qIn: 0, qOut: q,
+            month: fgMonth,
+            label: `${s.barcode} — Despatch${det.invoice ? ' (Inv ' + det.invoice + ')' : ''}`,
+            source: 'today', idx: ti, txId: t.id
+          });
+        }
+      });
+      // Balance rows — closing total baseline ke bilkul barabar rahe
+      const fgProdBal = Number((Number(s.production || 0) - fgCovIn).toFixed(3));
+      const fgDespBal = Number((Number(s.despatched || 0) - fgCovOut).toFixed(3));
+      if (fgProdBal > 0) fgTxs.push({ date: s.lastProdDate || '2026-10-15', qIn: fgProdBal, qOut: 0, month: fgMonth, prodQty: fgProdBal, agg: true, label: `${s.barcode} — Production (cumulative balance)` });
+      else if (fgProdBal < 0) fgTxs.push({ date: s.lastProdDate || '2026-10-15', qIn: 0, qOut: -fgProdBal, agg: true, label: `${s.barcode} — Production adjustment` });
+      if (fgDespBal > 0) fgTxs.push({ date: s.lastDespDate || '2026-10-18', qIn: 0, qOut: fgDespBal, month: fgMonth, agg: true, label: `${s.barcode} — Despatch (cumulative balance)` });
+      else if (fgDespBal < 0) fgTxs.push({ date: s.lastDespDate || '2026-10-18', qIn: -fgDespBal, qOut: 0, agg: true, label: `${s.barcode} — Despatch adjustment` });
 
       let fgOp = oldStock, fgIn = 0, fgOut = 0;
       fgTxs.forEach(t => {
@@ -17525,7 +17785,8 @@ function renderDetailedStockReport() {
         unit: 'Pcs',
         rate: estCost,
         amount: Math.round(Math.max(0, fgClose) * estCost),
-        itemKey: `FG:${s.barcode}`
+        itemKey: `FG:${s.barcode}`,
+        dtx: fgTxs
       });
     });
   }
@@ -17539,9 +17800,10 @@ function renderDetailedStockReport() {
       const baseOp = c.opening || 0;
       const cTxs = [];
 
-      (state.consumableLedger || []).forEach(cl => {
+      (state.consumableLedger || []).forEach((cl, cli) => {
         if (cl.item === c.item && cl.type !== 'Opening Balance') {
-          cTxs.push({ date: cl.date || '2026-10-10', qIn: Number(cl.qtyIn || 0), qOut: Number(cl.qtyOut || 0) });
+          const cLabel = `${cl.type || 'Movement'}${cl.ref ? ' — ' + cl.ref : ''}`;
+          cTxs.push({ date: cl.date || '2026-10-10', qIn: Number(cl.qtyIn || 0), qOut: Number(cl.qtyOut || 0), label: cLabel, source: 'consumable', idx: cli });
         }
       });
 
@@ -17564,7 +17826,8 @@ function renderDetailedStockReport() {
         unit: c.unit || 'Pack',
         rate: rate,
         amount: Math.round(Math.max(0, cClose) * rate),
-        itemKey: `CONS:${c.item}`
+        itemKey: `CONS:${c.item}`,
+        dtx: cTxs
       });
     });
   }
@@ -17634,7 +17897,7 @@ function renderDetailedStockReport() {
   if (elRowCount) elRowCount.textContent = `Showing: ${filtered.length} Inventory Line Items`;
 
   // =========================================================================
-  // RENDER TABLE ROWS (WITH PROMINENT CLOSING BALANCE & VALUATION)
+  // RENDER TREE: L1 group → L2 subgroup → L3 item → L4 datewise entries
   // =========================================================================
   const tbody = document.getElementById('detailedStockTableBody');
   if (!tbody) return;
@@ -17642,11 +17905,32 @@ function renderDetailedStockReport() {
 
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:32px 14px; color:#64748b; font-weight:700;">No inventory records match the selected category & search filters.</td></tr>`;
+    if (_dssPrintPending) {
+      _dssPrintPending = false;
+      if (typeof _dssRenderPrint === 'function') _dssRenderPrint(tbody.innerHTML, totalValuation, fromDate, toDate, 0);
+    }
     return;
   }
 
-  let rowsHtml = '';
-  filtered.forEach((i, idx) => {
+  const dssGroups = [
+    { key: 'PAPER', icon: '📜', label: 'PAPER', match: i => String(i.category).indexOf('Paper') >= 0 },
+    { key: 'BOARD', icon: '📦', label: 'BOARD', match: i => String(i.category).indexOf('Board') >= 0 },
+    { key: 'CONS', icon: '🧪', label: 'CONSUMABLES', match: i => ['Cartons / CFC', 'Inks', 'Consumables'].indexOf(i.category) >= 0 },
+    { key: 'FG', icon: '📚', label: 'OTHERS — FINISHED GOODS', match: i => i.category === 'Finished Goods' }
+  ];
+  const dssBucket = dssGroups.map(g => ({ g: g, items: filtered.filter(g.match) }));
+  const dssOrphans = filtered.filter(i => !dssGroups.some(g => g.match(i)));
+  if (dssOrphans.length) dssBucket.push({ g: { key: 'OTHER', icon: '🧾', label: 'OTHERS' }, items: dssOrphans });
+
+  function dssSum(items) {
+    const s = { op: 0, ti: 0, to: 0, cl: 0, amt: 0 };
+    items.forEach(i => { s.op += i.opening; s.ti += i.inward; s.to += i.outward; s.cl += i.stock; s.amt += i.amount; });
+    return s;
+  }
+  function dssOpen(key, def) { const v = _dssExpanded[key]; return v === undefined ? def : !!v; }
+  function dssFmt(n) { return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+
+  function dssBadge(i) {
     let catBadge = '<span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700;">' + i.category + '</span>';
     if (i.category === 'Cartons / CFC') {
       catBadge = '<span class="badge" style="background:#fef3c7; color:#92400e; font-weight:800; border:1px solid #fde68a;">📦 Cartons / CFC</span>';
@@ -17659,17 +17943,59 @@ function renderDetailedStockReport() {
     } else if (i.category === 'Finished Goods') {
       catBadge = '<span class="badge" style="background:#eff6ff; color:#1d4ed8; font-weight:800; border:1px solid #bfdbfe;">📚 Finished Goods</span>';
     }
+    return catBadge;
+  }
 
+  function dssL1(g, items, force) {
+    const key = 'L1:' + g.key;
+    const open = force || dssOpen(key, true);
+    const s = dssSum(items);
+    return `<tr onclick="toggleDssLevel('${key}')" style="cursor:pointer; border-top:2px solid #ca8a04; border-bottom:2px solid #ca8a04; background:#fde68a;">
+      <td style="white-space:nowrap; font-weight:900; font-size:13.5px; color:#713f12; padding:9px 10px;">${open ? '▼' : '▶'} ${g.icon} ${g.label}</td>
+      <td style="font-weight:800; color:#854d0e; font-size:11.5px; white-space:nowrap;">${items.length} Items</td>
+      <td style="font-weight:700; color:#854d0e; font-size:11.5px;">Main Group Total — click to ${open ? 'collapse' : 'expand'}</td>
+      <td class="num" style="font-weight:800; color:#713f12; white-space:nowrap;">${dssFmt(s.op)}</td>
+      <td class="num" style="font-weight:800; color:#047857; white-space:nowrap;">${s.ti > 0 ? '+' + dssFmt(s.ti) : '-'}</td>
+      <td class="num" style="font-weight:800; color:#b91c1c; white-space:nowrap;">${s.to > 0 ? dssFmt(s.to) : '-'}</td>
+      <td class="num" style="background:#f0fdf4; font-weight:900; font-size:13.5px; color:${s.cl < 0 ? '#dc2626' : '#0f172a'}; white-space:nowrap; border-left:1px solid #cbd5e1; border-right:1px solid #cbd5e1;">${dssFmt(s.cl)}</td>
+      <td class="num" style="color:#854d0e; font-weight:700; white-space:nowrap;">—</td>
+      <td class="num" style="font-weight:900; color:#047857; white-space:nowrap;">₹ ${Math.round(s.amt).toLocaleString()}</td>
+    </tr>`;
+  }
+
+  function dssL2(sub, sKey, force, indentLabel) {
+    const open = force || dssOpen(sKey, true);
+    const s = dssSum(sub.items);
+    return `<tr onclick="toggleDssLevel('${sKey}')" style="cursor:pointer; border-bottom:1px solid #c7d2fe; background:#e0e7ff;">
+      <td style="white-space:nowrap; font-weight:800; font-size:12.5px; color:#1e3a8a; padding-left:26px;" title="${indentLabel}">${open ? '▼' : '▶'} ${sub.key}</td>
+      <td style="font-weight:700; color:#3730a3; font-size:11px; white-space:nowrap;">${sub.items.length} Items</td>
+      <td style="font-weight:600; color:#4338ca; font-size:11.5px;">Subgroup Total</td>
+      <td class="num" style="font-weight:700; color:#312e81; white-space:nowrap;">${dssFmt(s.op)}</td>
+      <td class="num" style="font-weight:700; color:#047857; white-space:nowrap;">${s.ti > 0 ? '+' + dssFmt(s.ti) : '-'}</td>
+      <td class="num" style="font-weight:700; color:#b91c1c; white-space:nowrap;">${s.to > 0 ? dssFmt(s.to) : '-'}</td>
+      <td class="num" style="background:#eef2ff; font-weight:900; color:${s.cl < 0 ? '#dc2626' : '#0f172a'}; white-space:nowrap; border-left:1px solid #cbd5e1; border-right:1px solid #cbd5e1;">${dssFmt(s.cl)}</td>
+      <td class="num" style="color:#6366f1; font-weight:700; font-size:11.5px; white-space:nowrap;">—</td>
+      <td class="num" style="font-weight:800; color:#047857; white-space:nowrap;">₹ ${Math.round(s.amt).toLocaleString()}</td>
+    </tr>`;
+  }
+
+  function dssL3(i, force) {
+    const hasD = !!(i.dtx && i.dtx.length);
+    const l3key = 'L3:' + (i.itemKey || i.code);
+    const open = hasD && (force || dssOpen(l3key, false));
     const isNeg = i.stock < 0;
     const stockDisplay = isNeg
       ? `<span style="color:#dc2626; font-weight:900; font-size:13px;">${i.stock.toLocaleString()} ${i.unit}</span> <span class="badge" style="background:#fee2e2; color:#b91c1c; font-size:10px; font-weight:800; margin-left:4px;">Shortage</span>`
       : `<span style="font-weight:800; color:#0f172a; font-size:13px;">${i.stock.toLocaleString()} ${i.unit}</span>`;
-
-    rowsHtml += `
-      <tr style="border-bottom: 1px solid #e2e8f0; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-        <td style="white-space:nowrap;">${catBadge}</td>
+    const name = (i.description && i.description !== '—') ? i.description
+      : (String(i.category).indexOf('Paper') >= 0 ? 'Stock Item' : 'Godown Stock');
+    const rowClick = hasD ? ` onclick="toggleDssLevel('${l3key}')"` : '';
+    const rowStyle = hasD ? 'cursor:pointer;' : '';
+    return `
+      <tr${rowClick} style="${rowStyle} border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+        <td style="white-space:nowrap; padding-left:46px; font-weight:700; color:#1e293b; font-size:12.5px;" title="Click for datewise entries">${hasD ? (open ? '▾' : '▸') : '·'} ${name}</td>
         <td style="font-family:'JetBrains Mono',monospace; font-weight:700; color:#1e3a8a; white-space:nowrap;">${i.code}</td>
-        <td style="font-weight:600; color:#1e293b; min-width:240px;">${i.description}</td>
+        <td style="font-weight:600; color:#1e293b; min-width:240px;">${dssBadge(i)}${hasD ? ` <span style="font-size:10.5px; color:#64748b; font-weight:700;">${i.dtx.length} entries ▸</span>` : ''}</td>
         <td class="num" style="background:#f8fafc; font-weight:700; color:#0f766e; white-space:nowrap;">${i.opening.toLocaleString()} ${i.unit}</td>
         <td class="num" style="color:#059669; font-weight:700; white-space:nowrap;">${i.inward > 0 ? '+' + i.inward.toLocaleString() + ' ' + i.unit : '-'}</td>
         <td class="num" style="color:#b91c1c; font-weight:700; white-space:nowrap;">${i.outward > 0 ? i.outward.toLocaleString() + ' ' + i.unit : '-'}</td>
@@ -17678,9 +18004,45 @@ function renderDetailedStockReport() {
         <td class="num" style="font-weight:800; color:#047857; white-space:nowrap;">₹ ${i.amount.toLocaleString()}</td>
       </tr>
     `;
-  });
+  }
 
-  tbody.innerHTML = rowsHtml;
+  function buildDssRows(force) {
+    let html = '';
+    dssBucket.forEach(bucket => {
+      const g = bucket.g, items = bucket.items;
+      html += dssL1(g, items, force);
+      if (!(force || dssOpen('L1:' + g.key, true))) return;
+
+      const subs = [];
+      items.forEach(i => {
+        const k = (g.key === 'CONS') ? String(i.category) : String(i.code || '');
+        let s = subs.find(x => x.key === k);
+        if (!s) { s = { key: k, items: [] }; subs.push(s); }
+        s.items.push(i);
+      });
+
+      subs.forEach(sub => {
+        const sKey = 'L2:' + g.key + ':' + sub.key;
+        html += dssL2(sub, sKey, force, sub.key);
+        if (!(force || dssOpen(sKey, true))) return;
+        sub.items.forEach(i => {
+          html += dssL3(i, force);
+          const l3key = 'L3:' + (i.itemKey || i.code);
+          if (i.dtx && i.dtx.length && (force || dssOpen(l3key, false))) {
+            html += _dssDetailHtml(i, fromDate, toDate);
+          }
+        });
+      });
+    });
+    return html;
+  }
+
+  tbody.innerHTML = buildDssRows(false);
+
+  if (_dssPrintPending) {
+    _dssPrintPending = false;
+    if (typeof _dssRenderPrint === 'function') _dssRenderPrint(buildDssRows(true), totalValuation, fromDate, toDate, filtered.length);
+  }
 
   const footVal = document.getElementById('detailedStockFooterVal');
   if (footVal) {
@@ -17727,6 +18089,66 @@ function exportDetailedStockToCSV() {
 
 function exportDetailedStockToExcel() {
   exportDetailedStockToCSV();
+}
+
+/* ==========================================================================
+   DETAILED STOCK STATEMENT — PRINT (A4 portrait, sab levels expanded)
+   ========================================================================== */
+
+/** Print shell banata hai: brand + title + meta + poora tree + footer + sign. */
+function _dssRenderPrint(rowsHtml, totalValuation, fromDate, toDate, itemCount) {
+  const holder = document.getElementById('detailedStockPrint');
+  if (!holder) return;
+
+  const thead = document.querySelector('#tableDetailedStock thead');
+  const theadHtml = thead ? thead.outerHTML : '';
+  const titleEl = document.getElementById('detailedStockTableTitle');
+  const title = titleEl ? titleEl.textContent.trim() : 'Detailed Stock & Movement Statement';
+  itemCount = Number(itemCount) || 0;
+
+  holder.innerHTML = `
+    <div class="ps-brand">SUBH PAPER COMPANY</div>
+    <div class="ps-title">${title}</div>
+    <div class="ps-meta">Period: ${fromDate} to ${toDate} &nbsp;•&nbsp; Total Active Items: ${itemCount} &nbsp;•&nbsp; Total Valuation: ₹ ${Number(totalValuation).toLocaleString()}</div>
+    <table>
+      ${theadHtml}
+      <tbody>${rowsHtml}</tbody>
+      <tfoot>
+        <tr>
+          <td colspan="7" style="text-align:right; font-weight:900;">GRAND TOTAL (All Groups)</td>
+          <td style="text-align:right;">—</td>
+          <td style="text-align:right;">₹ ${Number(totalValuation).toLocaleString()}</td>
+        </tr>
+      </tfoot>
+    </table>
+    <div class="ps-note">Stock Formula: Opening Balance + Total Inward − Total Out / Consumed = Closing Balance. Drill-down: Main Group → Subgroup → Item → Datewise Entry (Screen par entry edit/delete bhi ho sakti hai).</div>
+    <div class="ps-sign">
+      <span>Prepared By</span>
+      <span>Checked By</span>
+      <span>Authorised Signatory</span>
+    </div>`;
+}
+
+/** 🖨 Print button — force-expand sab levels, A4 portrait print kholta hai. */
+function printDetailedStockReport() {
+  _dssPrintPending = true;
+  renderDetailedStockReport();   // render ke dauran shell build hota hai
+
+  const holder = document.getElementById('detailedStockPrint');
+  if (!holder || !holder.innerHTML) {
+    _dssPrintPending = false;
+    if (typeof showToast === 'function') showToast('⚠️ Statement print nahi ban saka — data khaali hai.');
+    return;
+  }
+
+  const oldTitle = document.title;
+  document.title = 'Detailed Stock Statement - ' + new Date().toISOString().slice(0, 10);
+  document.body.classList.add('print-dss-mode');
+  window.print();
+  setTimeout(() => {
+    document.body.classList.remove('print-dss-mode');
+    document.title = oldTitle;
+  }, 1000);
 }
 
 /* ==========================================================================
@@ -38843,6 +39265,7 @@ function deleteHundiRegisterEntry(id) {
 
 <!-- Party-wise Board Stock Statement — screen par hidden, sirf print/PDF me -->
 <div id="partyStatementPrint"></div>
+<div id="detailedStockPrint"></div>
 
 </body>
 </html>
