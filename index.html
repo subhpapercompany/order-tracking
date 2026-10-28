@@ -2992,14 +2992,17 @@ body.print-flash-mode .no-print {
     }
     .hundi-print-sheet {
       width: 100% !important;
-      height: 284mm !important;
-      max-height: 284mm !important;
+      /* Content jitna height — fixed 284mm letterhead ke saath A4 me fit
+         nahi tha (page 1 khali, bill page 2 par, page 3 blank) */
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
       box-sizing: border-box !important;
       box-shadow: none !important;
-      padding: 10mm 14mm !important;
+      padding: 8mm 14mm !important;
       page-break-after: avoid !important;
       page-break-inside: avoid !important;
-      overflow: hidden !important;
+      overflow: visible !important;
     }
     /* Dedicated Print Hundi Mode */
     body.print-hundi-mode {
