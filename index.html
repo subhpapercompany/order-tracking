@@ -3956,8 +3956,8 @@ body.print-flash-mode .no-print {
               <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-weight: 700; border: 1px solid #bfdbfe; font-size: 11px; padding: 3px 8px; border-radius: 4px; white-space: nowrap;">
                 Available WIP Stock
               </span>
-              <button type="button" class="btn btn-secondary" onclick="openPaperWipAuditModal('90x43x57', 'Unruled')" style="font-size: 11px; padding: 3px 8px; font-weight: 800; background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 5px; white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Audit Negative Shortage &amp; Production Consumption Breakdown">
-                🔍 Check WIP Shortage (-104Kg)
+              <button type="button" class="btn btn-secondary" id="btnWipShortage" onclick="openPaperWipAuditModal('90x43x57', 'Unruled')" style="font-size: 11px; padding: 3px 8px; font-weight: 800; background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 5px; white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Audit Negative Shortage &amp; Production Consumption Breakdown">
+                🔍 Check WIP Shortage
               </button>
             </div>
           </div>
@@ -16085,6 +16085,9 @@ function renderMaterialPlanningDashboard() {
   if (document.getElementById('kpiMrpTotalDue')) document.getElementById('kpiMrpTotalDue').textContent = totDue.toLocaleString() + ' Pcs';
   if (document.getElementById('kpiMrpTotalDespatched')) document.getElementById('kpiMrpTotalDespatched').textContent = totDesp.toLocaleString() + ' Pcs';
   if (document.getElementById('kpiMrpDueDespatched')) document.getElementById('kpiMrpDueDespatched').textContent = totDueDesp.toLocaleString() + ' Pcs';
+
+  // 8. Live WIP Shortage button label (Opening + Reel In - Prod Out)
+  updateWipShortageButton();
 }
 
 
@@ -34508,6 +34511,89 @@ function quickMarkAllStaffStandardMonth() {
 // =========================================================================
 // PAPER WIP SHORTAGE AUDIT & DRILL-DOWN FUNCTIONS (WITH DATE, OPENING, IN, OUT, CLOSING)
 // =========================================================================
+/* ==========================================================================
+   LIVE WIP SHORTAGE BUTTON LABEL
+   Button pe hardcoded "-104Kg" ki jagah LIVE calculated balance.
+   Formula same hai jo audit modal use karta hai:
+   Closing = Opening + Reel Slitting Inward - Production Consumption
+   ========================================================================== */
+function computeWipShortageBalance(spec, rKey) {
+  const selectedVendor = state.selectedVendor || 'all';
+  const savedStock = state.materialStock || DEFAULT_MATERIAL_STOCK;
+
+  // 1. Opening
+  let opening = 0;
+  if (rKey === 'ALL') {
+    ['Single Line', 'Unruled', 'Four Line', 'Med. Square', 'Double Rule', 'Index'].forEach(r => {
+      opening += (savedStock.paper && savedStock.paper[spec] && savedStock.paper[spec][r]) || 0;
+    });
+  } else {
+    opening = (savedStock.paper && savedStock.paper[spec] && savedStock.paper[spec][rKey]) || 0;
+    if (rKey === 'Med. Square' && !opening && savedStock.paper && savedStock.paper[spec]) {
+      opening = savedStock.paper[spec]['Med.Square'] || savedStock.paper[spec]['MED. SQUARE'] || 0;
+    }
+  }
+
+  // 2. Reel Slitting Inward
+  let inward = 0;
+  (state.papersLedger || []).forEach(pl => {
+    if (pl.reelSize === spec && (rKey === 'ALL' || pl.wipType === rKey)) {
+      inward += Number(pl.processedKg || pl.inwardKg || 0);
+    }
+  });
+
+  // 3. Production Consumption (same matching logic as audit modal)
+  let consumed = 0;
+  (state.skus || []).filter(s => isMatchingVendor(s.vendor, selectedVendor)).forEach(s => {
+    const sVendor = (s.vendor && s.vendor.toUpperCase().includes('ITC')) ? 'ITC' : 'Camlin';
+    let pSpec = '';
+    const descUpper = String(s.description || '').toUpperCase();
+    const sizeUpper = String(s.size || '').toUpperCase();
+    const isA4 = descUpper.includes('A4') || sizeUpper.includes('A4') || (String(s.barcode).charAt(2) === '5') || (s.reelSize && (s.reelSize === 89.8 || Math.round(s.reelSize) === 90));
+    if (sVendor === 'ITC') { pSpec = isA4 ? '89.8x43x56' : '96.7x37x56'; }
+    else { pSpec = isA4 ? '90x43x57' : (((s.pages || 52) <= 56) ? '97x37x54' : '97x37x57'); }
+    if (s.paperSpec) pSpec = s.paperSpec;
+
+    const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
+    let skuRuling = 'Single Line';
+    if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) skuRuling = 'Double Rule';
+    else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
+    else if (rRaw.includes('FOUR') || rRaw.includes('4L')) skuRuling = 'Four Line';
+    else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) skuRuling = 'Med. Square';
+    else if (rRaw.includes('INDEX')) skuRuling = 'Index';
+    else skuRuling = 'Single Line';
+
+    if (pSpec === spec && (rKey === 'ALL' || skuRuling === rKey)) {
+      const prodQty = s.production || 0;
+      const paperPerBook = (s.bookWtPaper || s.bookWt || 0);
+      consumed += Number(s.paperConsumptionKg) || (prodQty * paperPerBook * 1.0025);
+    }
+  });
+
+  return opening + inward - consumed;
+}
+
+function updateWipShortageButton() {
+  const btn = document.getElementById('btnWipShortage');
+  if (!btn) return;
+  // Button hamesha Camlin A4 (90x43x57) Unruled ke liye hai (jaisa pehle tha)
+  const bal = computeWipShortageBalance('90x43x57', 'Unruled');
+  const r = Math.round(bal);
+  if (r < 0) {
+    btn.textContent = `🔍 Check WIP Shortage (${r.toLocaleString()}Kg)`;
+    btn.style.background = '#fee2e2';
+    btn.style.color = '#dc2626';
+    btn.style.borderColor = '#fca5a5';
+    btn.title = `Camlin A4 (90x43x57) Unruled — ⚠️ Shortage Deficit (${r} Kg). Click for audit breakdown.`;
+  } else {
+    btn.textContent = `✓ WIP Stock OK (+${r.toLocaleString()}Kg)`;
+    btn.style.background = '#dcfce7';
+    btn.style.color = '#15803d';
+    btn.style.borderColor = '#86efac';
+    btn.title = `Camlin A4 (90x43x57) Unruled — ✓ In-Stock Available (${r} Kg). Click for audit breakdown.`;
+  }
+}
+
 function openPaperWipAuditModal(spec, rKey, fromDate, toDate) {
   spec = spec || '90x43x57';
   rKey = rKey || 'Unruled';
