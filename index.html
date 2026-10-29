@@ -1591,6 +1591,7 @@
     .modal,
     .modal-backdrop,
     #dashboardMaterialShortageBanner,
+    #fileProtocolNoticeBanner,
     .no-print,
     #saveStatusIndicator,
     th:last-child,
@@ -2925,6 +2926,15 @@ body.print-flash-mode .no-print {
     #hundiPrintArea > *:not(#printableHundiSheet),
     #leaveSlipPrintArea > *:not(#printableLeaveSlipSheet),
     .hundi-screen-only {
+      display: none !important;
+    }
+    /* Hundi print = ditto screen. Screen par hundi sheet ka APNA header
+       hota hai (SUBH PAPER COMPANY GST.No...) — master corporate letterhead
+       + "HUNDI MASTER REPORT" title sirf yahan print me extra aa jata tha.
+       Ye rule generic Print button + Ctrl+P (beforeprint) dono cover karta
+       hai, kyunki dono #screen-hundi par active-print-screen lagate hain. */
+    body:has(#screen-hundi.active-print-screen) #printLetterhead,
+    body:has(#screen-hundi.active-print-screen) .print-letterhead {
       display: none !important;
     }
     #hundiPrintArea, #leaveSlipPrintArea {
