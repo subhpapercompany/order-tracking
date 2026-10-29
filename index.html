@@ -3002,11 +3002,17 @@ body.print-flash-mode .no-print {
     }
     .hundi-print-sheet {
       width: 100% !important;
-      /* Content jitna height — fixed 284mm letterhead ke saath A4 me fit
-         nahi tha (page 1 khali, bill page 2 par, page 3 blank) */
-      height: auto !important;
-      min-height: 0 !important;
-      max-height: none !important;
+      /* FULL A4: min-height = printable area (297 - 8mm top - 8mm bottom
+         = 281mm) se thoda kam, taaki rounding se doosri blank page na bane.
+         Sheet flex-column + justify-content:space-between hai — isliye extra
+         vertical jagah APNE AAP blocks (paragraphs) ke beech distribute hoti
+         hai = paragraph gap badhta hai, par line-height NAHI badhta.
+         min-height lagayi (fixed height nahi) — content badhne par sheet
+         grow karegi, signature cut nahi hoga. */
+      min-height: 279mm !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: space-between !important;
       box-sizing: border-box !important;
       box-shadow: none !important;
       padding: 8mm 14mm !important;
@@ -3056,9 +3062,12 @@ body.print-flash-mode .no-print {
       justify-content: space-between !important;
       position: relative !important;
       width: 210mm !important;
-      height: 284mm !important;
-      min-height: 284mm !important;
-      max-height: 284mm !important;
+      /* FULL A4 (dedicated button): min-height + space-between = paragraphs
+         ke beech gap, line-height same. Fixed 284mm ki jagah 279mm (printable
+         281mm se kam) — warna rounding se blank page aa sakta tha. */
+      min-height: 279mm !important;
+      height: auto !important;
+      max-height: none !important;
       box-sizing: border-box !important;
       padding: 8mm 16mm 10mm 16mm !important;
       margin: 0 auto !important;
@@ -3067,7 +3076,7 @@ body.print-flash-mode .no-print {
       background: #ffffff !important;
       page-break-after: avoid !important;
       page-break-inside: avoid !important;
-      overflow: hidden !important;
+      overflow: visible !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
