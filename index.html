@@ -8380,7 +8380,7 @@ body.print-flash-mode .no-print {
 
         <div class="tally-category">MASTERS</div>
         <div class="entry-nav-item" data-tab="item-master" onclick="switchEntryTab('item-master')">
-          <span>📦 Item / Stock Master</span>
+          <span>📦 Masters (Group / Item / Ledger)</span>
         </div>
         <div class="entry-nav-item active" data-tab="order" onclick="switchEntryTab('order')">
           <span><span class="tally-hotkey">N</span>ew Order Booking</span>
@@ -8479,13 +8479,13 @@ body.print-flash-mode .no-print {
         <!-- 1. ORDER BOOKING FORM -->
         <!-- ===================== ITEM / STOCK MASTER ===================== -->
         <div id="entryTab-item-master" class="form-card" style="display:none; max-width: 1200px; margin: 0 auto;">
-          <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 14px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
             <div>
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="font-size: 22px;">📦</span>
-                <h2 style="font-size: 18px; font-weight: 800; color: #0f172a; margin: 0;">Item / Stock Master</h2>
+                <h2 style="font-size: 18px; font-weight: 800; color: #0f172a; margin: 0;">Masters — Group / Item / Ledger</h2>
               </div>
-              <p style="font-size: 12.5px; color: #64748b; margin: 3px 0 0 0;">Apne products/items ki catalog banao (code, vendor, size, ruling, MRP, unit). Baad me Order Booking me inhe select karke order banao.</p>
+              <p style="font-size: 12.5px; color: #64748b; margin: 3px 0 0 0;">Group (material type), Item catalog aur Party Ledger — teeno ka create / alter / delete ek jagah.</p>
             </div>
             <div style="display: flex; gap: 8px;">
               <button type="button" class="btn btn-outline" onclick="switchMode('reporting'); switchSheet('dashboard');">
@@ -8494,6 +8494,59 @@ body.print-flash-mode .no-print {
             </div>
           </div>
 
+          <!-- Sub-Tabs: Group | Item | Ledger -->
+          <div style="display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;">
+            <button type="button" id="mstTab-groups" class="btn btn-primary" onclick="switchMasterSubTab('groups')" style="flex:1; min-width:150px;">📂 Group Master</button>
+            <button type="button" id="mstTab-items" class="btn btn-outline" onclick="switchMasterSubTab('items')" style="flex:1; min-width:150px;">📦 Item Master</button>
+            <button type="button" id="mstTab-ledgers" class="btn btn-outline" onclick="switchMasterSubTab('ledgers')" style="flex:1; min-width:150px;">📒 Ledger Master</button>
+          </div>
+
+          <!-- ===================== GROUP MASTER SECTION ===================== -->
+          <div id="masterSection-groups" style="display:none;">
+            <form id="formGroupMaster" onsubmit="handleGroupSubmit(event)" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px;">
+              <input type="hidden" id="gm_edit_id" value="">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px;">
+                <div class="form-group" style="margin: 0;">
+                  <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Group Name <span style="color:#ef4444;">*</span></label>
+                  <input type="text" id="gm_name" required placeholder="e.g. 90x43x57 / Inks / My Custom Group" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1.5px solid #cbd5e1; font-size: 12.5px; font-weight: 700;">
+                </div>
+                <div class="form-group" style="margin: 0;">
+                  <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Group Type</label>
+                  <select id="gm_type" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                    <option value=""></option>
+                    <option value="Paper">Paper (Reel Spec)</option>
+                    <option value="Board">Board (Sheet Spec)</option>
+                    <option value="Consumable">Consumable (Ink/Tape/etc.)</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin: 0;">
+                  <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Description / Note</label>
+                  <input type="text" id="gm_desc" placeholder="Optional note" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                </div>
+              </div>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <button type="submit" class="btn btn-primary" id="btnSaveGroupMaster">💾 Save Group</button>
+                <button type="button" class="btn btn-secondary" id="btnCancelGroupEdit" onclick="clearGroupForm()" style="display:none;">✖ Cancel Edit</button>
+              </div>
+            </form>
+            <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:10px; padding:16px;">
+              <div style="font-size:13.5px; font-weight:800; color:#0f172a; margin-bottom:12px;">📂 Groups (<span id="gm_groupCount">0</span>)</div>
+              <div style="overflow-x:auto;">
+                <table class="data-table" style="width:100%;">
+                  <thead>
+                    <tr><th>Group Name</th><th>Type</th><th>Description</th><th>Items Using</th><th style="width:110px;">Action</th></tr>
+                  </thead>
+                  <tbody id="groupMasterTableBody">
+                    <tr><td colspan="5" style="text-align:center; padding:20px; color:#64748b;">No groups yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===================== ITEM MASTER SECTION ===================== -->
+          <div id="masterSection-items" style="display:none;">
           <!-- Add / Edit Form -->
           <form id="formItemMaster" onsubmit="handleItemMasterSubmit(event)" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px;">
             <input type="hidden" id="im_edit_id" value="">
@@ -8507,8 +8560,15 @@ body.print-flash-mode .no-print {
                 <input type="text" id="im_desc" required placeholder="e.g. A4 Longbook SL 140Pg / Classmate Copy" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1.5px solid #cbd5e1; font-size: 12.5px;">
               </div>
               <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Group (Material Type)</label>
+                <select id="im_group" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                  <option value=""></option>
+                </select>
+              </div>
+              <div class="form-group" style="margin: 0;">
                 <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Vendor / Brand <span style="color:#ef4444;">*</span></label>
                 <select id="im_vendor" required style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1.5px solid #cbd5e1; font-size: 12.5px; font-weight: 700;">
+                  <option value=""></option>
                   <option value="Camlin">🟦 Camlin (Kokuyo Camlin)</option>
                   <option value="ITC">🟧 ITC (Classmate / Paperkraft)</option>
                   <option value="Others">🟪 Others</option>
@@ -8517,6 +8577,7 @@ body.print-flash-mode .no-print {
               <div class="form-group" style="margin: 0;">
                 <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Category / Size</label>
                 <select id="im_size" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                  <option value=""></option>
                   <option value="A4 Longbook">A4 Longbook</option>
                   <option value="A5 Copy / Notebook">A5 Copy / Notebook</option>
                   <option value="A4 Drawing">A4 Drawing Book</option>
@@ -8527,6 +8588,7 @@ body.print-flash-mode .no-print {
               <div class="form-group" style="margin: 0;">
                 <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Ruling / Book Type</label>
                 <select id="im_ruling" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; font-weight: 700;">
+                  <option value=""></option>
                   <option value="Single Line">Single Line</option>
                   <option value="Four Line">Four Line</option>
                   <option value="Unruled">Unruled / Plain</option>
@@ -8541,6 +8603,7 @@ body.print-flash-mode .no-print {
               <div class="form-group" style="margin: 0;">
                 <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Binding Type</label>
                 <select id="im_binding" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                  <option value=""></option>
                   <option value="BACK PRESSED- CENTRE STAPLED">Back Pressed - Centre Stapled</option>
                   <option value="CENTRE STAPLED">Centre Stapled</option>
                   <option value="HARD BOUND">Hard Bound</option>
@@ -8558,6 +8621,7 @@ body.print-flash-mode .no-print {
               <div class="form-group" style="margin: 0;">
                 <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Unit</label>
                 <select id="im_unit" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                  <option value=""></option>
                   <option value="Pcs">Pcs (Pieces)</option>
                   <option value="Set">Set</option>
                   <option value="Box">Box</option>
@@ -8587,15 +8651,65 @@ body.print-flash-mode .no-print {
               <table class="data-table" style="width:100%;">
                 <thead>
                   <tr>
-                    <th>Code</th><th>Description</th><th>Vendor</th><th>Size</th><th>Ruling</th><th>Pages</th><th>MRP</th><th>Unit</th><th style="width:110px;">Action</th>
+                    <th>Code</th><th>Description</th><th>Group</th><th>Vendor</th><th>Size</th><th>Ruling</th><th>Pages</th><th>MRP</th><th>Unit</th><th style="width:110px;">Action</th>
                   </tr>
                 </thead>
                 <tbody id="itemMasterTableBody">
-                  <tr><td colspan="9" style="text-align:center; padding:20px; color:#64748b;">No items yet. Add your first item above.</td></tr>
+                  <tr><td colspan="10" style="text-align:center; padding:20px; color:#64748b;">No items yet. Add your first item above.</td></tr>
                 </tbody>
               </table>
             </div>
           </div>
+          </div><!-- /masterSection-items -->
+
+          <!-- ===================== LEDGER MASTER SECTION ===================== -->
+          <div id="masterSection-ledgers" style="display:none;">
+            <form id="formLedgerMaster" onsubmit="handleLedgerSubmit(event)" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px;">
+              <input type="hidden" id="lm_edit_id" value="">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px;">
+                <div class="form-group" style="margin: 0; grid-column: span 2;">
+                  <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Ledger / Party Name <span style="color:#ef4444;">*</span></label>
+                  <input type="text" id="lm_name" required placeholder="e.g. Sharma Printers / New Customer Pvt Ltd" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1.5px solid #cbd5e1; font-size: 12.5px; font-weight: 700;">
+                </div>
+                <div class="form-group" style="margin: 0;">
+                  <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Ledger Type</label>
+                  <select id="lm_type" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                    <option value=""></option>
+                    <option value="Customer">Customer (Dena hai / Receivable)</option>
+                    <option value="Supplier">Supplier (Payable)</option>
+                    <option value="Mill">Paper Mill</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin: 0;">
+                  <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Opening Payable (₹)</label>
+                  <input type="number" id="lm_payable" min="0" step="0.01" placeholder="0" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                </div>
+                <div class="form-group" style="margin: 0;">
+                  <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Opening Receivable (₹)</label>
+                  <input type="number" id="lm_receivable" min="0" step="0.01" placeholder="0" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                </div>
+              </div>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <button type="submit" class="btn btn-primary" id="btnSaveLedgerMaster">💾 Save Ledger</button>
+                <button type="button" class="btn btn-secondary" id="btnCancelLedgerEdit" onclick="clearLedgerForm()" style="display:none;">✖ Cancel Edit</button>
+              </div>
+              <p style="font-size: 11.5px; color: #64748b; margin: 10px 0 0 0;">💡 Naye ledger apne aap Financials (Party) ke dropdown me bhi dikhenge.</p>
+            </form>
+            <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:10px; padding:16px;">
+              <div style="font-size:13.5px; font-weight:800; color:#0f172a; margin-bottom:12px;">📒 Ledgers (<span id="lm_ledgerCount">0</span>)</div>
+              <div style="overflow-x:auto;">
+                <table class="data-table" style="width:100%;">
+                  <thead>
+                    <tr><th>Ledger Name</th><th>Type</th><th>Opening Payable</th><th>Opening Receivable</th><th style="width:110px;">Action</th></tr>
+                  </thead>
+                  <tbody id="ledgerMasterTableBody">
+                    <tr><td colspan="5" style="text-align:center; padding:20px; color:#64748b;">No ledgers yet. Add your first party above.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div><!-- /masterSection-ledgers -->
         </div>
 
         <div id="entryTab-order" class="form-card">
@@ -12508,6 +12622,25 @@ const DEFAULT_HR_DATA = {
   }
 };
 
+// Default material groups (Group Master ka seed) — Paper specs, Board specs & Consumable categories
+const DEFAULT_MASTER_GROUPS = [
+  { name: "90x43x57", type: "Paper", desc: "Camlin A4 Longbook Paper Spec" },
+  { name: "97x37x57", type: "Paper", desc: "Camlin A5 Copy Paper Spec" },
+  { name: "97x37x54", type: "Paper", desc: "Camlin A5 56Pg Paper Spec" },
+  { name: "89.8x43x56", type: "Paper", desc: "ITC A4 Paper Spec" },
+  { name: "96.7x37x56", type: "Paper", desc: "ITC A5 Paper Spec" },
+  { name: "45.5x91x190", type: "Board", desc: "A4 Board (≤175P, 3 ups)" },
+  { name: "45.5x91x200", type: "Board", desc: "A4 Board Spec" },
+  { name: "91x91x190", type: "Board", desc: "Square Board Spec" },
+  { name: "77x98x190", type: "Board", desc: "A5 Regular Board (8 ups)" },
+  { name: "Inks", type: "Consumable", desc: "Printing Inks" },
+  { name: "Stitch Wire", type: "Consumable", desc: "Stitching Wire Coils" },
+  { name: "Tapes", type: "Consumable", desc: "All Types of Tapes" },
+  { name: "Shrink Film", type: "Consumable", desc: "Shrink Wrapping Films" },
+  { name: "Packing", type: "Consumable", desc: "Packing Materials" },
+  { name: "Lamination", type: "Consumable", desc: "Lamination Films & Gum" }
+];
+
 let state = {
   mode: 'reporting', // 'reporting' | 'entry'
   activeSheet: 'dashboard',
@@ -12524,6 +12657,8 @@ let state = {
   poReleases: [],
   poTrackings: [],
   itemMaster: [],
+  masterGroups: JSON.parse(JSON.stringify(DEFAULT_MASTER_GROUPS)),
+  ledgerMaster: [],
   activeTxFilter: 'all',
   materialStock: JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK)),
   financials: JSON.parse(JSON.stringify(DEFAULT_FINANCIALS)),
@@ -12552,6 +12687,8 @@ function getFullEnterpriseStatePayload() {
     poReleases: state.poReleases || [],
     poTrackings: state.poTrackings || [],
     itemMaster: state.itemMaster || [],
+    masterGroups: state.masterGroups || [],
+    ledgerMaster: state.ledgerMaster || [],
     materialStock: state.materialStock || {},
     financials: state.financials || {},
     dailyFlashReports: state.dailyFlashReports || [],
@@ -12852,6 +12989,10 @@ function hydrateFromDatabaseObject(parsed) {
   state.poReleases = parsed.poReleases || [];
   state.poTrackings = parsed.poTrackings || [];
   state.itemMaster = Array.isArray(parsed.itemMaster) ? parsed.itemMaster : [];
+  state.masterGroups = (Array.isArray(parsed.masterGroups) && parsed.masterGroups.length > 0)
+    ? parsed.masterGroups
+    : JSON.parse(JSON.stringify(DEFAULT_MASTER_GROUPS));
+  state.ledgerMaster = Array.isArray(parsed.ledgerMaster) ? parsed.ledgerMaster : [];
   state.materialStock = parsed.materialStock || JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK));
   state.financials = parsed.financials || JSON.parse(JSON.stringify(DEFAULT_FINANCIALS));
   if (Array.isArray(parsed.dailyFlashReports)) state.dailyFlashReports = parsed.dailyFlashReports;
@@ -13186,6 +13327,8 @@ function resetStateToDefaults() {
   state.poReleases = [];
   state.poTrackings = [];
   state.itemMaster = [];
+  state.masterGroups = JSON.parse(JSON.stringify(DEFAULT_MASTER_GROUPS));
+  state.ledgerMaster = [];
   state.materialStock = JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK));
   state.hr = JSON.parse(JSON.stringify(DEFAULT_HR_DATA));
   updateSaveStatus();
@@ -15234,7 +15377,7 @@ function switchEntryTab(tabId, clickedEl) {
     } else if (tabId === 'hr-master') {
       renderWorkerMasterTable();
     } else if (tabId === 'item-master') {
-      renderItemMaster();
+      switchMasterSubTab(_currentMasterSubTab || 'items');
     } else if (tabId === 'hr-labour-entry') {
       renderWeeklyLabourEntryGrid();
     } else if (tabId === 'hr-staff-entry') {
@@ -19408,6 +19551,15 @@ function getFinKnownInvoices() {
 function getFinKnownParties() {
   const partyMap = new Map();
   FIN_PARTIES.forEach(p => partyMap.set(p.name, { ...p }));
+
+  // Ledger Master (Masters screen se bane parties) — inka opening balance bhi yahan
+  (state.ledgerMaster || []).forEach(l => {
+    if (!l || !l.name) return;
+    const curr = partyMap.get(l.name) || { name: l.name, payable: 0, receivable: 0 };
+    curr.payable += Number(l.openingPayable) || 0;
+    curr.receivable += Number(l.openingReceivable) || 0;
+    partyMap.set(l.name, curr);
+  });
 
   if (Array.isArray(state.dailyFlashReports)) {
     state.dailyFlashReports.forEach(r => {
@@ -31999,6 +32151,249 @@ function resetWorkerMasterForm() {
 }
 
 /* ==========================================================================
+   MASTERS SCREEN: Group | Item | Ledger  (sub-tabs + CRUD)
+   ========================================================================== */
+let _currentMasterSubTab = 'items';
+function switchMasterSubTab(sub) {
+  _currentMasterSubTab = sub;
+  ['groups', 'items', 'ledgers'].forEach(s => {
+    const sec = document.getElementById('masterSection-' + s);
+    if (sec) sec.style.display = (s === sub) ? 'block' : 'none';
+    const tab = document.getElementById('mstTab-' + s);
+    if (tab) {
+      tab.className = (s === sub) ? 'btn btn-primary' : 'btn btn-outline';
+    }
+  });
+  if (sub === 'groups') renderMasterGroups();
+  else if (sub === 'items') { populateItemGroupSelect(); renderItemMaster(); }
+  else if (sub === 'ledgers') renderLedgerMaster();
+}
+
+/* ------------------------- GROUP MASTER CRUD ------------------------- */
+function renderMasterGroups() {
+  if (!Array.isArray(state.masterGroups)) state.masterGroups = [];
+  const tbody = document.getElementById('groupMasterTableBody');
+  const cnt = document.getElementById('gm_groupCount');
+  if (cnt) cnt.textContent = state.masterGroups.length;
+  if (!tbody) return;
+  if (state.masterGroups.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#64748b;">No groups yet.</td></tr>';
+    return;
+  }
+  const typeEmoji = { Paper: '📄', Board: '🖼️', Consumable: '🎨', Other: '📌' };
+  tbody.innerHTML = state.masterGroups.map((g, i) => {
+    const usedBy = (state.itemMaster || []).filter(it => it.group === g.name).length;
+    return `
+    <tr>
+      <td style="font-weight:800; color:#0f172a;">${escapeHtml(String(g.name || ''))}</td>
+      <td>${typeEmoji[g.type] || '📌'} ${escapeHtml(String(g.type || ''))}</td>
+      <td>${escapeHtml(String(g.desc || ''))}</td>
+      <td>${usedBy} item${usedBy === 1 ? '' : 's'}</td>
+      <td style="white-space:nowrap;">
+        <button type="button" class="btn btn-secondary" onclick="editMasterGroup(${i})" style="padding:3px 8px; font-size:11px;">✏️ Edit</button>
+        <button type="button" class="btn btn-secondary" onclick="deleteMasterGroup(${i})" style="padding:3px 8px; font-size:11px; background:#fee2e2; color:#dc2626; border-color:#fca5a5;">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function handleGroupSubmit(e) {
+  e.preventDefault();
+  const editId = document.getElementById('gm_edit_id').value;
+  const name = document.getElementById('gm_name').value.trim();
+  if (!name) { showToast('⚠️ Group Name zaroori hai.'); return; }
+  if (!Array.isArray(state.masterGroups)) state.masterGroups = [];
+  const dup = state.masterGroups.findIndex((g, i) => g.name === name && String(i) !== editId);
+  if (dup !== -1) { showToast(`⚠️ Group "${name}" pehle se hai.`); return; }
+  const obj = {
+    name,
+    type: document.getElementById('gm_type').value,
+    desc: document.getElementById('gm_desc').value.trim()
+  };
+  if (editId !== '') {
+    const idx = Number(editId);
+    if (state.masterGroups[idx]) {
+      const oldName = state.masterGroups[idx].name;
+      obj.createdAt = state.masterGroups[idx].createdAt;
+      obj.updatedAt = new Date().toISOString();
+      state.masterGroups[idx] = obj;
+      // Group rename → items jo purane naam par the unhe bhi update karo
+      if (oldName !== name) {
+        (state.itemMaster || []).forEach(it => { if (it.group === oldName) it.group = name; });
+      }
+      showToast(`✅ Group "${name}" updated.`);
+    }
+  } else {
+    obj.createdAt = new Date().toISOString();
+    state.masterGroups.push(obj);
+    showToast(`✅ New group "${name}" added.`);
+  }
+  clearGroupForm();
+  renderMasterGroups();
+  populateItemGroupSelect();
+  saveState();
+}
+
+function editMasterGroup(i) {
+  const g = (state.masterGroups || [])[i];
+  if (!g) return;
+  document.getElementById('gm_edit_id').value = String(i);
+  document.getElementById('gm_name').value = g.name || '';
+  document.getElementById('gm_type').value = g.type || '';
+  document.getElementById('gm_desc').value = g.desc || '';
+  document.getElementById('btnSaveGroupMaster').innerHTML = '💾 Update Group';
+  const cancel = document.getElementById('btnCancelGroupEdit');
+  if (cancel) cancel.style.display = 'inline-block';
+  document.getElementById('gm_name').focus();
+}
+
+function deleteMasterGroup(i) {
+  const g = (state.masterGroups || [])[i];
+  if (!g) return;
+  const usedBy = (state.itemMaster || []).filter(it => it.group === g.name).length;
+  if (usedBy > 0) {
+    showToast(`⚠️ Group "${g.name}" ${usedBy} item(s) use kar raha hai. Pehle un items ka group badlein ya unhe delete karein.`);
+    return;
+  }
+  if (!confirm(`🗑️ Group "${g.name}" delete karein?`)) return;
+  state.masterGroups.splice(i, 1);
+  clearGroupForm();
+  renderMasterGroups();
+  populateItemGroupSelect();
+  saveState();
+  showToast(`🗑️ Group "${g.name}" deleted.`);
+}
+
+function clearGroupForm() {
+  const f = document.getElementById('formGroupMaster');
+  if (f) f.reset();
+  const eid = document.getElementById('gm_edit_id');
+  if (eid) eid.value = '';
+  const btn = document.getElementById('btnSaveGroupMaster');
+  if (btn) btn.innerHTML = '💾 Save Group';
+  const cancel = document.getElementById('btnCancelGroupEdit');
+  if (cancel) cancel.style.display = 'none';
+}
+
+// Item form ke Group dropdown ko masterGroups se bharo (type-wise optgroups, sabse pehle blank)
+function populateItemGroupSelect() {
+  const sel = document.getElementById('im_group');
+  if (!sel) return;
+  const prev = sel.value;
+  const groups = state.masterGroups || [];
+  let html = '<option value=""></option>';
+  ['Paper', 'Board', 'Consumable', 'Other'].forEach(type => {
+    const ofType = groups.filter(g => (g.type || 'Other') === type);
+    if (ofType.length === 0) return;
+    const label = { Paper: '📦 Paper Specs', Board: '🖼️ Board Specs', Consumable: '🎨 Consumables', Other: '📌 Other' }[type];
+    html += `<optgroup label="${label}">`;
+    ofType.forEach(g => { html += `<option value="${escapeHtml(String(g.name))}">${escapeHtml(String(g.name))}</option>`; });
+    html += '</optgroup>';
+  });
+  // Type-less purane groups (agar koi ho)
+  const noType = groups.filter(g => !g.type);
+  if (noType.length) {
+    html += '<optgroup label="📌 Other">';
+    noType.forEach(g => { html += `<option value="${escapeHtml(String(g.name))}">${escapeHtml(String(g.name))}</option>`; });
+    html += '</optgroup>';
+  }
+  sel.innerHTML = html;
+  if (prev) sel.value = prev; // edit ke time pehle se selected value preserve karo
+}
+
+/* ------------------------- LEDGER MASTER CRUD ------------------------- */
+function renderLedgerMaster() {
+  if (!Array.isArray(state.ledgerMaster)) state.ledgerMaster = [];
+  const tbody = document.getElementById('ledgerMasterTableBody');
+  const cnt = document.getElementById('lm_ledgerCount');
+  if (cnt) cnt.textContent = state.ledgerMaster.length;
+  if (!tbody) return;
+  if (state.ledgerMaster.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#64748b;">No ledgers yet. Add your first party above.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.ledgerMaster.map((l, i) => `
+    <tr>
+      <td style="font-weight:800; color:#0f172a;">${escapeHtml(String(l.name || ''))}</td>
+      <td>${escapeHtml(String(l.type || ''))}</td>
+      <td style="font-weight:700;">₹${(Number(l.openingPayable) || 0).toLocaleString('en-IN')}</td>
+      <td style="font-weight:700;">₹${(Number(l.openingReceivable) || 0).toLocaleString('en-IN')}</td>
+      <td style="white-space:nowrap;">
+        <button type="button" class="btn btn-secondary" onclick="editLedgerMaster(${i})" style="padding:3px 8px; font-size:11px;">✏️ Edit</button>
+        <button type="button" class="btn btn-secondary" onclick="deleteLedgerMaster(${i})" style="padding:3px 8px; font-size:11px; background:#fee2e2; color:#dc2626; border-color:#fca5a5;">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function handleLedgerSubmit(e) {
+  e.preventDefault();
+  const editId = document.getElementById('lm_edit_id').value;
+  const name = document.getElementById('lm_name').value.trim();
+  if (!name) { showToast('⚠️ Ledger Name zaroori hai.'); return; }
+  if (!Array.isArray(state.ledgerMaster)) state.ledgerMaster = [];
+  const dup = state.ledgerMaster.findIndex((l, i) => l.name === name && String(i) !== editId);
+  if (dup !== -1) { showToast(`⚠️ Ledger "${name}" pehle se hai.`); return; }
+  const obj = {
+    name,
+    type: document.getElementById('lm_type').value,
+    openingPayable: parseFloat(document.getElementById('lm_payable').value) || 0,
+    openingReceivable: parseFloat(document.getElementById('lm_receivable').value) || 0
+  };
+  if (editId !== '') {
+    const idx = Number(editId);
+    if (state.ledgerMaster[idx]) {
+      obj.createdAt = state.ledgerMaster[idx].createdAt;
+      obj.updatedAt = new Date().toISOString();
+      state.ledgerMaster[idx] = obj;
+      showToast(`✅ Ledger "${name}" updated.`);
+    }
+  } else {
+    obj.createdAt = new Date().toISOString();
+    state.ledgerMaster.push(obj);
+    showToast(`✅ New ledger "${name}" added.`);
+  }
+  clearLedgerForm();
+  renderLedgerMaster();
+  saveState();
+}
+
+function editLedgerMaster(i) {
+  const l = (state.ledgerMaster || [])[i];
+  if (!l) return;
+  document.getElementById('lm_edit_id').value = String(i);
+  document.getElementById('lm_name').value = l.name || '';
+  document.getElementById('lm_type').value = l.type || '';
+  document.getElementById('lm_payable').value = l.openingPayable != null ? l.openingPayable : '';
+  document.getElementById('lm_receivable').value = l.openingReceivable != null ? l.openingReceivable : '';
+  document.getElementById('btnSaveLedgerMaster').innerHTML = '💾 Update Ledger';
+  const cancel = document.getElementById('btnCancelLedgerEdit');
+  if (cancel) cancel.style.display = 'inline-block';
+  document.getElementById('lm_name').focus();
+}
+
+function deleteLedgerMaster(i) {
+  const l = (state.ledgerMaster || [])[i];
+  if (!l) return;
+  if (!confirm(`🗑️ Ledger "${l.name}" delete karein?`)) return;
+  state.ledgerMaster.splice(i, 1);
+  clearLedgerForm();
+  renderLedgerMaster();
+  saveState();
+  showToast(`🗑️ Ledger "${l.name}" deleted.`);
+}
+
+function clearLedgerForm() {
+  const f = document.getElementById('formLedgerMaster');
+  if (f) f.reset();
+  const eid = document.getElementById('lm_edit_id');
+  if (eid) eid.value = '';
+  const btn = document.getElementById('btnSaveLedgerMaster');
+  if (btn) btn.innerHTML = '💾 Save Ledger';
+  const cancel = document.getElementById('btnCancelLedgerEdit');
+  if (cancel) cancel.style.display = 'none';
+}
+
+/* ==========================================================================
    ITEM / STOCK MASTER  (alag item catalog - state.itemMaster)
    ========================================================================== */
 function renderItemMaster() {
@@ -32008,13 +32403,14 @@ function renderItemMaster() {
   if (cnt) cnt.textContent = state.itemMaster.length;
   if (!tbody) return;
   if (state.itemMaster.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px; color:#64748b;">No items yet. Add your first item above.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:20px; color:#64748b;">No items yet. Add your first item above.</td></tr>';
     return;
   }
   tbody.innerHTML = state.itemMaster.map((it, i) => `
     <tr>
       <td style="font-weight:800; color:#0f172a;">${escapeHtml(String(it.code || ''))}</td>
       <td>${escapeHtml(String(it.description || ''))}</td>
+      <td>${escapeHtml(String(it.group || ''))}</td>
       <td>${escapeHtml(String(it.vendor || ''))}</td>
       <td>${escapeHtml(String(it.size || ''))}</td>
       <td>${escapeHtml(String(it.ruling || ''))}</td>
@@ -32036,6 +32432,7 @@ function handleItemMasterSubmit(e) {
   const obj = {
     code,
     description: document.getElementById('im_desc').value.trim(),
+    group: document.getElementById('im_group').value,
     vendor: document.getElementById('im_vendor').value,
     size: document.getElementById('im_size').value,
     ruling: document.getElementById('im_ruling').value,
@@ -32069,12 +32466,18 @@ function handleItemMasterSubmit(e) {
   saveState();
 }
 
+function editItemGroupSet(val) {
+  populateItemGroupSelect();
+  document.getElementById('im_group').value = val || '';
+}
+
 function editItemMaster(i) {
   const it = (state.itemMaster || [])[i];
   if (!it) return;
   document.getElementById('im_edit_id').value = String(i);
   document.getElementById('im_code').value = it.code || '';
   document.getElementById('im_desc').value = it.description || '';
+  editItemGroupSet(it.group);
   document.getElementById('im_vendor').value = it.vendor || 'Camlin';
   document.getElementById('im_size').value = it.size || 'A4 Longbook';
   document.getElementById('im_ruling').value = it.ruling || 'Single Line';
