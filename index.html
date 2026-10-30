@@ -31608,21 +31608,31 @@ function initHRModule() {
     });
   }
   if (state.hr && Array.isArray(state.hr.weeklyLabourSheets)) {
+    const advLedger = state.hr.advanceLedger || [];
     state.hr.weeklyLabourSheets.forEach(sheet => {
       if (Array.isArray(sheet.records)) {
+        const sheetWeekStart = sheet.weekStart || '';
         sheet.records.forEach(r => {
           r.ptaxDeduction = 0;
           r.esiDeduction = 0; // 100% company paid
           r.pfDeduction = 0;  // 100% company paid
           const advDed = Number(r.advanceDeduction) || 0;
           const newAdv = Number(r.newAdvance) || 0;
-          const openAdv = Number(r.openAdvance) || 0;
+          // OLD DUE (openAdvance): LIVE advance ledger se recompute karo (demo/stale value hatao).
+          // Ledger entries: Debit.date = sheet.weekStart, Credit.date = sheet.weekEnd.
+          // Is week se PEHLE ki entries (date < weekStart) hi opening advance banati hain.
+          let openAdv = 0;
+          advLedger.forEach(entry => {
+            if (entry.personId === r.workerId && entry.date < sheetWeekStart) {
+              if (entry.type === 'Debit') openAdv += (Number(entry.amount) || 0);
+              else if (entry.type === 'Credit') openAdv -= (Number(entry.amount) || 0);
+            }
+          });
+          r.openAdvance = Math.max(0, openAdv);
           r.netPayable = Math.max(0, (Number(r.grossWage) || 0) - advDed + newAdv);
-          if (r.cashPaid === undefined || r.cashPaid === null) {
-            r.cashPaid = r.netPayable;
-          }
+          // Cash Paid DEFAULT KHALI (null) — user asli cash manually enter karta hai (auto-fill hataya).
           const excessAdv = Math.max(0, (Number(r.cashPaid) || 0) - r.netPayable);
-          r.closingAdvance = Math.max(0, openAdv - advDed + newAdv + excessAdv);
+          r.closingAdvance = Math.max(0, r.openAdvance - advDed + newAdv + excessAdv);
           r.carryForward = r.netPayable - (Number(r.cashPaid) || 0);
         });
       }
