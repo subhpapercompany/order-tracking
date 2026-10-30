@@ -31691,8 +31691,8 @@ function seedInitialPayrollRecordsIfEmpty() {
       const newAdv = 0;
       const closingAdv = openAdv - advDeduct + newAdv;
       const netPay = Math.max(0, gross - advDeduct + newAdv);
-      const cashPaid = netPay;
-      const carryForward = netPay - cashPaid;
+      const cashPaid = null; // Default KHALI — user asli cash manually enter karega
+      const carryForward = netPay - 0; // Khali = poora net wage due
       return {
         workerId: l.id,
         name: l.name,
@@ -32179,8 +32179,8 @@ function getActiveWeeklyLabourSheet() {
         newAdvance: 0,
         closingAdvance: openAdv,
         netPayable: 6.0 * dailyRate,
-        cashPaid: 6.0 * dailyRate,
-        carryForward: 0
+        cashPaid: null, // Default KHALI — user asli cash manually enter karega
+        carryForward: 6.0 * dailyRate
       });
     }
   });
@@ -32381,7 +32381,7 @@ function renderWeeklyLabourEntryGrid() {
         <td style="text-align:right; font-weight:800; color:${(r.closingAdvance || 0) > 0 ? '#92400e' : '#15803d'};" id="lab_closeadv_${r.workerId}">₹${r.closingAdvance || 0}</td>
         <td style="text-align:right; font-weight:800; color:#065f46; background:#ecfdf5;" id="lab_net_${r.workerId}">₹${Math.round(r.netPayable || 0)}</td>
         <td style="text-align:right;">
-          <input type="number" id="lab_cashinp_${r.workerId}" min="0" step="10" value="${r.cashPaid !== undefined && r.cashPaid !== null ? r.cashPaid : Math.round(r.netPayable || 0)}" onchange="onLabourCashPaidChange('${r.workerId}', this.value)" style="width:70px; padding:3px; text-align:right; color:#14532d; font-weight:800; border:1.5px solid #86efac; border-radius:4px; background:#f0fdf4;">
+          <input type="number" id="lab_cashinp_${r.workerId}" min="0" step="10" value="${(r.cashPaid !== undefined && r.cashPaid !== null) ? r.cashPaid : ''}" placeholder="₹${Math.round(r.netPayable || 0)}" onchange="onLabourCashPaidChange('${r.workerId}', this.value)" onfocus="this.placeholder=''" onblur="if(this.value==='')this.placeholder='₹${Math.round(r.netPayable || 0)}'" style="width:70px; padding:3px; text-align:right; color:#14532d; font-weight:800; border:1.5px solid #86efac; border-radius:4px; background:#f0fdf4;">
         </td>
         <td style="text-align:right; font-weight:800; color:${(r.carryForward || 0) > 0 ? '#b91c1c' : ((r.carryForward || 0) < 0 ? '#b45309' : '#15803d')};" id="lab_baldue_${r.workerId}" title="${(r.carryForward || 0) > 0 ? 'Wage Due: ₹' + Math.round(r.carryForward) : ((r.carryForward || 0) < 0 ? 'Advance / Excess Paid: ₹' + Math.abs(Math.round(r.carryForward)) : 'Settled')}">${(r.carryForward || 0) < 0 ? '-₹' + Math.abs(Math.round(r.carryForward || 0)) : '₹' + Math.round(r.carryForward || 0)}</td>
       </tr>
@@ -32512,10 +32512,8 @@ function recalcLabourRecord(r) {
   const net = Math.max(0, gross - advDed + newAdv);
   r.netPayable = net;
 
-  // Auto-sync cashPaid if not manually set
-  if (r.cashPaid === undefined || r.cashPaid === null) {
-    r.cashPaid = net;
-  }
+  // Cash Paid DEFAULT KHALI (null) — user asli cash manually enter karta hai.
+  // Agar khali ho to 0 maana jata hai (carryForward = net − 0 = poora wage due).
 
   // If cashPaid exceeds netPayable (e.g. Net Payable was 1500 and Cash Paid was 2000),
   // the excess 500 is an Advance given to the worker in cash!
@@ -32550,7 +32548,10 @@ function updateLabourRowDOM(r) {
   if (elNet) elNet.textContent = `₹${Math.round(r.netPayable)}`;
   const elCashInp = document.getElementById(`lab_cashinp_${id}`);
   if (elCashInp && document.activeElement !== elCashInp) {
-    elCashInp.value = (r.cashPaid !== undefined && r.cashPaid !== null ? r.cashPaid : Math.round(r.netPayable || 0));
+    // Cash Paid DEFAULT KHALI — Net Payable se auto-mat-bharo (placeholder hint rahega)
+    elCashInp.value = (r.cashPaid !== undefined && r.cashPaid !== null) ? r.cashPaid : '';
+    const netHint = Math.round(r.netPayable || 0);
+    elCashInp.placeholder = '₹' + netHint;
   }
   const elBalDue = document.getElementById(`lab_baldue_${id}`);
   if (elBalDue) {
