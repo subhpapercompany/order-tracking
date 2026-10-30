@@ -8379,6 +8379,9 @@ body.print-flash-mode .no-print {
         </div>
 
         <div class="tally-category">MASTERS</div>
+        <div class="entry-nav-item" data-tab="item-master" onclick="switchEntryTab('item-master')">
+          <span>📦 Item / Stock Master</span>
+        </div>
         <div class="entry-nav-item active" data-tab="order" onclick="switchEntryTab('order')">
           <span><span class="tally-hotkey">N</span>ew Order Booking</span>
           
@@ -8474,6 +8477,127 @@ body.print-flash-mode .no-print {
       <div class="entry-main">
 
         <!-- 1. ORDER BOOKING FORM -->
+        <!-- ===================== ITEM / STOCK MASTER ===================== -->
+        <div id="entryTab-item-master" class="form-card" style="display:none; max-width: 1200px; margin: 0 auto;">
+          <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 14px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size: 22px;">📦</span>
+                <h2 style="font-size: 18px; font-weight: 800; color: #0f172a; margin: 0;">Item / Stock Master</h2>
+              </div>
+              <p style="font-size: 12.5px; color: #64748b; margin: 3px 0 0 0;">Apne products/items ki catalog banao (code, vendor, size, ruling, MRP, unit). Baad me Order Booking me inhe select karke order banao.</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn btn-outline" onclick="switchMode('reporting'); switchSheet('dashboard');">
+                <span>👁️</span> Master SKUs
+              </button>
+            </div>
+          </div>
+
+          <!-- Add / Edit Form -->
+          <form id="formItemMaster" onsubmit="handleItemMasterSubmit(event)" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px;">
+            <input type="hidden" id="im_edit_id" value="">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px;">
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Product Code / Barcode <span style="color:#ef4444;">*</span></label>
+                <input type="text" id="im_code" required placeholder="e.g. 8901234567890" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1.5px solid #cbd5e1; font-size: 12.5px; font-weight: 700;">
+              </div>
+              <div class="form-group" style="margin: 0; grid-column: span 2;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Item / Product Description <span style="color:#ef4444;">*</span></label>
+                <input type="text" id="im_desc" required placeholder="e.g. A4 Longbook SL 140Pg / Classmate Copy" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1.5px solid #cbd5e1; font-size: 12.5px;">
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Vendor / Brand <span style="color:#ef4444;">*</span></label>
+                <select id="im_vendor" required style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1.5px solid #cbd5e1; font-size: 12.5px; font-weight: 700;">
+                  <option value="Camlin">🟦 Camlin (Kokuyo Camlin)</option>
+                  <option value="ITC">🟧 ITC (Classmate / Paperkraft)</option>
+                  <option value="Others">🟪 Others</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Category / Size</label>
+                <select id="im_size" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                  <option value="A4 Longbook">A4 Longbook</option>
+                  <option value="A5 Copy / Notebook">A5 Copy / Notebook</option>
+                  <option value="A4 Drawing">A4 Drawing Book</option>
+                  <option value="A5 Drawing">A5 Drawing Book</option>
+                  <option value="Others">Custom / Others</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Ruling / Book Type</label>
+                <select id="im_ruling" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; font-weight: 700;">
+                  <option value="Single Line">Single Line</option>
+                  <option value="Four Line">Four Line</option>
+                  <option value="Unruled">Unruled / Plain</option>
+                  <option value="Med. Square">Med. Square (Maths)</option>
+                  <option value="Double Rule">Double Rule (2 Line)</option>
+                  <option value="Index">Index</option>
+                  <option value="Six Line">Six Line</option>
+                  <option value="Graph">Graph / Grid</option>
+                  <option value="Others">Others</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Binding Type</label>
+                <select id="im_binding" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                  <option value="BACK PRESSED- CENTRE STAPLED">Back Pressed - Centre Stapled</option>
+                  <option value="CENTRE STAPLED">Centre Stapled</option>
+                  <option value="HARD BOUND">Hard Bound</option>
+                  <option value="SOFT BOUND">Soft Bound</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Pages</label>
+                <input type="number" id="im_pages" min="0" value="52" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">MRP (₹)</label>
+                <input type="number" id="im_mrp" min="0" step="0.5" value="40" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; font-weight: 700;">
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Unit</label>
+                <select id="im_unit" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                  <option value="Pcs">Pcs (Pieces)</option>
+                  <option value="Set">Set</option>
+                  <option value="Box">Box</option>
+                  <option value="Ream">Ream</option>
+                  <option value="Kg">Kg</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Inner (Pcs)</label>
+                <input type="number" id="im_inner" min="0" placeholder="e.g. 12" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Case Qty (Pcs)</label>
+                <input type="number" id="im_caseQty" min="0" placeholder="e.g. 120" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+              </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <button type="submit" class="btn btn-primary" id="btnSaveItemMaster">💾 Save Item to Catalog</button>
+              <button type="button" class="btn btn-secondary" id="btnCancelItemEdit" onclick="clearItemMasterForm()" style="display:none;">✖ Cancel Edit</button>
+            </div>
+          </form>
+
+          <!-- Manage Table -->
+          <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:10px; padding:16px;">
+            <div style="font-size:13.5px; font-weight:800; color:#0f172a; margin-bottom:12px;">📚 Item Catalog (<span id="im_itemCount">0</span>)</div>
+            <div style="overflow-x:auto;">
+              <table class="data-table" style="width:100%;">
+                <thead>
+                  <tr>
+                    <th>Code</th><th>Description</th><th>Vendor</th><th>Size</th><th>Ruling</th><th>Pages</th><th>MRP</th><th>Unit</th><th style="width:110px;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="itemMasterTableBody">
+                  <tr><td colspan="9" style="text-align:center; padding:20px; color:#64748b;">No items yet. Add your first item above.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <div id="entryTab-order" class="form-card">
           <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 18px;">
             <h2 style="font-size: 17px; font-weight: 700; color: var(--text-primary);">Order Booking / New SKU Master</h2>
@@ -12399,6 +12523,7 @@ let state = {
   poRequests: [],
   poReleases: [],
   poTrackings: [],
+  itemMaster: [],
   activeTxFilter: 'all',
   materialStock: JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK)),
   financials: JSON.parse(JSON.stringify(DEFAULT_FINANCIALS)),
@@ -12426,6 +12551,7 @@ function getFullEnterpriseStatePayload() {
     poRequests: state.poRequests || [],
     poReleases: state.poReleases || [],
     poTrackings: state.poTrackings || [],
+    itemMaster: state.itemMaster || [],
     materialStock: state.materialStock || {},
     financials: state.financials || {},
     dailyFlashReports: state.dailyFlashReports || [],
@@ -12725,6 +12851,7 @@ function hydrateFromDatabaseObject(parsed) {
   state.poRequests = Array.isArray(parsed.poRequests) ? parsed.poRequests : [];
   state.poReleases = parsed.poReleases || [];
   state.poTrackings = parsed.poTrackings || [];
+  state.itemMaster = Array.isArray(parsed.itemMaster) ? parsed.itemMaster : [];
   state.materialStock = parsed.materialStock || JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK));
   state.financials = parsed.financials || JSON.parse(JSON.stringify(DEFAULT_FINANCIALS));
   if (Array.isArray(parsed.dailyFlashReports)) state.dailyFlashReports = parsed.dailyFlashReports;
@@ -13054,6 +13181,7 @@ function resetStateToDefaults() {
   state.poRequests = [];
   state.poReleases = [];
   state.poTrackings = [];
+  state.itemMaster = [];
   state.materialStock = JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK));
   state.hr = JSON.parse(JSON.stringify(DEFAULT_HR_DATA));
   updateSaveStatus();
@@ -15101,6 +15229,8 @@ function switchEntryTab(tabId, clickedEl) {
       renderFinancialEntryForm();
     } else if (tabId === 'hr-master') {
       renderWorkerMasterTable();
+    } else if (tabId === 'item-master') {
+      renderItemMaster();
     } else if (tabId === 'hr-labour-entry') {
       renderWeeklyLabourEntryGrid();
     } else if (tabId === 'hr-staff-entry') {
@@ -15162,8 +15292,9 @@ function onVendorChange() {
     if (idxSpecSelect) idxSpecSelect.value = '90x43x57';
 
     // If barcode is already entered, lookup will auto-fill everything
+    // (guard: agar andar se hi onBarcodeLookup chal raha hai to wapas na bulaaye — recursion)
     const barcodeVal = document.getElementById('eb_barcode') ? document.getElementById('eb_barcode').value : '';
-    if (barcodeVal) {
+    if (barcodeVal && !window.__inBarcodeLookup) {
       onBarcodeLookup(barcodeVal);
     }
   }
@@ -20601,6 +20732,20 @@ function populateCatalogueDatalist() {
       dl.appendChild(opt);
     }
   });
+
+  // Also include Item / Stock Master catalog entries (alag se define kiye gaye items)
+  const seenCodes = new Set();
+  Object.keys(PRODUCT_CATALOGUE).forEach(bc => seenCodes.add(String(bc)));
+  (state.skus || []).forEach(s => { if (s.barcode) seenCodes.add(String(s.barcode)); });
+  (state.itemMaster || []).forEach(it => {
+    const bc = String(it.code || '');
+    if (bc && !seenCodes.has(bc) && isMatchingVendor(it.vendor || 'Camlin', activeV)) {
+      const opt = document.createElement('option');
+      opt.value = bc;
+      opt.label = `${it.description || it.size || 'Item'} (${it.vendor || 'Catalog'})`;
+      dl.appendChild(opt);
+    }
+  });
 }
 
 function populateCalculatorSkuDropdown() {
@@ -20653,8 +20798,8 @@ function onBarcodeLookup(val) {
     return;
   }
 
-  // Lookup in PRODUCT_CATALOGUE or in state.skus
-  const item = PRODUCT_CATALOGUE[val] || state.skus.find(s => s.barcode === val);
+  // Lookup in PRODUCT_CATALOGUE, state.skus, or Item / Stock Master catalog
+  const item = PRODUCT_CATALOGUE[val] || state.skus.find(s => s.barcode === val) || (state.itemMaster || []).find(it => String(it.code) === val);
   if (item) {
     if (item.description) document.getElementById('eb_desc').value = item.description;
     if (item.pages) document.getElementById('eb_pages').value = item.pages;
@@ -20720,7 +20865,10 @@ function onBarcodeLookup(val) {
         document.getElementById('group_vendor_other').style.display = 'block';
         document.getElementById('eb_vendor_other').value = item.vendor;
       }
-      onVendorChange();
+      // Re-entrancy guard: onVendorChange andar se wapas onBarcodeLookup bula sakta hai
+      // (Camlin branch) → infinite recursion. Flag se cycle todti hai.
+      window.__inBarcodeLookup = true;
+      try { onVendorChange(); } finally { window.__inBarcodeLookup = false; }
     }
 
     calcFormulaPreview();
@@ -25762,6 +25910,12 @@ function fallbackCopyToClipboard(text) {
     alert("Could not copy automatically. Please use Export CSV.");
   }
   document.body.removeChild(ta);
+}
+
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function showToast(msg) {
@@ -31838,6 +31992,130 @@ function resetWorkerMasterForm() {
   document.getElementById('wm_edit_id').value = '';
   document.getElementById('btnSaveWorkerMaster').innerHTML = '💾 Save Employee / Worker';
   onWorkerMasterTypeChange();
+}
+
+/* ==========================================================================
+   ITEM / STOCK MASTER  (alag item catalog - state.itemMaster)
+   ========================================================================== */
+function renderItemMaster() {
+  if (!Array.isArray(state.itemMaster)) state.itemMaster = [];
+  const tbody = document.getElementById('itemMasterTableBody');
+  const cnt = document.getElementById('im_itemCount');
+  if (cnt) cnt.textContent = state.itemMaster.length;
+  if (!tbody) return;
+  if (state.itemMaster.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px; color:#64748b;">No items yet. Add your first item above.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.itemMaster.map((it, i) => `
+    <tr>
+      <td style="font-weight:800; color:#0f172a;">${escapeHtml(String(it.code || ''))}</td>
+      <td>${escapeHtml(String(it.description || ''))}</td>
+      <td>${escapeHtml(String(it.vendor || ''))}</td>
+      <td>${escapeHtml(String(it.size || ''))}</td>
+      <td>${escapeHtml(String(it.ruling || ''))}</td>
+      <td>${it.pages != null ? it.pages : '-'}</td>
+      <td style="font-weight:700;">₹${it.mrp != null ? Number(it.mrp).toLocaleString('en-IN') : '-'}</td>
+      <td>${escapeHtml(String(it.unit || 'Pcs'))}</td>
+      <td style="white-space:nowrap;">
+        <button type="button" class="btn btn-secondary" onclick="editItemMaster(${i})" style="padding:3px 8px; font-size:11px;">✏️ Edit</button>
+        <button type="button" class="btn btn-secondary" onclick="deleteItemMaster(${i})" style="padding:3px 8px; font-size:11px; background:#fee2e2; color:#dc2626; border-color:#fca5a5;">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function handleItemMasterSubmit(e) {
+  e.preventDefault();
+  const editId = document.getElementById('im_edit_id').value;
+  const code = document.getElementById('im_code').value.trim();
+  if (!code) { showToast('⚠️ Product Code zaroori hai.'); return; }
+  const obj = {
+    code,
+    description: document.getElementById('im_desc').value.trim(),
+    vendor: document.getElementById('im_vendor').value,
+    size: document.getElementById('im_size').value,
+    ruling: document.getElementById('im_ruling').value,
+    binding: document.getElementById('im_binding').value,
+    pages: Number(document.getElementById('im_pages').value) || 0,
+    mrp: parseFloat(document.getElementById('im_mrp').value) || 0,
+    unit: document.getElementById('im_unit').value,
+    inner: Number(document.getElementById('im_inner').value) || 0,
+    caseQty: Number(document.getElementById('im_caseQty').value) || 0
+  };
+  if (!Array.isArray(state.itemMaster)) state.itemMaster = [];
+
+  if (editId !== '') {
+    const idx = Number(editId);
+    if (state.itemMaster[idx]) {
+      obj.updatedAt = new Date().toISOString();
+      obj.createdAt = state.itemMaster[idx].createdAt || obj.updatedAt;
+      state.itemMaster[idx] = obj;
+      showToast(`✅ Item ${code} updated in catalog.`);
+    }
+  } else {
+    const dup = state.itemMaster.find(it => it.code === code);
+    if (dup) { showToast(`⚠️ Code ${code} catalog me pehle se hai. Edit karke update karein.`); return; }
+    obj.createdAt = new Date().toISOString();
+    state.itemMaster.push(obj);
+    showToast(`✅ New item ${code} added to catalog.`);
+  }
+  clearItemMasterForm();
+  renderItemMaster();
+  refreshOrderBookingItemCatalogue();
+  saveState();
+}
+
+function editItemMaster(i) {
+  const it = (state.itemMaster || [])[i];
+  if (!it) return;
+  document.getElementById('im_edit_id').value = String(i);
+  document.getElementById('im_code').value = it.code || '';
+  document.getElementById('im_desc').value = it.description || '';
+  document.getElementById('im_vendor').value = it.vendor || 'Camlin';
+  document.getElementById('im_size').value = it.size || 'A4 Longbook';
+  document.getElementById('im_ruling').value = it.ruling || 'Single Line';
+  document.getElementById('im_binding').value = it.binding || 'BACK PRESSED- CENTRE STAPLED';
+  document.getElementById('im_pages').value = it.pages != null ? it.pages : 52;
+  document.getElementById('im_mrp').value = it.mrp != null ? it.mrp : 40;
+  document.getElementById('im_unit').value = it.unit || 'Pcs';
+  document.getElementById('im_inner').value = it.inner != null ? it.inner : '';
+  document.getElementById('im_caseQty').value = it.caseQty != null ? it.caseQty : '';
+  document.getElementById('btnSaveItemMaster').innerHTML = '💾 Update Item';
+  const cancel = document.getElementById('btnCancelItemEdit');
+  if (cancel) cancel.style.display = 'inline-block';
+  document.getElementById('im_code').focus();
+}
+
+function deleteItemMaster(i) {
+  const it = (state.itemMaster || [])[i];
+  if (!it) return;
+  if (!confirm(`🗑️ Item ${it.code} (${it.description || ''}) delete karein?`)) return;
+  state.itemMaster.splice(i, 1);
+  clearItemMasterForm();
+  renderItemMaster();
+  refreshOrderBookingItemCatalogue();
+  saveState();
+  showToast(`🗑️ Item ${it.code} deleted.`);
+}
+
+function clearItemMasterForm() {
+  const f = document.getElementById('formItemMaster');
+  if (f) f.reset();
+  const eid = document.getElementById('im_edit_id');
+  if (eid) eid.value = '';
+  const btn = document.getElementById('btnSaveItemMaster');
+  if (btn) btn.innerHTML = '💾 Save Item to Catalog';
+  const cancel = document.getElementById('btnCancelItemEdit');
+  if (cancel) cancel.style.display = 'none';
+  const pages = document.getElementById('im_pages');
+  if (pages) pages.value = 52;
+  const mrp = document.getElementById('im_mrp');
+  if (mrp) mrp.value = 40;
+}
+
+// Order Booking ke barcode datalist me item catalog se codes add karo
+function refreshOrderBookingItemCatalogue() {
+  if (typeof populateCatalogueDatalist === 'function') populateCatalogueDatalist();
 }
 
 function handleWorkerMasterSubmit(e) {
