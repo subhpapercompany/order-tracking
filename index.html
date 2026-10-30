@@ -13095,7 +13095,11 @@ async function initApp() {
   } else if (masterDb && parsedLocal && parsedLocal.timestamp && masterDb.timestamp) {
     const tLocal = new Date(parsedLocal.timestamp).getTime();
     const tDb = new Date(masterDb.timestamp).getTime();
-    if (tLocal > tDb + 5000) {
+    // SAFETY GUARD: localStorage sirf tab "latest" banega (aur server par push hoga) agar usme ASLI data (SKUs) ho.
+    // Warna khaali localStorage (0 SKUs) bhi naya timestamp rakh sakta hai aur good server data overwrite
+    // kar sakta hai (data-loss). Isliye khaali localStorage ko kabhi authoritative nahi maana jaata.
+    const localHasRealData = Array.isArray(parsedLocal.skus) && parsedLocal.skus.length > 0;
+    if (tLocal > tDb + 5000 && localHasRealData) {
       selectedSource = parsedLocal;
       triggerServerAutoSync(parsedLocal);
     }
