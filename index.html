@@ -12731,6 +12731,9 @@ function hydrateFromDatabaseObject(parsed) {
   if (Array.isArray(parsed.ranjitMakingEntries)) state.ranjitMakingEntries = parsed.ranjitMakingEntries;
   if (parsed.hr && typeof parsed.hr === 'object') {
     state.hr = parsed.hr;
+    // HR data apply hone par TURANT sanitize: Old Due (live ledger) recompute + Cash Paid auto-fill cleanup.
+    // Ye init aur HAR background sync (Drive pulse / local sync) par chalta hai taaki stale/demo values na dikhein.
+    if (typeof sanitizeHRPayrollData === 'function') sanitizeHRPayrollData();
   }
 
   // Ensure inner and caseQty on all loaded SKUs
@@ -31581,6 +31584,60 @@ function getWorkerOutstandingAdvance(personId, upToDateStr = null) {
   return Math.max(0, bal);
 }
 
+/* ==========================================================================
+   HR PAYROLL SANITIZER (har data-load/sync par chalta hai)
+   - Labour P.Tax exempt (₹0)
+   - OLD DUE (openAdvance) = LIVE advance ledger se recompute (stale/demo hatao)
+   - netPayable / closingAdvance / carryForward recompute
+   - Cash Paid: sirf AUTO-FILL values (cashPaid === netPayable exactly, aur user
+     ne manually enter nahi kiya = cashPaidManual flag nahi) ko khali karo.
+     Manual entries (chahe net ke barabar hon) safe rehti hain.
+   ========================================================================== */
+function sanitizeHRPayrollData() {
+  if (!state.hr) return;
+  if (!Array.isArray(state.hr.employees)) state.hr.employees = [];
+  if (!Array.isArray(state.hr.weeklyLabourSheets)) state.hr.weeklyLabourSheets = [];
+  if (!Array.isArray(state.hr.advanceLedger)) state.hr.advanceLedger = [];
+
+  // Labour ka P.Tax strictly nahi kata jata (always exempt / ₹0)
+  state.hr.employees.forEach(e => {
+    if (e.type === 'Labour') e.ptaxApplicable = false;
+  });
+
+  const advLedger = state.hr.advanceLedger || [];
+  state.hr.weeklyLabourSheets.forEach(sheet => {
+    if (!Array.isArray(sheet.records)) return;
+    const sheetWeekStart = sheet.weekStart || '';
+    sheet.records.forEach(r => {
+      r.ptaxDeduction = 0;
+      r.esiDeduction = 0; // 100% company paid
+      r.pfDeduction = 0;  // 100% company paid
+      const advDed = Number(r.advanceDeduction) || 0;
+      const newAdv = Number(r.newAdvance) || 0;
+      // OLD DUE (openAdvance): LIVE advance ledger se recompute (demo/stale value hatao).
+      // Ledger: Debit.date = sheet.weekStart, Credit.date = sheet.weekEnd.
+      // Is week se PEHLE ki entries (date < weekStart) hi opening advance banati hain.
+      let openAdv = 0;
+      advLedger.forEach(entry => {
+        if (entry.personId === r.workerId && entry.date < sheetWeekStart) {
+          if (entry.type === 'Debit') openAdv += (Number(entry.amount) || 0);
+          else if (entry.type === 'Credit') openAdv -= (Number(entry.amount) || 0);
+        }
+      });
+      r.openAdvance = Math.max(0, openAdv);
+      r.netPayable = Math.max(0, (Number(r.grossWage) || 0) - advDed + newAdv);
+      // Cash Paid: sirf auto-fill (net ke barabar, manually entered nahi) ko khali karo.
+      if (r.cashPaid !== undefined && r.cashPaid !== null && !r.cashPaidManual && Number(r.cashPaid) === Number(r.netPayable)) {
+        r.cashPaid = null; // auto-fill thi → ab khali (user manually bharega)
+      }
+      const cash = (r.cashPaid !== undefined && r.cashPaid !== null) ? Number(r.cashPaid) : 0;
+      const excessAdv = Math.max(0, cash - r.netPayable);
+      r.closingAdvance = Math.max(0, r.openAdvance - advDed + newAdv + excessAdv);
+      r.carryForward = r.netPayable - cash;
+    });
+  });
+}
+
 // Master HR Initialization
 function initHRModule() {
   if (!state.hr) {
@@ -31599,64 +31656,8 @@ function initHRModule() {
     state.hr.advanceLedger = [];
   }
 
-  // Data Sanitization Safeguard: Worker / Labour ka P.Tax strictly nahi kata jata (always exempt / ₹0)
-  if (state.hr && Array.isArray(state.hr.employees)) {
-    state.hr.employees.forEach(e => {
-      if (e.type === 'Labour') {
-        e.ptaxApplicable = false;
-      }
-    });
-  }
-  if (state.hr && Array.isArray(state.hr.weeklyLabourSheets)) {
-    const advLedger = state.hr.advanceLedger || [];
-    state.hr.weeklyLabourSheets.forEach(sheet => {
-      if (Array.isArray(sheet.records)) {
-        const sheetWeekStart = sheet.weekStart || '';
-        sheet.records.forEach(r => {
-          r.ptaxDeduction = 0;
-          r.esiDeduction = 0; // 100% company paid
-          r.pfDeduction = 0;  // 100% company paid
-          const advDed = Number(r.advanceDeduction) || 0;
-          const newAdv = Number(r.newAdvance) || 0;
-          // OLD DUE (openAdvance): LIVE advance ledger se recompute karo (demo/stale value hatao).
-          // Ledger entries: Debit.date = sheet.weekStart, Credit.date = sheet.weekEnd.
-          // Is week se PEHLE ki entries (date < weekStart) hi opening advance banati hain.
-          let openAdv = 0;
-          advLedger.forEach(entry => {
-            if (entry.personId === r.workerId && entry.date < sheetWeekStart) {
-              if (entry.type === 'Debit') openAdv += (Number(entry.amount) || 0);
-              else if (entry.type === 'Credit') openAdv -= (Number(entry.amount) || 0);
-            }
-          });
-          r.openAdvance = Math.max(0, openAdv);
-          r.netPayable = Math.max(0, (Number(r.grossWage) || 0) - advDed + newAdv);
-          // Cash Paid DEFAULT KHALI (null) — user asli cash manually enter karta hai (auto-fill hataya).
-          const excessAdv = Math.max(0, (Number(r.cashPaid) || 0) - r.netPayable);
-          r.closingAdvance = Math.max(0, r.openAdvance - advDed + newAdv + excessAdv);
-          r.carryForward = r.netPayable - (Number(r.cashPaid) || 0);
-        });
-      }
-    });
-  }
-
-  // ONE-TIME MIGRATION: Purane auto-filled Cash Paid values (jo cashPaid === netPayable exactly
-  // barabar thi — auto-fill signature) ko KHALI kar do, taaki user asli cash manually enter kar sake.
-  // Flag se sirf EK baar chalta hai → aage ki manual entries (chahe net ke barabar ho) safe rehti hain.
-  if (state.hr && !state.hr.cashPaidManualCleared) {
-    (state.hr.weeklyLabourSheets || []).forEach(sheet => {
-      if (Array.isArray(sheet.records)) {
-        sheet.records.forEach(r => {
-          if (r.cashPaid !== undefined && r.cashPaid !== null && Number(r.cashPaid) === Number(r.netPayable)) {
-            r.cashPaid = null;          // auto-fill thi → ab khali (user manually bharega)
-            r.carryForward = r.netPayable; // abhi kuch paid nahi → poora net wage due
-            const excess = 0;
-            r.closingAdvance = Math.max(0, (Number(r.openAdvance) || 0) - (Number(r.advanceDeduction) || 0) + (Number(r.newAdvance) || 0) + excess);
-          }
-        });
-      }
-    });
-    state.hr.cashPaidManualCleared = true;
-  }
+  // HR payroll sanitize + Old Due (live ledger) recompute + Cash Paid auto-fill cleanup
+  sanitizeHRPayrollData();
 
   // Set default week to current Saturday
   const currentWeek = getWeekRangeFromSaturday();
@@ -32292,7 +32293,7 @@ function renderLabourWeeklySheetView() {
         <td style="text-align:right; color:#92400e;">₹${r.newAdvance || 0}</td>
         <td style="text-align:right; font-weight:700; color:${(r.closingAdvance || 0) > 0 ? '#92400e' : '#15803d'};">₹${(r.closingAdvance || 0).toLocaleString()}</td>
         <td style="text-align:right; font-weight:800; color:#065f46; background:#ecfdf5;">₹${Math.round(r.netPayable || 0).toLocaleString()}</td>
-        <td style="text-align:right; font-weight:800; color:#14532d; background:#dcfce7;">₹${Math.round(r.cashPaid || 0).toLocaleString()}</td>
+        <td style="text-align:right; font-weight:800; color:#14532d; background:#dcfce7;">${(r.cashPaid !== undefined && r.cashPaid !== null) ? '₹' + Math.round(r.cashPaid).toLocaleString() : ''}</td>
         <td style="text-align:right; font-weight:800; color:${(r.carryForward || 0) > 0 ? '#b91c1c' : ((r.carryForward || 0) < 0 ? '#b45309' : '#15803d')};" title="${(r.carryForward || 0) > 0 ? 'Wage Due: ₹' + Math.round(r.carryForward) : ((r.carryForward || 0) < 0 ? 'Advance / Excess Paid: ₹' + Math.abs(Math.round(r.carryForward)) : 'Settled')}">${(r.carryForward || 0) < 0 ? '-₹' + Math.abs(Math.round(r.carryForward || 0)).toLocaleString() : '₹' + Math.round(r.carryForward || 0).toLocaleString()}</td>
         <td style="text-align:center; color:#94a3b8; font-style:italic; font-size:10.5px;">${(r.carryForward || 0) < 0 ? 'Advance Paid' : 'Paid'}</td>
       </tr>
@@ -32425,13 +32426,7 @@ function onLabourAttChange(workerId, dayKey, status) {
   if (!r.attendance) r.attendance = {};
   if (!r.attendance[dayKey]) r.attendance[dayKey] = { status: 'P', ot: 0 };
   r.attendance[dayKey].status = status;
-  const oldNet = r.netPayable;
-  const hadFullCash = (r.cashPaid === oldNet);
   recalcLabourRecord(r);
-  if (hadFullCash) {
-    r.cashPaid = r.netPayable;
-    r.carryForward = 0;
-  }
   updateLabourRowDOM(r);
 }
 
@@ -32442,13 +32437,7 @@ function onLabourOtChange(workerId, dayKey, otVal) {
   if (!r.attendance) r.attendance = {};
   if (!r.attendance[dayKey]) r.attendance[dayKey] = { status: 'P', ot: 0 };
   r.attendance[dayKey].ot = Number(otVal) || 0;
-  const oldNet = r.netPayable;
-  const hadFullCash = (r.cashPaid === oldNet);
   recalcLabourRecord(r);
-  if (hadFullCash) {
-    r.cashPaid = r.netPayable;
-    r.carryForward = 0;
-  }
   updateLabourRowDOM(r);
 }
 
@@ -32457,13 +32446,7 @@ function onLabourRateChange(workerId, rate) {
   const r = (sheet.records || []).find(x => x.workerId === workerId);
   if (!r) return;
   r.dailyRate = Number(rate) || 0;
-  const oldNet = r.netPayable;
-  const hadFullCash = (r.cashPaid === oldNet);
   recalcLabourRecord(r);
-  if (hadFullCash) {
-    r.cashPaid = r.netPayable;
-    r.carryForward = 0;
-  }
   updateLabourRowDOM(r);
 }
 
@@ -32471,14 +32454,8 @@ function onLabourAdvDeductChange(workerId, val) {
   const sheet = getActiveWeeklyLabourSheet();
   const r = (sheet.records || []).find(x => x.workerId === workerId);
   if (!r) return;
-  const oldNet = r.netPayable;
   r.advanceDeduction = Number(val) || 0;
-  const hadFullCash = (r.cashPaid === oldNet);
   recalcLabourRecord(r);
-  if (hadFullCash) {
-    r.cashPaid = r.netPayable;
-    r.carryForward = 0;
-  }
   updateLabourRowDOM(r);
 }
 
@@ -32486,14 +32463,8 @@ function onLabourNewAdvChange(workerId, val) {
   const sheet = getActiveWeeklyLabourSheet();
   const r = (sheet.records || []).find(x => x.workerId === workerId);
   if (!r) return;
-  const oldNet = r.netPayable;
   r.newAdvance = Number(val) || 0;
-  const hadFullCash = (r.cashPaid === oldNet);
   recalcLabourRecord(r);
-  if (hadFullCash) {
-    r.cashPaid = r.netPayable;
-    r.carryForward = 0;
-  }
   updateLabourRowDOM(r);
 }
 
@@ -32501,7 +32472,13 @@ function onLabourCashPaidChange(workerId, val) {
   const sheet = getActiveWeeklyLabourSheet();
   const r = (sheet.records || []).find(x => x.workerId === workerId);
   if (!r) return;
-  r.cashPaid = Number(val) || 0;
+  if (val === '' || val === null || val === undefined) {
+    r.cashPaid = null;         // field khali → abhi kuch paid nahi
+    r.cashPaidManual = false;  // wapas "not entered" state
+  } else {
+    r.cashPaid = Number(val) || 0;
+    r.cashPaidManual = true;   // user ne manually enter kiya → sanitize ise clear nahi karega (chahe net ke barabar ho)
+  }
   recalcLabourRecord(r);
   updateLabourRowDOM(r);
 }
