@@ -31639,6 +31639,25 @@ function initHRModule() {
     });
   }
 
+  // ONE-TIME MIGRATION: Purane auto-filled Cash Paid values (jo cashPaid === netPayable exactly
+  // barabar thi — auto-fill signature) ko KHALI kar do, taaki user asli cash manually enter kar sake.
+  // Flag se sirf EK baar chalta hai → aage ki manual entries (chahe net ke barabar ho) safe rehti hain.
+  if (state.hr && !state.hr.cashPaidManualCleared) {
+    (state.hr.weeklyLabourSheets || []).forEach(sheet => {
+      if (Array.isArray(sheet.records)) {
+        sheet.records.forEach(r => {
+          if (r.cashPaid !== undefined && r.cashPaid !== null && Number(r.cashPaid) === Number(r.netPayable)) {
+            r.cashPaid = null;          // auto-fill thi → ab khali (user manually bharega)
+            r.carryForward = r.netPayable; // abhi kuch paid nahi → poora net wage due
+            const excess = 0;
+            r.closingAdvance = Math.max(0, (Number(r.openAdvance) || 0) - (Number(r.advanceDeduction) || 0) + (Number(r.newAdvance) || 0) + excess);
+          }
+        });
+      }
+    });
+    state.hr.cashPaidManualCleared = true;
+  }
+
   // Set default week to current Saturday
   const currentWeek = getWeekRangeFromSaturday();
   _selectedLabourWeekStart = currentWeek.startSat;
