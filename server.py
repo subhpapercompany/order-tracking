@@ -244,12 +244,35 @@ def get_local_ip():
         pass
     return '127.0.0.1'
 
+def cloudflared_is_running():
+    """cloudflared process actually chal raha hai ya nahi (stale URL guard)."""
+    try:
+        import subprocess
+        out = subprocess.run(
+            ['tasklist', '/FI', 'IMAGENAME eq cloudflared.exe'],
+            capture_output=True, text=True, timeout=10
+        ).stdout.lower()
+        return 'cloudflared.exe' in out
+    except Exception:
+        return False
+
+
 def get_active_tunnel_url():
+    """Live tunnel URL return karta hai. Sirf tabhi jab cloudflared chal raha ho —
+    warna purana (dead) URL QR me chhap jaata tha aur mobile scan karke fail hota tha."""
     import re
+    if not cloudflared_is_running():
+        return None
+
+    # naye log pehle (cf.log) kyunki --logfile flag cloudflared me fail hota hai
     log_candidates = [
+        os.path.join(DIRECTORY, 'data', 'cf.log'),
+        os.path.join(DIRECTORY, 'cf.log'),
         os.path.join(DIRECTORY, 'data', 'cloudflared.log'),
         os.path.join(DIRECTORY, 'cloudflared.log')
     ]
+    newest_url = None
+    newest_mtime = -1
     for lp in log_candidates:
         if os.path.exists(lp):
             try:
@@ -257,10 +280,13 @@ def get_active_tunnel_url():
                     txt = f.read()
                 m = re.findall(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', txt)
                 if m:
-                    return m[-1]
+                    mt = os.path.getmtime(lp)
+                    if mt > newest_mtime:
+                        newest_mtime = mt
+                        newest_url = m[-1]
             except Exception:
                 pass
-    return None
+    return newest_url
 
 if __name__ == '__main__':
     if is_server_already_running(PORT):
