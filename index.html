@@ -8521,6 +8521,16 @@ body.print-flash-mode .no-print {
                   </select>
                 </div>
                 <div class="form-group" style="margin: 0;">
+                  <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Vendor / Company</label>
+                  <select id="gm_vendor" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                    <option value=""></option>
+                    <option value="Camlin">🟦 Camlin</option>
+                    <option value="ITC">🟧 ITC</option>
+                    <option value="Others">🟪 Others</option>
+                    <option value="All">⬜ All (Shared)</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin: 0;">
                   <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Description / Note</label>
                   <input type="text" id="gm_desc" placeholder="Optional note" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
                 </div>
@@ -8535,10 +8545,10 @@ body.print-flash-mode .no-print {
               <div style="overflow-x:auto;">
                 <table class="data-table" style="width:100%;">
                   <thead>
-                    <tr><th>Group Name</th><th>Type</th><th>Description</th><th>Items Using</th><th style="width:110px;">Action</th></tr>
+                    <tr><th>Group Name</th><th>Type</th><th>Vendor</th><th>Description</th><th>Items Using</th><th style="width:110px;">Action</th></tr>
                   </thead>
                   <tbody id="groupMasterTableBody">
-                    <tr><td colspan="5" style="text-align:center; padding:20px; color:#64748b;">No groups yet.</td></tr>
+                    <tr><td colspan="6" style="text-align:center; padding:20px; color:#64748b;">No groups yet.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -8561,7 +8571,7 @@ body.print-flash-mode .no-print {
               </div>
               <div class="form-group" style="margin: 0;">
                 <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Group (Material Type)</label>
-                <select id="im_group" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                <select id="im_group" onchange="onItemGroupChange()" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
                   <option value=""></option>
                 </select>
               </div>
@@ -8682,6 +8692,16 @@ body.print-flash-mode .no-print {
                   </select>
                 </div>
                 <div class="form-group" style="margin: 0;">
+                  <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Vendor / Company</label>
+                  <select id="lm_vendor" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
+                    <option value=""></option>
+                    <option value="Camlin">🟦 Camlin</option>
+                    <option value="ITC">🟧 ITC</option>
+                    <option value="Others">🟪 Others</option>
+                    <option value="All">⬜ All (Shared)</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin: 0;">
                   <label style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 6px; display: block;">Opening Payable (₹)</label>
                   <input type="number" id="lm_payable" min="0" step="0.01" placeholder="0" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px;">
                 </div>
@@ -8701,10 +8721,10 @@ body.print-flash-mode .no-print {
               <div style="overflow-x:auto;">
                 <table class="data-table" style="width:100%;">
                   <thead>
-                    <tr><th>Ledger Name</th><th>Type</th><th>Opening Payable</th><th>Opening Receivable</th><th style="width:110px;">Action</th></tr>
+                    <tr><th>Ledger Name</th><th>Type</th><th>Vendor</th><th>Opening Payable</th><th>Opening Receivable</th><th style="width:110px;">Action</th></tr>
                   </thead>
                   <tbody id="ledgerMasterTableBody">
-                    <tr><td colspan="5" style="text-align:center; padding:20px; color:#64748b;">No ledgers yet. Add your first party above.</td></tr>
+                    <tr><td colspan="6" style="text-align:center; padding:20px; color:#64748b;">No ledgers yet. Add your first party above.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -12623,23 +12643,35 @@ const DEFAULT_HR_DATA = {
 };
 
 // Default material groups (Group Master ka seed) — Paper specs, Board specs & Consumable categories
+// vendor: Camlin / ITC / Others / All (All = shared factory resource, sab workspace me dikhega)
 const DEFAULT_MASTER_GROUPS = [
-  { name: "90x43x57", type: "Paper", desc: "Camlin A4 Longbook Paper Spec" },
-  { name: "97x37x57", type: "Paper", desc: "Camlin A5 Copy Paper Spec" },
-  { name: "97x37x54", type: "Paper", desc: "Camlin A5 56Pg Paper Spec" },
-  { name: "89.8x43x56", type: "Paper", desc: "ITC A4 Paper Spec" },
-  { name: "96.7x37x56", type: "Paper", desc: "ITC A5 Paper Spec" },
-  { name: "45.5x91x190", type: "Board", desc: "A4 Board (≤175P, 3 ups)" },
-  { name: "45.5x91x200", type: "Board", desc: "A4 Board Spec" },
-  { name: "91x91x190", type: "Board", desc: "Square Board Spec" },
-  { name: "77x98x190", type: "Board", desc: "A5 Regular Board (8 ups)" },
-  { name: "Inks", type: "Consumable", desc: "Printing Inks" },
-  { name: "Stitch Wire", type: "Consumable", desc: "Stitching Wire Coils" },
-  { name: "Tapes", type: "Consumable", desc: "All Types of Tapes" },
-  { name: "Shrink Film", type: "Consumable", desc: "Shrink Wrapping Films" },
-  { name: "Packing", type: "Consumable", desc: "Packing Materials" },
-  { name: "Lamination", type: "Consumable", desc: "Lamination Films & Gum" }
+  { name: "90x43x57", type: "Paper", vendor: "Camlin", desc: "Camlin A4 Longbook Paper Spec" },
+  { name: "97x37x57", type: "Paper", vendor: "Camlin", desc: "Camlin A5 Copy Paper Spec" },
+  { name: "97x37x54", type: "Paper", vendor: "Camlin", desc: "Camlin A5 56Pg Paper Spec" },
+  { name: "89.8x43x56", type: "Paper", vendor: "ITC", desc: "ITC A4 Paper Spec" },
+  { name: "96.7x37x56", type: "Paper", vendor: "ITC", desc: "ITC A5 Paper Spec" },
+  { name: "45.5x91x190", type: "Board", vendor: "Camlin", desc: "A4 Board (≤175P, 3 ups)" },
+  { name: "45.5x91x200", type: "Board", vendor: "Camlin", desc: "A4 Board Spec" },
+  { name: "91x91x190", type: "Board", vendor: "Camlin", desc: "Square Board Spec" },
+  { name: "77x98x190", type: "Board", vendor: "Camlin", desc: "A5 Regular Board (8 ups)" },
+  { name: "Inks", type: "Consumable", vendor: "All", desc: "Printing Inks" },
+  { name: "Stitch Wire", type: "Consumable", vendor: "All", desc: "Stitching Wire Coils" },
+  { name: "Tapes", type: "Consumable", vendor: "All", desc: "All Types of Tapes" },
+  { name: "Shrink Film", type: "Consumable", vendor: "All", desc: "Shrink Wrapping Films" },
+  { name: "Packing", type: "Consumable", vendor: "All", desc: "Packing Materials" },
+  { name: "Lamination", type: "Consumable", vendor: "All", desc: "Lamination Films & Gum" }
 ];
+
+// Purane saved masterGroups me vendor missing ho to defaults se bhar do (per group name)
+function normalizeMasterGroupsVendors(groups) {
+  if (!Array.isArray(groups)) return groups;
+  const byName = {};
+  DEFAULT_MASTER_GROUPS.forEach(g => { byName[g.name] = g.vendor; });
+  groups.forEach(g => {
+    if (g && !g.vendor) g.vendor = byName[g.name] || 'All';
+  });
+  return groups;
+}
 
 let state = {
   mode: 'reporting', // 'reporting' | 'entry'
@@ -12990,7 +13022,7 @@ function hydrateFromDatabaseObject(parsed) {
   state.poTrackings = parsed.poTrackings || [];
   state.itemMaster = Array.isArray(parsed.itemMaster) ? parsed.itemMaster : [];
   state.masterGroups = (Array.isArray(parsed.masterGroups) && parsed.masterGroups.length > 0)
-    ? parsed.masterGroups
+    ? normalizeMasterGroupsVendors(parsed.masterGroups)
     : JSON.parse(JSON.stringify(DEFAULT_MASTER_GROUPS));
   state.ledgerMaster = Array.isArray(parsed.ledgerMaster) ? parsed.ledgerMaster : [];
   state.materialStock = parsed.materialStock || JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK));
@@ -14685,13 +14717,16 @@ function renderCostingSheet() {
 
 function populateCostingSkuDropdown() {
   const sel = document.getElementById('costing_sku_selector');
-  if (!sel || sel.options.length > 2) return;
+  if (!sel) return;
 
+  const prevCostSel = sel.value;
   sel.innerHTML = '<option value="">-- Choose Master Product (Camlin / ITC / Others) --</option>';
 
   const skus = (state && state.skus && state.skus.length > 0) ? state.skus : Object.values(PRODUCT_CATALOGUE);
+  const actVC = state.activeVendor || 'all';
   
   skus.forEach(s => {
+    if (!isMatchingVendor(s.vendor, actVC)) return;
     const opt = document.createElement('option');
     opt.value = s.barcode;
     const vendorTag = s.vendor ? `[${s.vendor}] ` : '';
@@ -14700,6 +14735,19 @@ function populateCostingSkuDropdown() {
     opt.textContent = `${vendorTag}${s.barcode} - ${desc}${mrp}`;
     sel.appendChild(opt);
   });
+
+  // Vendor switch ke baad purana selection agar filter me nahi to blank karo
+  if (prevCostSel) {
+    let foundC = false;
+    for (let i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === prevCostSel) { sel.selectedIndex = i; foundC = true; break; }
+    }
+    if (!foundC) {
+      sel.selectedIndex = 0;
+      const badge = document.getElementById('costing_loaded_badge');
+      if (badge) badge.style.display = 'none';
+    }
+  }
 }
 
 function onCostingSkuSelect(barcode) {
@@ -15547,7 +15595,6 @@ function isMatchingVendor(itemVendor, activeVendor) {
   if (!activeVendor || activeVendor === 'all') return true;
   const iv = String(itemVendor || '').trim().toLowerCase();
   const target = String(activeVendor).trim().toLowerCase();
-
   // Raw Materials, Mills, Paper, Board, and Store Inventory are shared factory resources for all vendors
   if (iv.includes('mill') || iv.includes('paper') || iv.includes('board') || iv.includes('store') || iv.includes('raw') || iv.includes('inventory') || iv.includes('material') || iv === 'all') {
     return true;
@@ -15565,6 +15612,21 @@ function isMatchingVendor(itemVendor, activeVendor) {
     return !isCamlin && !isITC;
   }
   return iv === target;
+}
+
+// Party/customer naam ke liye STRICT matcher — generic 'paper'/'mill' keyword ki
+// wajah se "ITC Paper Mills" jaise parties doosre workspace me leak na hon.
+// Specific vendor (Camlin/ITC) wali parties sirf usi workspace me; baaki sab shared.
+function isPartyMatchingVendor(name, activeVendor) {
+  if (!activeVendor || activeVendor === 'all') return true;
+  const n = String(name || '').trim().toLowerCase();
+  const isCamlin = n.includes('camlin') || n === 'kcl';
+  const isITC = n.includes('itc') || n.includes('classmate') || n.includes('paperkraft');
+  const t = String(activeVendor).trim().toLowerCase();
+  if (t === 'camlin') return isCamlin;
+  if (t === 'itc') return isITC;
+  if (t === 'others') return !isCamlin && !isITC;
+  return true;
 }
 
 function setActiveVendor(vendor, triggerSave = true) {
@@ -15616,6 +15678,12 @@ function setActiveVendor(vendor, triggerSave = true) {
     matFilter.value = state.activeVendor;
   }
 
+  // 4c. Sync Costing Matrix Vendor Dropdown (global workspace se)
+  const costFilter = document.getElementById('costing_matrix_vendor');
+  if (costFilter) {
+    costFilter.value = state.activeVendor;
+  }
+
   // 5. Update Order Booking Vendor Dropdown in Entry Mode
   const ebVendor = document.getElementById('eb_vendor');
   if (ebVendor && state.activeVendor !== 'all') {
@@ -15649,16 +15717,30 @@ function setActiveVendor(vendor, triggerSave = true) {
     }
   }
 
-  // 7. Refresh Dropdowns (filtered strictly by active vendor)
+  // 4d. Financials Statement ka apna customer dropdown hai (header me customer
+  // naam clearly dikhta hai) — auto-switch user ke edited figures wipe kar sakta
+  // isliye yahan deliberately switch nahi kiya jaata.
+
   populateSkuDropdowns();
   populateCatalogueDatalist();
   populateCalculatorSkuDropdown();
+  if (typeof populateCostingSkuDropdown === 'function') populateCostingSkuDropdown();
+  if (typeof populateInventoryLedgerItems === 'function') populateInventoryLedgerItems();
 
   // 8. Re-render all views and Today transactions
   renderAllViews();
   renderMaterialPlanningDashboard();
   renderTodayTransactions();
   updateExportButtonLabel();
+
+  // 8b. Masters screens (Group / Item / Ledger) bhi active vendor filter respect karein
+  try {
+    if (typeof populateItemGroupSelect === 'function') populateItemGroupSelect();
+    if (typeof renderItemMaster === 'function') renderItemMaster();
+    if (typeof renderMasterGroups === 'function') renderMasterGroups();
+    if (typeof renderLedgerMaster === 'function') renderLedgerMaster();
+    if (typeof renderCostingMatrixTable === 'function') renderCostingMatrixTable();
+  } catch (_) {}
 
   if (triggerSave) {
     saveState();
@@ -17270,10 +17352,19 @@ function renderConsumptionSheet() {
 function renderPapersSheet() {
   const tbodySummary = document.getElementById('papersSummaryTableBody');
   tbodySummary.innerHTML = '';
+  const activeV = state.activeVendor || 'all';
 
   let sumOpeningWip = 0, sumInward = 0, sumProcessed = 0, sumWastage = 0, sumWip = 0, sumReels = 0, sumVal = 0;
 
-  state.papersSummary.forEach((p, idx) => {
+  const visibleSummary = (state.papersSummary || [])
+    .map((p, idx) => ({ p, idx }))
+    .filter(({ p }) => isPaperMatchingVendor(p.reelSize, p.vendor, activeV));
+
+  if (visibleSummary.length === 0) {
+    tbodySummary.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:32px; color:#64748b;">📭 No paper records under active workspace <strong>(${activeV})</strong>.</td></tr>`;
+  }
+
+  visibleSummary.forEach(({ p, idx }) => {
     sumOpeningWip += (p.openingWipKg || 0);
     sumInward += (p.inwardKg || 0);
     sumProcessed += (p.processedKg || 0);
@@ -17318,10 +17409,16 @@ function renderPapersSheet() {
   document.getElementById('paperTotWipVal').textContent = '₹ ' + Math.round(sumVal).toLocaleString();
   document.getElementById('paperTotReelsKg').textContent = sumReels.toLocaleString() + ' Kg';
 
-  // Render Paper Movement Ledger
+  // Render Paper Movement Ledger (active vendor ke hisaab se filtered)
   const tbodyLedger = document.getElementById('paperLedgerBody');
   tbodyLedger.innerHTML = '';
-  state.papersLedger.forEach((l, idx) => {
+  const visibleLedger = (state.papersLedger || [])
+    .map((l, idx) => ({ l, idx }))
+    .filter(({ l }) => isPaperMatchingVendor(l.reelSize, l.vendor, activeV));
+  if (visibleLedger.length === 0) {
+    tbodyLedger.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b;">📭 No paper ledger entries under <strong>(${activeV})</strong>.</td></tr>`;
+  }
+  visibleLedger.forEach(({ l, idx }) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${l.date}</td>
@@ -17427,7 +17524,15 @@ function renderBoardSheet() {
     return bal;
   };
 
-  state.boardSummary.forEach((b, idx) => {
+  const activeVB = state.activeVendor || 'all';
+  const visibleBoard = (state.boardSummary || [])
+    .map((b, idx) => ({ b, idx }))
+    .filter(({ b }) => isBoardMatchingVendor(b.size, b.vendor, activeVB));
+  if (visibleBoard.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="14" style="text-align:center; padding:32px; color:#64748b;">📭 No board records under active workspace <strong>(${activeVB})</strong>.</td></tr>`;
+  }
+
+  visibleBoard.forEach(({ b, idx }) => {
     ourSheets += (b.ourGodownSheets || 0);
     ourKg += (b.ourGodownKg || 0);
     printSheets += (b.printerSheets || 0);
@@ -17467,8 +17572,8 @@ function renderBoardSheet() {
     tbody.appendChild(tr);
   });
 
-  let sumOpGodown = (state.boardSummary || []).reduce((a, b) => a + (b.openingGodownSheets || 0), 0);
-  let sumOpPrinter = (state.boardSummary || []).reduce((a, b) => a + (b.openingPrinterSheets || 0), 0);
+  let sumOpGodown = visibleBoard.reduce((a, { b }) => a + (b.openingGodownSheets || 0), 0);
+  let sumOpPrinter = visibleBoard.reduce((a, { b }) => a + (b.openingPrinterSheets || 0), 0);
   const elOpB = document.getElementById('boardFootOpening');
   if (elOpB) elOpB.textContent = (sumOpGodown + sumOpPrinter).toLocaleString();
   GODOWN_KEYS.forEach(k => {
@@ -17491,10 +17596,16 @@ function renderBoardSheet() {
   document.getElementById('boardPrinterKg').textContent = printKg.toLocaleString() + ' Kg at Printers';
   document.getElementById('boardTotalVal').textContent = '₹ ' + totVal.toLocaleString();
 
-  // Render Board Movement Ledger
+  // Render Board Movement Ledger (active vendor ke hisaab se filtered)
   const tbodyLedger = document.getElementById('boardLedgerBody');
   tbodyLedger.innerHTML = '';
-  state.boardLedger.forEach((l, idx) => {
+  const visibleBoardLedger = (state.boardLedger || [])
+    .map((l, idx) => ({ l, idx }))
+    .filter(({ l }) => isBoardMatchingVendor(l.size, l.vendor, activeVB));
+  if (visibleBoardLedger.length === 0) {
+    tbodyLedger.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b;">📭 No board ledger entries under <strong>(${activeVB})</strong>.</td></tr>`;
+  }
+  visibleBoardLedger.forEach(({ l, idx }) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${l.date}</td>
@@ -18058,8 +18169,21 @@ function renderDetailedStockReport() {
     });
   }
 
-  // Filter with Search query
+  // Active vendor filter (spec/SKU vendor ke hisaab se) + Search query
+  const activeVS = state.activeVendor || 'all';
+  const isInvItemVendorMatch = (i) => {
+    if (activeVS === 'all') return true;
+    const cat = String(i.category || '');
+    if (cat.indexOf('Paper') >= 0) return isPaperMatchingVendor(i.code, '', activeVS);
+    if (cat.indexOf('Board') >= 0) return isBoardMatchingVendor(i.code, '', activeVS);
+    if (cat === 'Finished Goods') {
+      const sku = (state.skus || []).find(s => String(s.barcode) === String(i.code));
+      return isMatchingVendor(sku ? sku.vendor : '', activeVS);
+    }
+    return true; // Consumables / CFC = shared factory resource
+  };
   const filtered = allInventoryItems.filter(i => {
+    if (!isInvItemVendorMatch(i)) return false;
     if (!searchQ) return true;
     return (i.code && i.code.toLowerCase().includes(searchQ)) ||
            (i.description && i.description.toLowerCase().includes(searchQ)) ||
@@ -18402,10 +18526,12 @@ function populateInventoryLedgerItems() {
   const prev = sel.value;
   sel.innerHTML = '';
 
-  // Group 1: Paper (Reels & Cut Sheets WIP)
+  // Group 1: Paper (Reels & Cut Sheets WIP) — active vendor ke hisaab se
+  const actV = state.activeVendor || 'all';
   const grpPaper = document.createElement('optgroup');
   grpPaper.label = '📜 Paper';
-  const paperSpecs = ['90x43x57', '97x37x54', '97x37x57', '89.8x43x56', '96.7x37x56'];
+  const paperSpecs = ['90x43x57', '97x37x54', '97x37x57', '89.8x43x56', '96.7x37x56']
+    .filter(sp => isPaperMatchingVendor(sp, '', actV));
   const rulings = ['Unruled', 'Single Line', 'Four Line', 'Med. Square', 'Double Rule', 'Index'];
   paperSpecs.forEach(spec => {
     const optAll = document.createElement('option');
@@ -18423,7 +18549,7 @@ function populateInventoryLedgerItems() {
     optReel.textContent = `Paper - ${spec} : Reel Form`;
     grpPaper.appendChild(optReel);
   });
-  sel.appendChild(grpPaper);
+  if (grpPaper.querySelectorAll('option').length) sel.appendChild(grpPaper);
 
   // Group 2: Title Cover Board (Raw & WIP)
   const grpBoard = document.createElement('optgroup');
@@ -18437,6 +18563,7 @@ function populateInventoryLedgerItems() {
     if (!boardSizes.some(x => x.replace(/\s+/g, '').toLowerCase() === c0)) boardSizes.push(s0.replace(/x/gi, ' x '));
   });
   boardSizes.forEach(size => {
+    if (!isBoardMatchingVendor(size, '', actV)) return;
     const o0 = document.createElement('option');
     o0.value = `BOARD_ALL:${size}`;
     o0.textContent = `Board - ${size} (All Godowns — Consolidated)`;
@@ -18450,7 +18577,7 @@ function populateInventoryLedgerItems() {
     o2.textContent = `Board - ${size} (WIP Printed Covers)`;
     grpBoard.appendChild(o2);
   });
-  sel.appendChild(grpBoard);
+  if (grpBoard.querySelectorAll('option').length) sel.appendChild(grpBoard);
 
   // Group 2b: Stock with Printers (party-wise) — Fortune / Salsar / Rich aise parties
   const partySet = [];
@@ -18480,13 +18607,14 @@ function populateInventoryLedgerItems() {
   grpFG.label = '📚 Finished Goods (Manufactured Notebooks)';
   (state.skus || []).forEach(s => {
     if (!s.barcode) return;
+    if (!isMatchingVendor(s.vendor, actV)) return;
     const opt = document.createElement('option');
     opt.value = `FG:${s.barcode}`;
     const stock = (s.oldStock || 0) + (s.production || 0) - (s.despatched || 0);
     opt.textContent = `FG - ${s.barcode} : ${s.description} (Stock: ${stock.toLocaleString()} Pcs)`;
     grpFG.appendChild(opt);
   });
-  sel.appendChild(grpFG);
+  if (grpFG.querySelectorAll('option').length) sel.appendChild(grpFG);
 
   // Group 4: Inks, Cartons (CFC) & Consumables
   const grpCons = document.createElement('optgroup');
@@ -18500,9 +18628,12 @@ function populateInventoryLedgerItems() {
   sel.appendChild(grpCons);
 
   if (prev) {
+    let found = false;
     for (let i = 0; i < sel.options.length; i++) {
-      if (sel.options[i].value === prev) { sel.selectedIndex = i; break; }
+      if (sel.options[i].value === prev) { sel.selectedIndex = i; found = true; break; }
     }
+    // Vendor switch ke baad purana selection filter se bahar ho to blank karo
+    if (!found) sel.selectedIndex = -1;
   }
 }
 
@@ -19021,6 +19152,25 @@ function renderInventoryLedger() {
   }
 
   const d = buildInventoryLedgerRows(key);
+
+  // Active vendor guard — selection vendor switch ke baad doosre vendor ka rahe to blank
+  {
+    const actVI = state.activeVendor || 'all';
+    let okVI = true;
+    if (key.indexOf('PAPER_') === 0) {
+      okVI = isPaperMatchingVendor(String(key.split(':')[1] || ''), '', actVI);
+    } else if (key.indexOf('BOARD_') === 0) {
+      okVI = isBoardMatchingVendor(String(key.split(':')[1] || ''), '', actVI);
+    } else if (key.indexOf('FG:') === 0) {
+      const skuVI = (state.skus || []).find(s => String(s.barcode) === String(key.slice(3)));
+      okVI = isMatchingVendor(skuVI ? skuVI.vendor : '', actVI);
+    }
+    if (!okVI) {
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:26px; color:#64748b; font-weight:600;">📭 Yeh item active workspace <strong>(${actVI})</strong> ka nahi hai — doosra item select kijiye.</td></tr>`;
+      if (tfoot) tfoot.innerHTML = '';
+      return;
+    }
+  }
   const allRows = d.rows.slice();
 
   // Opening = base (as on 2026-10-01) + uske baad ke saare movements (From Date se pehle)
@@ -19284,8 +19434,15 @@ function renderConsumablesSheet() {
   const tbody = document.getElementById('consumablesMasterTableBody');
   tbody.innerHTML = '';
   let totVal = 0;
+  const actVCs = state.activeVendor || 'all';
 
   state.consumables.forEach((c, idx) => {
+    // CFC/carton items SKU-specific → vendor filter; baaki consumables shared hain
+    const cfcCodeCs = / : CFC$/.test(String(c.item || '')) ? String(c.item).split(' : ')[0] : null;
+    if (cfcCodeCs) {
+      const skuCs = (state.skus || []).find(s => String(s.barcode) === cfcCodeCs);
+      if (skuCs && !isMatchingVendor(skuCs.vendor, actVCs)) return;
+    }
     totVal += (c.amount || 0);
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -21103,13 +21260,29 @@ function populateSkuDropdowns() {
 function populateConsumableDropdown() {
   const itemSelect = document.getElementById('econs_item');
   if (!itemSelect) return;
+  const prevCons = itemSelect.value;
+  const actVCon = state.activeVendor || 'all';
   itemSelect.innerHTML = '<option value="" disabled selected></option>';
   state.consumables.forEach(c => {
+    // CFC/carton items SKU-specific hain — vendor ke hisaab se filter;
+    // baaki consumables (Ink/Tape/etc.) shared factory resource hain
+    const cfcCode = / : CFC$/.test(String(c.item || '')) ? String(c.item).split(' : ')[0] : null;
+    if (cfcCode) {
+      const skuC = (state.skus || []).find(s => String(s.barcode) === cfcCode);
+      if (skuC && !isMatchingVendor(skuC.vendor, actVCon)) return;
+    }
     const opt = document.createElement('option');
     opt.value = c.item;
     opt.textContent = `${c.item} (In Stock: ${c.stock} ${c.unit})`;
     itemSelect.appendChild(opt);
   });
+  if (prevCons) {
+    let okCons = false;
+    for (let i = 0; i < itemSelect.options.length; i++) {
+      if (itemSelect.options[i].value === prevCons) { itemSelect.selectedIndex = i; okCons = true; break; }
+    }
+    if (!okCons) itemSelect.selectedIndex = -1;
+  }
 }
 
 // Item select karte hi uska rate apne aap bhar jaye
@@ -21247,6 +21420,12 @@ function populateProdIndexSpecsDropdown(sku) {
   }
 
   if (!specs.includes(defaultSpec)) specs.unshift(defaultSpec);
+
+  // Active vendor ke hisaab se paper specs filter (defaultSpec hamesha rahe)
+  const actVIdx = state.activeVendor || 'all';
+  if (actVIdx !== 'all') {
+    specs = specs.filter(sp => sp === defaultSpec || isPaperMatchingVendor(sp, '', actVIdx));
+  }
 
   specs.forEach(sp => {
     let stockKg = 0;
@@ -26477,6 +26656,7 @@ function renderBoardExecutiveMatrix() {
   const tfoot = document.getElementById('boardExecutiveMatrixFoot');
   if (!tbody) return;
   tbody.innerHTML = '';
+  const activeVM = state.activeVendor || 'all';
 
   const specs = [
     { key: '45_5x91x190', size: '45.5 x 91 x 190', compact: '45.5x91x190', label: '45.5 × 91 × 190', desc: 'A4 Notebooks ≤175P (3 ups)' },
@@ -26489,7 +26669,14 @@ function renderBoardExecutiveMatrix() {
   let grandTotalWip = 0;
   let grandTotalStock = 0;
 
-  specs.forEach(spec => {
+  const visibleSpecs = specs.filter(s => isBoardMatchingVendor(s.size, null, activeVM));
+  if (visibleSpecs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#64748b;">📭 No board specs under active workspace <strong>(${activeVM})</strong>.</td></tr>`;
+    if (tfoot) tfoot.innerHTML = '';
+    return;
+  }
+
+  visibleSpecs.forEach(spec => {
     const bSum = (state.boardSummary || []).find(b => {
       const bComp = (b.size || '').replace(/\s+/g, '').toLowerCase();
       const sComp = spec.compact.toLowerCase();
@@ -29725,10 +29912,12 @@ function renderFlashReceivablesTable() {
   let total = 0;
   const todayObj = new Date();
   todayObj.setHours(0, 0, 0, 0);
+  const actVR = state.activeVendor || 'all';
   list.forEach((r, idx) => {
+    const party = r.party || r.name || '-';
+    if (!isPartyMatchingVendor(party, actVR)) return;
     const amt = Number(r.amt || r.amount || r.closing) || 0;
     total += amt;
-    const party = r.party || r.name || '-';
     const dateStr = r.date || r.billDate || '-';
     const creditDays = r.creditDays !== undefined ? r.creditDays : (parseInt(r.credit) || 0);
     const dueStr = r.dueDate || r.dueOn || '-';
@@ -29780,10 +29969,12 @@ function renderFlashPayablesTable() {
   let total = 0;
   const todayObj = new Date();
   todayObj.setHours(0, 0, 0, 0);
+  const actVP = state.activeVendor || 'all';
   list.forEach((p, idx) => {
+    const party = p.name || p.party || '-';
+    if (!isPartyMatchingVendor(party, actVP)) return;
     const amt = Number(p.amt || p.amount || p.closing) || 0;
     total += amt;
-    const party = p.name || p.party || '-';
     const dateStr = p.date || p.billDate || '-';
     const creditDays = p.creditDays !== undefined ? p.creditDays : (parseInt(p.credit) || 0);
     const dueStr = p.dueDate || p.dueOn || '-';
@@ -32170,23 +32361,48 @@ function switchMasterSubTab(sub) {
 }
 
 /* ------------------------- GROUP MASTER CRUD ------------------------- */
+// Master screens ke liye vendor match wrapper (khali vendor = All/shared)
+function masterVendorMatch(vendor) {
+  return isMatchingVendor(String(vendor || '').trim() || 'All', state.activeVendor || 'all');
+}
+
+// Vendor badge html (Group / Item / Ledger tables ke liye)
+function getMasterVendorBadge(vendor) {
+  const v = String(vendor || '').trim() || 'All';
+  const map = {
+    Camlin: '🟦 #1e40af',
+    ITC: '🟧 #c2410c',
+    Others: '🟪 #7e22ce',
+    All: '⬜ #475569'
+  };
+  const style = (map[v] || map.All).split(' ');
+  const color = style[1];
+  const bg = { Camlin: '#eff6ff', ITC: '#fff7ed', Others: '#faf5ff', All: '#f1f5f9' }[v] || '#f1f5f9';
+  const border = { Camlin: '#bfdbfe', ITC: '#fed7aa', Others: '#e9d5ff', All: '#cbd5e1' }[v] || '#cbd5e1';
+  return `<span style="display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:800; white-space:nowrap; color:${color}; background:${bg}; border:1px solid ${border};">${v === 'All' ? '⬜ All' : style[0] + ' ' + v}</span>`;
+}
+
 function renderMasterGroups() {
   if (!Array.isArray(state.masterGroups)) state.masterGroups = [];
   const tbody = document.getElementById('groupMasterTableBody');
   const cnt = document.getElementById('gm_groupCount');
-  if (cnt) cnt.textContent = state.masterGroups.length;
   if (!tbody) return;
-  if (state.masterGroups.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#64748b;">No groups yet.</td></tr>';
+  const visible = state.masterGroups
+    .map((g, i) => ({ g, i }))
+    .filter(({ g }) => masterVendorMatch(g.vendor));
+  if (cnt) cnt.textContent = visible.length;
+  if (visible.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#64748b;">No groups yet.</td></tr>';
     return;
   }
   const typeEmoji = { Paper: '📄', Board: '🖼️', Consumable: '🎨', Other: '📌' };
-  tbody.innerHTML = state.masterGroups.map((g, i) => {
+  tbody.innerHTML = visible.map(({ g, i }) => {
     const usedBy = (state.itemMaster || []).filter(it => it.group === g.name).length;
     return `
     <tr>
       <td style="font-weight:800; color:#0f172a;">${escapeHtml(String(g.name || ''))}</td>
       <td>${typeEmoji[g.type] || '📌'} ${escapeHtml(String(g.type || ''))}</td>
+      <td>${getMasterVendorBadge(g.vendor)}</td>
       <td>${escapeHtml(String(g.desc || ''))}</td>
       <td>${usedBy} item${usedBy === 1 ? '' : 's'}</td>
       <td style="white-space:nowrap;">
@@ -32208,6 +32424,7 @@ function handleGroupSubmit(e) {
   const obj = {
     name,
     type: document.getElementById('gm_type').value,
+    vendor: document.getElementById('gm_vendor').value || 'All',
     desc: document.getElementById('gm_desc').value.trim()
   };
   if (editId !== '') {
@@ -32240,6 +32457,7 @@ function editMasterGroup(i) {
   document.getElementById('gm_edit_id').value = String(i);
   document.getElementById('gm_name').value = g.name || '';
   document.getElementById('gm_type').value = g.type || '';
+  document.getElementById('gm_vendor').value = g.vendor || 'All';
   document.getElementById('gm_desc').value = g.desc || '';
   document.getElementById('btnSaveGroupMaster').innerHTML = '💾 Update Group';
   const cancel = document.getElementById('btnCancelGroupEdit');
@@ -32276,29 +32494,46 @@ function clearGroupForm() {
 }
 
 // Item form ke Group dropdown ko masterGroups se bharo (type-wise optgroups, sabse pehle blank)
+// Active-vendor filter lagta hai + option label me vendor dikhta hai (confusion door)
 function populateItemGroupSelect() {
   const sel = document.getElementById('im_group');
   if (!sel) return;
   const prev = sel.value;
-  const groups = state.masterGroups || [];
+  const groups = (state.masterGroups || []).filter(g => masterVendorMatch(g.vendor));
+  const vendorEmoji = { Camlin: '🟦', ITC: '🟧', Others: '🟪', All: '⬜' };
+  const optLabel = g => {
+    const v = String(g.vendor || 'All');
+    return `${vendorEmoji[v] || '⬜'} ${g.name}${v !== 'All' ? ' — ' + v : ''}`;
+  };
   let html = '<option value=""></option>';
   ['Paper', 'Board', 'Consumable', 'Other'].forEach(type => {
     const ofType = groups.filter(g => (g.type || 'Other') === type);
     if (ofType.length === 0) return;
     const label = { Paper: '📦 Paper Specs', Board: '🖼️ Board Specs', Consumable: '🎨 Consumables', Other: '📌 Other' }[type];
     html += `<optgroup label="${label}">`;
-    ofType.forEach(g => { html += `<option value="${escapeHtml(String(g.name))}">${escapeHtml(String(g.name))}</option>`; });
+    ofType.forEach(g => { html += `<option value="${escapeHtml(String(g.name))}">${escapeHtml(optLabel(g))}</option>`; });
     html += '</optgroup>';
   });
   // Type-less purane groups (agar koi ho)
   const noType = groups.filter(g => !g.type);
   if (noType.length) {
     html += '<optgroup label="📌 Other">';
-    noType.forEach(g => { html += `<option value="${escapeHtml(String(g.name))}">${escapeHtml(String(g.name))}</option>`; });
+    noType.forEach(g => { html += `<option value="${escapeHtml(String(g.name))}">${escapeHtml(optLabel(g))}</option>`; });
     html += '</optgroup>';
   }
   sel.innerHTML = html;
   if (prev) sel.value = prev; // edit ke time pehle se selected value preserve karo
+}
+
+// Group chhote hi item ka vendor auto-fill (confusion solve) — manually badalne par respect
+function onItemGroupChange() {
+  const gname = document.getElementById('im_group').value;
+  const vend = document.getElementById('im_vendor');
+  if (!vend) return;
+  const g = (state.masterGroups || []).find(x => x.name === gname);
+  if (g && g.vendor && g.vendor !== 'All') {
+    vend.value = g.vendor;
+  }
 }
 
 /* ------------------------- LEDGER MASTER CRUD ------------------------- */
@@ -32306,16 +32541,20 @@ function renderLedgerMaster() {
   if (!Array.isArray(state.ledgerMaster)) state.ledgerMaster = [];
   const tbody = document.getElementById('ledgerMasterTableBody');
   const cnt = document.getElementById('lm_ledgerCount');
-  if (cnt) cnt.textContent = state.ledgerMaster.length;
   if (!tbody) return;
-  if (state.ledgerMaster.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#64748b;">No ledgers yet. Add your first party above.</td></tr>';
+  const visible = state.ledgerMaster
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => masterVendorMatch(l.vendor));
+  if (cnt) cnt.textContent = visible.length;
+  if (visible.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#64748b;">No ledgers yet. Add your first party above.</td></tr>';
     return;
   }
-  tbody.innerHTML = state.ledgerMaster.map((l, i) => `
+  tbody.innerHTML = visible.map(({ l, i }) => `
     <tr>
       <td style="font-weight:800; color:#0f172a;">${escapeHtml(String(l.name || ''))}</td>
       <td>${escapeHtml(String(l.type || ''))}</td>
+      <td>${getMasterVendorBadge(l.vendor)}</td>
       <td style="font-weight:700;">₹${(Number(l.openingPayable) || 0).toLocaleString('en-IN')}</td>
       <td style="font-weight:700;">₹${(Number(l.openingReceivable) || 0).toLocaleString('en-IN')}</td>
       <td style="white-space:nowrap;">
@@ -32336,6 +32575,7 @@ function handleLedgerSubmit(e) {
   const obj = {
     name,
     type: document.getElementById('lm_type').value,
+    vendor: document.getElementById('lm_vendor').value || 'All',
     openingPayable: parseFloat(document.getElementById('lm_payable').value) || 0,
     openingReceivable: parseFloat(document.getElementById('lm_receivable').value) || 0
   };
@@ -32363,6 +32603,7 @@ function editLedgerMaster(i) {
   document.getElementById('lm_edit_id').value = String(i);
   document.getElementById('lm_name').value = l.name || '';
   document.getElementById('lm_type').value = l.type || '';
+  document.getElementById('lm_vendor').value = l.vendor || 'All';
   document.getElementById('lm_payable').value = l.openingPayable != null ? l.openingPayable : '';
   document.getElementById('lm_receivable').value = l.openingReceivable != null ? l.openingReceivable : '';
   document.getElementById('btnSaveLedgerMaster').innerHTML = '💾 Update Ledger';
@@ -32400,18 +32641,28 @@ function renderItemMaster() {
   if (!Array.isArray(state.itemMaster)) state.itemMaster = [];
   const tbody = document.getElementById('itemMasterTableBody');
   const cnt = document.getElementById('im_itemCount');
-  if (cnt) cnt.textContent = state.itemMaster.length;
   if (!tbody) return;
-  if (state.itemMaster.length === 0) {
+  const groupVendor = name => {
+    const g = (state.masterGroups || []).find(x => x.name === name);
+    return g ? g.vendor : null;
+  };
+  const visible = state.itemMaster
+    .map((it, i) => ({ it, i }))
+    .filter(({ it }) => {
+      const effVendor = (it.vendor && it.vendor !== 'All') ? it.vendor : (groupVendor(it.group) || it.vendor || 'All');
+      return masterVendorMatch(effVendor);
+    });
+  if (cnt) cnt.textContent = visible.length;
+  if (visible.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:20px; color:#64748b;">No items yet. Add your first item above.</td></tr>';
     return;
   }
-  tbody.innerHTML = state.itemMaster.map((it, i) => `
+  tbody.innerHTML = visible.map(({ it, i }) => `
     <tr>
       <td style="font-weight:800; color:#0f172a;">${escapeHtml(String(it.code || ''))}</td>
       <td>${escapeHtml(String(it.description || ''))}</td>
       <td>${escapeHtml(String(it.group || ''))}</td>
-      <td>${escapeHtml(String(it.vendor || ''))}</td>
+      <td>${getMasterVendorBadge(it.vendor || groupVendor(it.group))}</td>
       <td>${escapeHtml(String(it.size || ''))}</td>
       <td>${escapeHtml(String(it.ruling || ''))}</td>
       <td>${it.pages != null ? it.pages : '-'}</td>
@@ -37707,7 +37958,9 @@ function getDaybookEntries() {
       prodQty: Number(e.prodQty || 0),
       despQty: Number(e.despQty || 0),
       paperKg: Number(e.paperKg || 0),
-      value: Number(e.value || 0)
+      value: Number(e.value || 0),
+      vendorKey: e.vendorKey || null,
+      vendorKind: e.vendorKind || null
     };
     row.search = [row.type, row.party, row.particulars, row.qtyText, row.ref].join(' ').toLowerCase();
     rows.push(row);
@@ -37739,7 +37992,8 @@ function getDaybookEntries() {
       if (monthMatch) txDate = monthMatch[1] + '-' + monthMatch[2] + '-01';
     }
     pushRow('today', idx, txDate, type, t.vendor || '-', specifics || '-', qty, t.ref || t.impact || '-', {
-      orderQty: orderQty, prodQty: prodQty, despQty: despQty
+      orderQty: orderQty, prodQty: prodQty, despQty: despQty,
+      vendorKey: t.vendor || '', vendorKind: 'vendor'
     });
   });
 
@@ -37751,7 +38005,8 @@ function getDaybookEntries() {
     if (Number(l.wastageKg)) parts.push('Waste ' + daybookNum(l.wastageKg) + ' Kg');
     if (!parts.length && Number(l.wipKg)) parts.push('WIP ' + daybookNum(l.wipKg) + ' Kg');
     pushRow('paper', idx, l.date, 'Paper Movement', l.reelSize || '-', (l.wipType || '-') + ' · Inv ' + (l.inv || '-'), parts.join(' | ') || '-', l.notes || ('WIP: ' + daybookNum(l.wipKg) + ' Kg'), {
-      paperKg: Number(l.inwardKg || 0) + Number(l.processedKg || 0)
+      paperKg: Number(l.inwardKg || 0) + Number(l.processedKg || 0),
+      vendorKey: l.reelSize || '', vendorKind: 'paper'
     });
   });
 
@@ -37762,7 +38017,8 @@ function getDaybookEntries() {
     if (Number(l.outPrint)) parts.push('Print Out ' + daybookNum(l.outPrint));
     if (Number(l.printedRecd)) parts.push('Recd ' + daybookNum(l.printedRecd));
     pushRow('board', idx, l.date, 'Board Movement', l.party || '-', (l.size || '-') + ' · Inv ' + (l.inv || '-'), parts.join(' | ') || '-', 'Godown ' + daybookNum(l.godownBal) + ' | Printer ' + daybookNum(l.printBal), {
-      paperKg: Number(l.inward || 0) + Number(l.printedRecd || 0)
+      paperKg: Number(l.inward || 0) + Number(l.printedRecd || 0),
+      vendorKey: l.size || '', vendorKind: 'board'
     });
   });
 
@@ -37775,10 +38031,12 @@ function getDaybookEntries() {
     pushRow('consumable', idx, l.date, 'Consumables Movement', l.category || 'General', (l.item || '-') + move, parts.join(' | ') || '-', [l.ref, l.notes].filter(Boolean).join(' · ') || '-', {});
   });
 
-  // 5. Ranjit making charges
+  // 5. Ranjit making charges (SKU vendor ke hisaab se)
   (state.ranjitMakingEntries || []).forEach((l, idx) => {
+    const rkSku = (state.skus || []).find(s => String(s.barcode) === String(l.barcode || ''));
     pushRow('ranjit', idx, l.date, 'Ranjit Making Charges', l.barcode || '-', l.description || '-', 'Net ' + daybookNum(l.netQty) + ' Pcs @ ₹' + daybookNum(l.rate), 'Rejection ' + daybookNum(l.rejection) + ' Pcs', {
-      prodQty: Number(l.netQty || l.productionQty || 0), value: Number(l.amount || 0)
+      prodQty: Number(l.netQty || l.productionQty || 0), value: Number(l.amount || 0),
+      vendorKey: rkSku ? (rkSku.vendor || '') : '', vendorKind: 'vendor'
     });
   });
 
@@ -37786,21 +38044,24 @@ function getDaybookEntries() {
   try { getFinancialsState(); } catch (_) {}
   (((state.financials || {}).billDueList) || []).forEach((l, idx) => {
     pushRow('financial', idx, l.date, 'Sale Bill', (state.financials || {}).customer || 'Camlin', 'Invoice ' + (l.invoiceNo || '-'), daybookMoney(l.amount), 'Sale bill / bill due register', {
-      value: Number(l.amount || 0)
+      value: Number(l.amount || 0),
+      vendorKey: (state.financials || {}).customer || 'Camlin', vendorKind: 'vendor'
     });
   });
 
   // 7. Purchase order requests
   (state.poRequests || []).forEach((l, idx) => {
     pushRow('poReq', idx, l.requestDate || l.date || '', 'PO Request', l.vendor || '-', l.productCode || '-', (l.orderQuantity || l.poQty || 0) + ' Pcs', [l.poNumber, l.destination, l.ruling].filter(Boolean).join(' · ') || '-', {
-      orderQty: Number(l.orderQuantity || l.poQty || 0), value: Number(l.orderQuantity || 0) * Number(l.kclApprovedRate || l.rate || l.poReqApprovedRate || 0)
+      orderQty: Number(l.orderQuantity || l.poQty || 0), value: Number(l.orderQuantity || 0) * Number(l.kclApprovedRate || l.rate || l.poReqApprovedRate || 0),
+      vendorKey: l.vendor || '', vendorKind: 'vendor'
     });
   });
 
   // 8. Purchase order releases
   (state.poReleases || []).forEach((l, idx) => {
     pushRow('poRel', idx, l.poDate || l.date || '', 'PO Release', l.vendor || '-', l.productCode || '-', (l.orderQuantity || 0) + ' Pcs', [l.poNumber, l.destination].filter(Boolean).join(' · ') || '-', {
-      orderQty: Number(l.orderQuantity || 0), value: Number(l.orderQuantity || 0) * Number(l.kclApprovedRate || l.poReqApprovedRate || l.rate || 0)
+      orderQty: Number(l.orderQuantity || 0), value: Number(l.orderQuantity || 0) * Number(l.kclApprovedRate || l.poReqApprovedRate || l.rate || 0),
+      vendorKey: l.vendor || '', vendorKind: 'vendor'
     });
   });
 
@@ -37826,7 +38087,7 @@ function getDaybookEntries() {
         }[tx.voucherType] || (tx.voucherType || 'Voucher');
         const val = Number(tx.netBill || tx.netRent || tx.grossAmount || tx.grossRentAmount || 0);
         pushRow('camlin', idx, tx.date, 'Camlin Party & Advance', 'Kokuyo Camlin Ltd.', voucherLabel + (tx.voucherNo ? ' ' + tx.voucherNo : '') + (tx.particulars ? ' · ' + tx.particulars : ''), daybookMoney(val), [tx.refNo, tx.rentPeriod, tx.rentSettlementType].filter(Boolean).join(' · ') || '-', {
-          value: val
+          value: val, vendorKey: 'Camlin', vendorKind: 'vendor'
         });
       });
     }
@@ -37917,11 +38178,23 @@ function renderDaybook() {
   }
   const typeFilter = elType ? elType.value : 'all';
 
+  // Active vendor filter — row ka vendorKind/key ke hisaab se match
+  const actVD = state.activeVendor || 'all';
+  const daybookVendorOk = (r) => {
+    if (actVD === 'all') return true;
+    const kind = r.vendorKind, key = String(r.vendorKey || '').trim();
+    if (!kind || !key) return true; // HR, Hundi, Consumables = shared factory / general
+    if (kind === 'paper') return isPaperMatchingVendor(key, '', actVD);
+    if (kind === 'board') return isBoardMatchingVendor(key, '', actVD);
+    return isPartyMatchingVendor(key, actVD);
+  };
+
   const filteredRows = all.filter(r => {
     if (from && r.date < from) return false;
     if (to && r.date > to) return false;
     if (typeFilter !== 'all' && r.type !== typeFilter) return false;
     if (search && r.search.indexOf(search) < 0) return false;
+    if (!daybookVendorOk(r)) return false;
     return true;
   });
 
@@ -37942,9 +38215,10 @@ function renderDaybook() {
   // Ye sab CURRENT stock/valuation hain — date filter se independent.
   // (Purane entry-count cards Entries/Order/Production/Despatch ab Dashboard par hain.)
 
-  // Card 1 — PAPER VALUE = (WIP + Reels) × paper rate
+  // Card 1 — PAPER VALUE = (WIP + Reels) × paper rate  (active vendor ke hisaab se)
   let paperKg = 0, paperVal = 0;
   (state.papersSummary || []).forEach(p => {
+    if (!isPaperMatchingVendor(p.reelSize, p.vendor, actVD)) return;
     const kg = (Number(p.wipKg) || 0) + (Number(p.reelsKg) || 0);
     paperKg += kg;
     paperVal += kg * (Number(p.rate) || 77);
@@ -37953,6 +38227,7 @@ function renderDaybook() {
   // Card 2 — BOARD VALUE = (Godown + Printer sheets) × rate  (Board screen ke equal)
   let boardSh = 0, boardVal = 0;
   (state.boardSummary || []).forEach(b => {
+    if (!isBoardMatchingVendor(b.size, b.vendor, actVD)) return;
     let inward = 0, outPrint = 0, printedRecd = 0;
     (state.boardLedger || []).forEach(l => {
       if (l.size !== b.size) return;
@@ -37982,6 +38257,7 @@ function renderDaybook() {
   // Card 6 — AMOUNT RECEIVABLE     = Despatched qty × PO Released rate
   let fgPcs = 0, fgVal = 0, despPcs = 0, recvVal = 0;
   (state.skus || []).forEach(s => {
+    if (!isMatchingVendor(s.vendor, actVD)) return;
     const rate = poRelRateByCode[String(s.barcode || '').trim()] || 0;
     const fg = Number(s.oldStock || 0) + Number(s.production || 0) - Number(s.despatched || 0);
     fgPcs += fg;
