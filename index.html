@@ -34833,6 +34833,10 @@ function openHundiWithBank(bankKey) {
   _activeHundiId = h.id;
 
   switchSheet('hundi');
+  // Dono hundi sub-nav ka data-sheet='hundi' hai — switchSheet dono ko active kar deta
+  // tha (dono ek saath select dikhte the). Sirf active bank ka nav item highlight rakho.
+  const activeNavId = (_activeHundiBank === 'SUMITOMO') ? 'navHundiSumitomo' : 'navHundiMizoho';
+  document.querySelectorAll('.hundi-sub-nav').forEach(n => n.classList.toggle('active', n.id === activeNavId));
   renderHundiScreen();
   showToast(`🏛️ Active Hundi Bank: ${targetBankName}`);
 }
