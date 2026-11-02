@@ -15736,6 +15736,7 @@ function setActiveVendor(vendor, triggerSave = true) {
   // 8b. Masters screens (Group / Item / Ledger) bhi active vendor filter respect karein
   try {
     if (typeof populateItemGroupSelect === 'function') populateItemGroupSelect();
+    if (typeof populatePaperSpecDropdown === 'function') populatePaperSpecDropdown();
     if (typeof renderItemMaster === 'function') renderItemMaster();
     if (typeof renderMasterGroups === 'function') renderMasterGroups();
     if (typeof renderLedgerMaster === 'function') renderLedgerMaster();
@@ -23692,6 +23693,34 @@ function handleConsumptionEntrySubmit(e) {
   if (econSelect) econSelect.value = '';
   onConsumptionSkuChange();
   // Screen stays stable on form without jumping to bottom
+}
+
+// Reel Size dropdown: masterGroups (Paper specs) se active-vendor ke hisaab se fill hota hai.
+// ITC active → ITC specs (89.8x43x56 / 96.7x37x56), Camlin → Camlin specs, All → sab.
+// Agar Paper groups na milein to purane hardcoded Camlin specs (fallback).
+function populatePaperSpecDropdown() {
+  const sel = document.getElementById('epaper_spec');
+  if (!sel) return;
+  const prev = sel.value;
+  const allPaperGroups = (state.masterGroups || []).filter(g => (g.type || '') === 'Paper');
+  const groups = allPaperGroups.filter(g => masterVendorMatch(g.vendor));
+  let html = '<option value="" disabled selected></option>';
+  if (groups.length > 0) {
+    groups.forEach(g => {
+      const v = String(g.vendor || 'All');
+      const label = g.desc ? `${g.name} (${g.desc})` : `${g.name}${v !== 'All' ? ' — ' + v : ''}`;
+      html += `<option value="${escapeHtml(String(g.name))}">${escapeHtml(label)}</option>`;
+    });
+  } else if (allPaperGroups.length === 0) {
+    // Master hi nahi hai (fresh DB) — purane hardcoded Camlin specs
+    ['90x43x57 (A4 Longbook Spec)', '97x37x57 (A5 Copy Spec)', '97x37x54 (A5 56Pg Spec)'].forEach(t => {
+      html += `<option value="${t.split(' ')[0]}">${t}</option>`;
+    });
+  }
+  // (vendor ke liye koi group nahi ho to sirf blank — Camlin specs galat nahi dikhenge)
+  sel.innerHTML = html;
+  // Pehle se selected value preserve karo (agar abhi bhi list me ho)
+  if (prev && Array.from(sel.options).some(o => o.value === prev)) sel.value = prev;
 }
 
 function togglePaperEntryMode() {
@@ -32469,6 +32498,7 @@ function handleGroupSubmit(e) {
   clearGroupForm();
   renderMasterGroups();
   populateItemGroupSelect();
+  populatePaperSpecDropdown();
   saveState();
 }
 
@@ -32499,6 +32529,7 @@ function deleteMasterGroup(i) {
   clearGroupForm();
   renderMasterGroups();
   populateItemGroupSelect();
+  populatePaperSpecDropdown();
   saveState();
   showToast(`🗑️ Group "${g.name}" deleted.`);
 }
