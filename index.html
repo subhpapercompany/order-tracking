@@ -32731,6 +32731,36 @@ function renderItemMaster() {
     </tr>`).join('');
 }
 
+// Item Master ka item sab SKU dropdowns (Production/Despatch/Consumption/PO/Calculator)
+// me dikhe — iske liye item ko state.skus me bhi sync karo (barcode = item code).
+// Purana SKU ho to uske fields update karo (production/despatched data safe rehta hai).
+function syncItemMasterToSku(it) {
+  if (!it || !it.code) return;
+  if (!Array.isArray(state.skus)) state.skus = [];
+  const fields = {
+    vendor: it.vendor || 'Camlin',
+    barcode: String(it.code),
+    description: it.description || it.code,
+    size: it.size || '',
+    ruling: it.ruling || '',
+    binding: it.binding || '',
+    pages: Number(it.pages) || 0,
+    mrp: Number(it.mrp) || 0,
+    inner: Number(it.inner) || 0,
+    caseQty: Number(it.caseQty) || 0
+  };
+  const existing = state.skus.find(s => String(s.barcode) === fields.barcode);
+  if (existing) {
+    Object.assign(existing, fields);
+  } else {
+    state.skus.push(Object.assign({
+      hasIndex: false, indexSpec: '', orderQty: 0, oldStock: 0,
+      month: '', production: 0, despatched: 0,
+      reelSize: '', cut: '', gsm: '', bookWt: 0
+    }, fields));
+  }
+}
+
 function handleItemMasterSubmit(e) {
   e.preventDefault();
   const editId = document.getElementById('im_edit_id').value;
@@ -32770,6 +32800,10 @@ function handleItemMasterSubmit(e) {
   clearItemMasterForm();
   renderItemMaster();
   refreshOrderBookingItemCatalogue();
+  // Naya/edited item ab SKU dropdowns (Prod/Despatch/Consumption/PO/Calc) me bhi dikhega
+  syncItemMasterToSku(obj);
+  populateSkuDropdowns();
+  if (typeof populateCalculatorSkuDropdown === 'function') populateCalculatorSkuDropdown();
   saveState();
 }
 
@@ -32805,9 +32839,19 @@ function deleteItemMaster(i) {
   if (!it) return;
   if (!confirm(`🗑️ Item ${it.code} (${it.description || ''}) delete karein?`)) return;
   state.itemMaster.splice(i, 1);
+  // Synced SKU sirf tab hatao jab us par koi production/despatch/order na ho (data safety)
+  if (Array.isArray(state.skus)) {
+    const skuIdx = state.skus.findIndex(s => String(s.barcode) === String(it.code));
+    if (skuIdx >= 0) {
+      const s = state.skus[skuIdx];
+      if (!(s.production > 0) && !(s.despatched > 0) && !(s.orderQty > 0)) state.skus.splice(skuIdx, 1);
+    }
+  }
   clearItemMasterForm();
   renderItemMaster();
   refreshOrderBookingItemCatalogue();
+  populateSkuDropdowns();
+  if (typeof populateCalculatorSkuDropdown === 'function') populateCalculatorSkuDropdown();
   saveState();
   showToast(`🗑️ Item ${it.code} deleted.`);
 }
