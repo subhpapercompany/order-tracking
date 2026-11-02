@@ -27180,25 +27180,56 @@ function saveAssignBarcodeBoard(e) {
   showToast(`Printed Cover stock set for Barcode ${barcode}: ${sheets.toLocaleString()} sheets!`);
 }
 
-function openBoardOpeningModal() {
-  const sizes = ['45.5x91x190', '45.5x91x200', '91x91x190', '77x98x190'];
-  sizes.forEach(size => {
-    const item = (state.boardSummary || []).find(b => b.size === size) || {};
-    const safeSize = size.replace(/\./g, '_').replace(/x/g, '_');
-    const elGodown = document.getElementById('open_board_godown_' + safeSize);
-    const elPrinter = document.getElementById('open_board_printer_' + safeSize);
-    const elPrinterParty = document.getElementById('open_board_printer_party_' + safeSize);
-    const elRate = document.getElementById('open_board_rate_' + safeSize);
-    const elWt = document.getElementById('open_board_wt_' + safeSize);
+// Board Opening modal ki rows: masterGroups (Board type) se active-vendor ke hisaab se.
+function boardOpeningSizeRows() {
+  const all = (state.masterGroups || []).filter(g => (g.type || '') === 'Board');
+  const groups = all.filter(g => masterVendorMatch(g.vendor));
+  if (groups.length > 0) return groups.map(g => ({ size: String(g.name), desc: String(g.desc || g.name) }));
+  if (all.length === 0) {
+    // Fresh DB — purane hardcoded Camlin sizes fallback
+    return [
+      { size: '45.5x91x190', desc: 'A5 Size Notebook Spec' },
+      { size: '45.5x91x200', desc: 'A4 Longbook Spec' },
+      { size: '91x91x190', desc: 'Square Spec' },
+      { size: '77x98x190', desc: 'Wide Cover Spec' }
+    ];
+  }
+  return [];
+}
 
-    if (elGodown) elGodown.value = item.openingGodownSheets || 0;
-    if (elPrinter) elPrinter.value = item.openingPrinterSheets || 0;
-    if (elPrinterParty) {
-      // Legacy data me party tag nahi tha → default Other
-      elPrinterParty.innerHTML = boardOpeningPartyOptions(item.openingPrinterParty || 'Other');
-    }
-    if (elRate) elRate.value = item.rate || 7.5;
-    if (elWt) elWt.value = item.sheetWt || 0.08;
+function openBoardOpeningModal() {
+  const tbody = document.getElementById('boardOpeningBody');
+  if (!tbody) return;
+  const rows = boardOpeningSizeRows();
+  tbody.innerHTML = '';
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:18px; color:#64748b; font-weight:600;">Active vendor ke liye koi Board spec nahi hai — Masters &rarr; Group me Board spec add karein.</td></tr>';
+  }
+  rows.forEach(({ size, desc }) => {
+    const item = (state.boardSummary || []).find(b => b.size === size) || {};
+    const safeSize = size.replace(/[.\s]/g, '_').replace(/x/g, '_');
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-size', size);
+    tr.innerHTML = `
+      <td>
+        <strong>${escapeHtml(size)}</strong>
+        <div style="font-size:11px; color:#64748b;">${escapeHtml(desc)}</div>
+      </td>
+      <td>
+        <input type="number" data-field="godown" id="open_board_godown_${safeSize}" step="any" min="0" value="${Number(item.openingGodownSheets) || 0}" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#92400e;">
+      </td>
+      <td>
+        <input type="number" data-field="printer" id="open_board_printer_${safeSize}" step="any" min="0" value="${Number(item.openingPrinterSheets) || 0}" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
+        <select data-field="party" id="open_board_printer_party_${safeSize}" style="width:100%; margin-top:4px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px; font-size:11.5px; font-weight:700; background:#fefce8; color:#854d0e;">${boardOpeningPartyOptions(item.openingPrinterParty || 'Other')}</select>
+      </td>
+      <td>
+        <input type="number" data-field="wt" id="open_board_wt_${safeSize}" step="any" value="${Number(item.sheetWt) || 0.08}" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
+      </td>
+      <td>
+        <input type="number" data-field="rate" id="open_board_rate_${safeSize}" step="any" value="${Number(item.rate) || 7.5}" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
+      </td>
+    `;
+    tbody.appendChild(tr);
   });
 
   const modal = document.getElementById('boardOpeningModal');
@@ -27213,23 +27244,24 @@ function closeBoardOpeningModal() {
 function saveBoardOpeningModal(e) {
   if (e && e.preventDefault) e.preventDefault();
 
-  const sizes = [
-    { size: '45.5x91x190', desc: '45.5 x 91 x 190 (A4 ≤175P, 3 ups)' },
-    { size: '45.5x91x200', desc: '45.5 x 91 x 200 (A4 Spec)' },
-    { size: '91x91x190', desc: '91 x 91 x 190' },
-    { size: '77x98x190', desc: '77 x 98 x 190' }
-  ];
+  // Rows DOM se padho (openBoardOpeningModal dynamic banata hai — masterGroups + vendor filter)
+  const tbody = document.getElementById('boardOpeningBody');
+  const rows = tbody ? Array.from(tbody.querySelectorAll('tr[data-size]')) : [];
+  if (rows.length === 0) {
+    showToast('⚠️ Koi Board spec nahi — pehle Masters → Group me Board spec add karein.');
+    return;
+  }
 
   let totalGodownAdded = 0;
   let totalPrinterAdded = 0;
 
-  sizes.forEach(({ size }) => {
-    const safeSize = size.replace(/\./g, '_').replace(/x/g, '_');
-    const godownVal = parseFloat(document.getElementById('open_board_godown_' + safeSize)?.value) || 0;
-    const printerVal = parseFloat(document.getElementById('open_board_printer_' + safeSize)?.value) || 0;
-    const printerParty = (document.getElementById('open_board_printer_party_' + safeSize)?.value || 'Other');
-    const rateVal = parseFloat(document.getElementById('open_board_rate_' + safeSize)?.value) || 7.5;
-    const wtVal = parseFloat(document.getElementById('open_board_wt_' + safeSize)?.value) || 0.08;
+  rows.forEach(tr => {
+    const size = tr.getAttribute('data-size');
+    const godownVal = parseFloat(tr.querySelector('[data-field="godown"]')?.value) || 0;
+    const printerVal = parseFloat(tr.querySelector('[data-field="printer"]')?.value) || 0;
+    const printerParty = (tr.querySelector('[data-field="party"]')?.value || 'Other');
+    const rateVal = parseFloat(tr.querySelector('[data-field="rate"]')?.value) || 7.5;
+    const wtVal = parseFloat(tr.querySelector('[data-field="wt"]')?.value) || 0.08;
 
     let bItem = (state.boardSummary || []).find(b => b.size === size);
     if (!bItem) {
@@ -27273,18 +27305,52 @@ function saveBoardOpeningModal(e) {
   showToast(`Board Opening Balances Saved! Godown: ${totalGodownAdded.toLocaleString()} Sheets, Printer: ${totalPrinterAdded.toLocaleString()} Sheets`);
 }
 
-function openPaperOpeningModal() {
-  const specs = ['90x43x57', '97x37x54', '97x37x57'];
-  specs.forEach(spec => {
-    const item = (state.papersSummary || []).find(p => p.reelSize === spec) || {};
-    const safeSpec = spec.replace(/x/g, '_');
-    const elWip = document.getElementById('open_wip_' + safeSpec);
-    const elReels = document.getElementById('open_reels_' + safeSpec);
-    const elRate = document.getElementById('open_rate_' + safeSpec);
+// Paper Opening modal ki rows: masterGroups (Paper type) se active-vendor ke hisaab se.
+// ITC → ITC specs, Camlin → Camlin, All → dono; vendor ka koi group nahi to sirf message row.
+function paperOpeningSpecRows() {
+  const all = (state.masterGroups || []).filter(g => (g.type || '') === 'Paper');
+  const groups = all.filter(g => masterVendorMatch(g.vendor));
+  if (groups.length > 0) return groups.map(g => ({ spec: String(g.name), desc: String(g.desc || g.name) }));
+  if (all.length === 0) {
+    // Fresh DB (masterGroups hi nahi) — purane hardcoded Camlin specs fallback
+    return [
+      { spec: '90x43x57', desc: 'A4 Longbook Spec' },
+      { spec: '97x37x54', desc: 'A5 56Pg Spec' },
+      { spec: '97x37x57', desc: 'A5 Copy Spec' }
+    ];
+  }
+  return [];
+}
 
-    if (elWip) elWip.value = item.openingWipKg || 0;
-    if (elReels) elReels.value = item.openingReelsKg || 0;
-    if (elRate) elRate.value = item.rate || 77;
+function openPaperOpeningModal() {
+  const tbody = document.getElementById('paperOpeningBody');
+  if (!tbody) return;
+  const rows = paperOpeningSpecRows();
+  tbody.innerHTML = '';
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:18px; color:#64748b; font-weight:600;">Active vendor ke liye koi Paper spec nahi hai — Masters &rarr; Group me Paper spec add karein.</td></tr>';
+  }
+  rows.forEach(({ spec, desc }) => {
+    const item = (state.papersSummary || []).find(p => p.reelSize === spec) || {};
+    const safeSpec = spec.replace(/[.\s]/g, '_').replace(/x/g, '_');
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-spec', spec);
+    tr.innerHTML = `
+      <td>
+        <strong>${escapeHtml(spec)}</strong>
+        <div style="font-size:11px; color:#64748b;">${escapeHtml(desc)}</div>
+      </td>
+      <td>
+        <input type="number" data-field="wip" id="open_wip_${safeSpec}" step="any" min="0" value="${Number(item.openingWipKg) || 0}" placeholder="0.00" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#0f766e;">
+      </td>
+      <td>
+        <input type="number" data-field="reels" id="open_reels_${safeSpec}" step="any" min="0" value="${Number(item.openingReelsKg) || 0}" placeholder="0.00" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
+      </td>
+      <td>
+        <input type="number" data-field="rate" id="open_rate_${safeSpec}" step="any" value="${Number(item.rate) || 77}" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
+      </td>
+    `;
+    tbody.appendChild(tr);
   });
 
   const modal = document.getElementById('paperOpeningModal');
@@ -27299,20 +27365,22 @@ function closePaperOpeningModal() {
 function savePaperOpeningModal(e) {
   if (e && e.preventDefault) e.preventDefault();
 
-  const specs = [
-    { spec: '90x43x57', name: 'A4 Longbook (90x43x57)' },
-    { spec: '97x37x54', name: 'A5 56Pg (97x37x54)' },
-    { spec: '97x37x57', name: 'A5 Copy (97x37x57)' }
-  ];
+  // Rows DOM se padho (openPaperOpeningModal dynamic banata hai — masterGroups + vendor filter)
+  const tbody = document.getElementById('paperOpeningBody');
+  const rows = tbody ? Array.from(tbody.querySelectorAll('tr[data-spec]')) : [];
+  if (rows.length === 0) {
+    showToast('⚠️ Koi Paper spec nahi — pehle Masters → Group me Paper spec add karein.');
+    return;
+  }
 
   let totalWipAdded = 0;
   let totalReelsAdded = 0;
 
-  specs.forEach(({ spec }) => {
-    const safeSpec = spec.replace(/x/g, '_');
-    const wipVal = parseFloat(document.getElementById('open_wip_' + safeSpec)?.value) || 0;
-    const reelsVal = parseFloat(document.getElementById('open_reels_' + safeSpec)?.value) || 0;
-    const rateVal = parseFloat(document.getElementById('open_rate_' + safeSpec)?.value) || 77;
+  rows.forEach(tr => {
+    const spec = tr.getAttribute('data-spec');
+    const wipVal = parseFloat(tr.querySelector('[data-field="wip"]')?.value) || 0;
+    const reelsVal = parseFloat(tr.querySelector('[data-field="reels"]')?.value) || 0;
+    const rateVal = parseFloat(tr.querySelector('[data-field="rate"]')?.value) || 77;
 
     let pItem = (state.papersSummary || []).find(p => p.reelSize === spec);
     if (!pItem) {
@@ -27327,7 +27395,11 @@ function savePaperOpeningModal(e) {
     // Sync to state.materialStock.paper — that ruling-wise split is the OPENING MASTER,
     // so the total entered here must land on it (recalc sets openingWipKg = Σ rulings).
     // Distribute the change proportionally so the existing ruling split keeps its shape.
-    if (state.materialStock && state.materialStock.paper && state.materialStock.paper[spec]) {
+    if (state.materialStock && state.materialStock.paper) {
+      // Naye spec (ITC ya Masters me abhi add hua) ki key missing ho to banao
+      if (!state.materialStock.paper[spec]) {
+        state.materialStock.paper[spec] = { "Reel Form": 0, "Single Line": 0, "Double Rule": 0, "Unruled": 0, "Four Line": 0, "Med. Square": 0, "Index": 0 };
+      }
       const ms = state.materialStock.paper[spec];
       const msKeys = Object.keys(ms);
       let msCur = 0;
@@ -39075,54 +39147,8 @@ function deleteHundiRegisterEntry(id) {
               <th class="num" style="width:100px;">Rate (₹/Kg)</th>
             </tr>
           </thead>
-          <tbody>
-            <tr>
-              <td>
-                <strong>90×43×57</strong>
-                <div style="font-size:11px; color:#64748b;">A4 Longbook Spec</div>
-              </td>
-              <td>
-                <input type="number" id="open_wip_90_43_57" step="any" min="0" placeholder="0.00" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#0f766e;">
-              </td>
-              <td>
-                <input type="number" id="open_reels_90_43_57" step="any" min="0" placeholder="0.00" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
-              </td>
-              <td>
-                <input type="number" id="open_rate_90_43_57" step="any" min="0" value="77" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-            </tr>
-
-            <tr>
-              <td>
-                <strong>97×37×54</strong>
-                <div style="font-size:11px; color:#64748b;">A5 56Pg Spec</div>
-              </td>
-              <td>
-                <input type="number" id="open_wip_97_37_54" step="any" min="0" placeholder="0.00" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#0f766e;">
-              </td>
-              <td>
-                <input type="number" id="open_reels_97_37_54" step="any" min="0" placeholder="0.00" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
-              </td>
-              <td>
-                <input type="number" id="open_rate_97_37_54" step="any" min="0" value="77" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-            </tr>
-
-            <tr>
-              <td>
-                <strong>97×37×57</strong>
-                <div style="font-size:11px; color:#64748b;">A5 Copy Spec</div>
-              </td>
-              <td>
-                <input type="number" id="open_wip_97_37_57" step="any" min="0" placeholder="0.00" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#0f766e;">
-              </td>
-              <td>
-                <input type="number" id="open_reels_97_37_57" step="any" min="0" placeholder="0.00" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
-              </td>
-              <td>
-                <input type="number" id="open_rate_97_37_57" step="any" min="0" value="77" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-            </tr>
+          <tbody id="paperOpeningBody">
+            <!-- Rows JS se banti hain: openPaperOpeningModal() — masterGroups (Paper) + active vendor -->
           </tbody>
         </table>
       </div>
@@ -39166,94 +39192,8 @@ function deleteHundiRegisterEntry(id) {
               <th class="num" style="width:95px;">Rate (₹/Sheet)</th>
             </tr>
           </thead>
-          <tbody>
-            <tr>
-              <td>
-                <strong>45.5 × 91 × 190</strong>
-                <div style="font-size:11px; color:#64748b;">A5 Size Notebook Spec</div>
-              </td>
-              <td>
-                <input type="number" id="open_board_godown_45_5_91_190" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#92400e;">
-              </td>
-              <td>
-                <input type="number" id="open_board_printer_45_5_91_190" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
-                <select id="open_board_printer_party_45_5_91_190" style="width:100%; margin-top:4px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px; font-size:11.5px; font-weight:700; background:#fefce8; color:#854d0e;">
-                  <option value="Other">Other</option>
-                </select>
-              </td>
-              <td>
-                <input type="number" id="open_board_wt_45_5_91_190" step="any" value="0.07866" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-              <td>
-                <input type="number" id="open_board_rate_45_5_91_190" step="any" value="7.17" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-            </tr>
-
-            <tr>
-              <td>
-                <strong>45.5 × 91 × 200</strong>
-                <div style="font-size:11px; color:#64748b;">A4 Longbook Spec</div>
-              </td>
-              <td>
-                <input type="number" id="open_board_godown_45_5_91_200" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#92400e;">
-              </td>
-              <td>
-                <input type="number" id="open_board_printer_45_5_91_200" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
-                <select id="open_board_printer_party_45_5_91_200" style="width:100%; margin-top:4px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px; font-size:11.5px; font-weight:700; background:#fefce8; color:#854d0e;">
-                  <option value="Other">Other</option>
-                </select>
-              </td>
-              <td>
-                <input type="number" id="open_board_wt_45_5_91_200" step="any" value="0.08280" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-              <td>
-                <input type="number" id="open_board_rate_45_5_91_200" step="any" value="7.54" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-            </tr>
-
-            <tr>
-              <td>
-                <strong>91 × 91 × 190</strong>
-                <div style="font-size:11px; color:#64748b;">Square Spec</div>
-              </td>
-              <td>
-                <input type="number" id="open_board_godown_91_91_190" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#92400e;">
-              </td>
-              <td>
-                <input type="number" id="open_board_printer_91_91_190" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
-                <select id="open_board_printer_party_91_91_190" style="width:100%; margin-top:4px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px; font-size:11.5px; font-weight:700; background:#fefce8; color:#854d0e;">
-                  <option value="Other">Other</option>
-                </select>
-              </td>
-              <td>
-                <input type="number" id="open_board_wt_91_91_190" step="any" value="0.15730" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-              <td>
-                <input type="number" id="open_board_rate_91_91_190" step="any" value="12.75" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-            </tr>
-
-            <tr>
-              <td>
-                <strong>77 × 98 × 190</strong>
-                <div style="font-size:11px; color:#64748b;">Wide Cover Spec</div>
-              </td>
-              <td>
-                <input type="number" id="open_board_godown_77_98_190" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#92400e;">
-              </td>
-              <td>
-                <input type="number" id="open_board_printer_77_98_190" step="any" min="0" placeholder="0" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right; font-weight:700; color:#854d0e;">
-                <select id="open_board_printer_party_77_98_190" style="width:100%; margin-top:4px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px; font-size:11.5px; font-weight:700; background:#fefce8; color:#854d0e;">
-                  <option value="Other">Other</option>
-                </select>
-              </td>
-              <td>
-                <input type="number" id="open_board_wt_77_98_190" step="any" value="0.14300" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-              <td>
-                <input type="number" id="open_board_rate_77_98_190" step="any" value="12.99" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; text-align:right;">
-              </td>
-            </tr>
+          <tbody id="boardOpeningBody">
+            <!-- Rows JS se banti hain: openBoardOpeningModal() — masterGroups (Board) + active vendor -->
           </tbody>
         </table>
       </div>
