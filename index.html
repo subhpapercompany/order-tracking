@@ -15434,6 +15434,9 @@ function switchEntryTab(tabId, clickedEl) {
       populateHRPersonDropdowns();
     } else if (tabId === 'hundi') {
       renderHundiEntry();
+    } else if (tabId === 'consumables') {
+      // Item dropdown tab khulte hi bharo (pehle ye sirf save ke baad bhar tha)
+      populateConsumableDropdown();
     } else if (tabId === 'hr-leave-entry') {
       renderLeaveSlipScreen('entry');
     }
@@ -15737,6 +15740,7 @@ function setActiveVendor(vendor, triggerSave = true) {
   try {
     if (typeof populateItemGroupSelect === 'function') populateItemGroupSelect();
     if (typeof populatePaperSpecDropdown === 'function') populatePaperSpecDropdown();
+    if (typeof populateConsumableDropdown === 'function') populateConsumableDropdown();
     if (typeof renderItemMaster === 'function') renderItemMaster();
     if (typeof renderMasterGroups === 'function') renderMasterGroups();
     if (typeof renderLedgerMaster === 'function') renderLedgerMaster();
