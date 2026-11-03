@@ -17636,13 +17636,30 @@ function renderBoardSheet() {
  * 8. CONSUMABLES SHEET RENDERING (All 18 items)
  */
 
+// CFC item name — barcode me pehle se ': CFC' suffix ho to dobara mat jodo.
+// Warna Item Master me galati se CFC-type code add karne par
+// '1152205100 : CFC : CFC' jaise duplicate items bante hain aur stock split ho jata hai.
+function cfcItemNameFor(barcode) {
+  // Ek se zyada trailing ': CFC' suffix bhi strip karo (greedy +)
+  const b = String(barcode || '').trim().replace(/(\s*:\s*CFC\s*)+$/i, '');
+  return `${b} : CFC`;
+}
+
+// CFC item lookup — pehle exact naam, warna normalized naam se (purane
+// ': CFC : CFC' wale data ko bhi dhundh leta hai, stock merge ke liye)
+function findCfcItem(barcode) {
+  const want = cfcItemNameFor(barcode);
+  const list = state.consumables || [];
+  return list.find(c => c.item === want) || list.find(c => cfcItemNameFor(c.item) === want) || null;
+}
+
 function ensureCfcConsumablesExist() {
   if (!Array.isArray(state.consumables)) state.consumables = [];
   if (!Array.isArray(state.skus)) return;
 
   state.skus.forEach(s => {
     if (!s.barcode) return;
-    const cfcName = `${s.barcode} : CFC`;
+    const cfcName = cfcItemNameFor(s.barcode);
     let existing = state.consumables.find(c => c.item === cfcName);
     if (!existing) {
       state.consumables.push({
@@ -21364,7 +21381,7 @@ function onProdSkuChange() {
   const caseQtyEl = document.getElementById('ep_caseQty');
   if (caseQtyEl) caseQtyEl.value = `${caseQty} Pcs / Box`;
 
-  const cfcName = `${sku.barcode} : CFC`;
+  const cfcName = cfcItemNameFor(sku.barcode);
   const cfcNameEl = document.getElementById('ep_cfcItemName');
   if (cfcNameEl) cfcNameEl.value = cfcName;
 
@@ -21485,7 +21502,7 @@ function getMfgRates(sku, indexSpec) {
     if (bSum && Number(bSum.rate) > 0) boardRateVal = Number(bSum.rate);
   }
 
-  const cfcItem = (state.consumables || []).find(c => c.item === `${sku.barcode} : CFC`);
+  const cfcItem = findCfcItem(sku.barcode);
   const cfcRateVal = cfcItem && Number(cfcItem.rate) > 0 ? Number(cfcItem.rate) : 36;
 
   return { paperRate: paperRateVal, indexRate: indexRateVal, boardRate: boardRateVal, cfcRate: cfcRateVal };
@@ -21563,7 +21580,7 @@ function calcProdLogPreview() {
   const caseQty = Number(sku.caseQty || sku.caseQuantity || 48);
   const cfcQty = Math.max(0, addQty - rejQtyPv);
   const batchCfc = caseQty > 0 ? Number((cfcQty / caseQty).toFixed(2)) : 0;
-  const cfcName = `${sku.barcode} : CFC`;
+  const cfcName = cfcItemNameFor(sku.barcode);
 
   if (document.getElementById('ep_caseQty')) document.getElementById('ep_caseQty').value = `${caseQty} Pcs / Box`;
   if (document.getElementById('ep_cfcItemName')) document.getElementById('ep_cfcItemName').value = cfcName;
@@ -23062,7 +23079,7 @@ function handleProductionLogSubmit(e) {
   const caseQty = Number(sku.caseQty || sku.caseQuantity || 48);
   const cfcQty = Math.max(0, addQty - rejQty);
   const batchCfc = caseQty > 0 ? Number((cfcQty / caseQty).toFixed(2)) : 0;
-  const cfcItemName = `${sku.barcode} : CFC`;
+  const cfcItemName = cfcItemNameFor(sku.barcode);
 
   // -------------------------------------------------------------------------
   // STRICT NEGATIVE STOCK PREVENTIONS: ALERT & REJECT ENTRY IF NEGATIVE
@@ -23120,7 +23137,7 @@ function handleProductionLogSubmit(e) {
   // 4. Check CFC Cartons Stock
   if (batchCfc > 0) {
     ensureCfcConsumablesExist();
-    let cfcItem = (state.consumables || []).find(c => c.item === cfcItemName);
+    let cfcItem = findCfcItem(sku.barcode);
     const cfcStock = cfcItem ? (cfcItem.stock || 0) : 0;
     if (batchCfc > cfcStock) {
       alert(`⛔ INSUFFICIENT PACKING CARTON (CFC) STOCK - ENTRY REJECTED!\n\n` +
@@ -23191,7 +23208,7 @@ function handleProductionLogSubmit(e) {
   // 4. Auto-deduct consumed Cartons (CFC) from Consumables
   if (batchCfc > 0) {
     ensureCfcConsumablesExist();
-    let cfcItem = (state.consumables || []).find(c => c.item === cfcItemName);
+    let cfcItem = findCfcItem(sku.barcode);
     if (!cfcItem) {
       cfcItem = {
         category: "Cartons / CFC",
@@ -23562,7 +23579,7 @@ function saveProductionTxEdit(t, d, sku, qty, date) {
   const dCfc = Number((newCfc - oldCfc).toFixed(2));
   if (dCfc > 0) {
     ensureCfcConsumablesExist();
-    const cfcItem = (state.consumables || []).find(c => c.item === `${sku.barcode} : CFC`);
+    const cfcItem = findCfcItem(sku.barcode);
     const cfcStock = cfcItem ? Number(cfcItem.stock || 0) : 0;
     if (dCfc > cfcStock) {
       alert(`⛔ EDIT BLOCKED — Packing Carton (CFC) stock negative ho jayega!\n\nItem: ${sku.barcode} : CFC\nAvailable: ${cfcStock.toLocaleString()} Boxes\nExtra required: ${dCfc.toLocaleString()} Boxes`);
@@ -23576,7 +23593,7 @@ function saveProductionTxEdit(t, d, sku, qty, date) {
   // ---- CFC (issued) manual adjust + correction ledger ----
   if (Math.abs(dCfc) > 0.0001) {
     ensureCfcConsumablesExist();
-    const cfcItem = (state.consumables || []).find(c => c.item === `${sku.barcode} : CFC`);
+    const cfcItem = findCfcItem(sku.barcode);
     if (cfcItem) {
       cfcItem.issued = Number(((Number(cfcItem.issued) || 0) + dCfc).toFixed(2));
       cfcItem.stock = Number(((Number(cfcItem.opening) || 0) + (Number(cfcItem.inward) || 0) - cfcItem.issued).toFixed(2));
@@ -32863,8 +32880,18 @@ function handleItemMasterSubmit(e) {
       showToast(`✅ Item ${code} updated in catalog.`);
     }
   } else {
+    // DUPLICATE MASTER ALERT — blocking: code Item Master ya SKU dono me
+    // kahin bhi ho to save block (chhota toast easily miss ho jata tha)
     const dup = state.itemMaster.find(it => it.code === code);
-    if (dup) { showToast(`⚠️ Code ${code} catalog me pehle se hai. Edit karke update karein.`); return; }
+    if (dup) {
+      alert(`⚠️ DUPLICATE ITEM CODE — SAVE BLOCKED!\n\nCode: ${code}\nYe code Item Master me pehle se hai — "${dup.description || dup.code}"\n\nUpdate karne ke liye us item par ✏️ Edit use karein, ya naya unique code dalein.`);
+      return;
+    }
+    const dupSku = (state.skus || []).find(s => String(s.barcode) === code);
+    if (dupSku) {
+      alert(`⚠️ DUPLICATE CODE — YE SKU PEHLE SE BANA HAI!\n\nCode: ${code}\n"${dupSku.description || code}" — Production: ${(dupSku.production || 0).toLocaleString()} Pcs, Order: ${(dupSku.orderQty || 0).toLocaleString()} Pcs\n\nYe code system me already exist karta hai. Isko Item Master me dobara create nahi karein — us item ki data entry uske SKU/Entry screens se karein.`);
+      return;
+    }
     obj.createdAt = new Date().toISOString();
     state.itemMaster.push(obj);
     showToast(`✅ New item ${code} added to catalog.`);
@@ -32874,9 +32901,14 @@ function handleItemMasterSubmit(e) {
   refreshOrderBookingItemCatalogue();
   // Naya/edited item ab SKU dropdowns (Prod/Despatch/Consumption/PO/Calc) me bhi dikhega
   syncItemMasterToSku(obj);
+  // Recalc ZAROORI: naye SKU me paperSpec/boardSpec/bookWt derive hote hain —
+  // bina iske production entry me stock 0 dikhta aur entry reject hoti thi.
+  // Render bhi zaroori taaki baaki screens (MRP/Stock/Dashboard) turant refresh hon.
+  recalculateAllFormulas();
   populateSkuDropdowns();
   if (typeof populateCalculatorSkuDropdown === 'function') populateCalculatorSkuDropdown();
   saveState();
+  renderAllViews();
 }
 
 function editItemGroupSet(val) {
