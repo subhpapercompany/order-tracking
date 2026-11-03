@@ -13024,6 +13024,9 @@ function hydrateFromDatabaseObject(parsed) {
   state.masterGroups = (Array.isArray(parsed.masterGroups) && parsed.masterGroups.length > 0)
     ? normalizeMasterGroupsVendors(parsed.masterGroups)
     : JSON.parse(JSON.stringify(DEFAULT_MASTER_GROUPS));
+  // Item Master ke Consumable-type items Consumables list/dropdown me dikhenge
+  // (stock 0 ho tab bhi) — masterGroups load hone ke baad hi call karna hai.
+  syncItemMasterToConsumables();
   state.ledgerMaster = Array.isArray(parsed.ledgerMaster) ? parsed.ledgerMaster : [];
   state.materialStock = parsed.materialStock || JSON.parse(JSON.stringify(DEFAULT_MATERIAL_STOCK));
   state.financials = parsed.financials || JSON.parse(JSON.stringify(DEFAULT_FINANCIALS));
@@ -17869,6 +17872,46 @@ function _dssDetailHtml(item, fromDate, toDate) {
 /**
  * Render Detailed Stock & Movement Report (With Date Range: Opening, Inward, Outward, Closing)
  */
+/**
+ * Detailed Stock Report ka Category dropdown — state.consumables ke actual
+ * categories se dynamic (naye Item Master groups jaise Shrink Film/Packing/
+ * Lamination automatically include honge). Paper/Board/FG static hain.
+ */
+function populateStockCategoryFilter() {
+  const sel = document.getElementById('stock_categoryFilter');
+  if (!sel) return;
+  const prev = sel.value || 'all';
+  const staticCats = [
+    ['all', 'All Inventory Categories'],
+    ['Paper', '📄 Raw Paper (WIP & Cut Sheets)'],
+    ['Board', '📐 Cover Board Sheets'],
+    ['Finished Goods', '📚 Finished Goods (SKU Books)']
+  ];
+  const dynCats = [...new Set((state.consumables || [])
+    .map(c => String(c.category || '').trim())
+    .filter(Boolean))].sort();
+
+  const icons = {
+    'Cartons / CFC': '📦', 'Inks': '🧪', 'Consumables': '🛠️',
+    'Tapes': '🏷️', 'Shrink Film': '🎁', 'Packing': '📦',
+    'Lamination': '✨', 'Stitch Wire': '🪡'
+  };
+
+  sel.innerHTML = '';
+  const addOpt = (val, label) => {
+    const o = document.createElement('option');
+    o.value = val; o.textContent = label;
+    sel.appendChild(o);
+  };
+  addOpt(...staticCats[0]);
+  dynCats.forEach(c => addOpt(c, `${icons[c] || '📋'} ${c}`));
+  staticCats.slice(1).forEach(x => addOpt(...x));
+
+  // Purana selection preserve (category exist karti hai to)
+  sel.value = prev;
+  if (!sel.value) sel.value = 'all';
+}
+
 function renderDetailedStockReport() {
   ensureCfcConsumablesExist();
   ensureConsumableLedgerSeeded();
@@ -17882,6 +17925,7 @@ function renderDetailedStockReport() {
   const fromDate = fromEl ? fromEl.value : '2026-10-01';
   const toDate = toEl ? toEl.value : now.toISOString().slice(0, 10);
 
+  populateStockCategoryFilter();
   const catFilter = document.getElementById('stock_categoryFilter') ? document.getElementById('stock_categoryFilter').value : 'all';
   const searchQ = (document.getElementById('stock_searchInput') ? document.getElementById('stock_searchInput').value : '').trim().toLowerCase();
 
@@ -18153,7 +18197,9 @@ function renderDetailedStockReport() {
   // =========================================================================
   // 4. CONSUMABLES & CARTONS
   // =========================================================================
-  if (catFilter === 'all' || catFilter === 'Cartons / CFC' || catFilter === 'Inks' || catFilter === 'Consumables') {
+  // CatFilter ab dynamic hai (Item Master groups se) — Paper/Board/FG ke alawa
+  // koi bhi category consumables section ki hai (Inks/CFC/Shrink Film/Packing...)
+  if (catFilter === 'all' || (catFilter !== 'Paper' && catFilter !== 'Board' && catFilter !== 'Finished Goods')) {
     (state.consumables || []).forEach(c => {
       if (catFilter !== 'all' && c.category !== catFilter) return;
       const baseOp = c.opening || 0;
@@ -32820,11 +32866,19 @@ function renderItemMaster() {
     </tr>`).join('');
 }
 
+// Item Master ke Consumable-type items (Gum/Shrink Film/Tape/Ink etc.) notebooks
+// nahi hain — unhe SKU/Production dropdowns me nahi bhejte, warna har consumable
+// par fake SKU + ': CFC' carton item ban jata hai (Lamination Gum 55Kg case).
+function itemMasterGroupType(it) {
+  return ((state.masterGroups || []).find(g => g.name === (it || {}).group) || {}).type;
+}
+
 // Item Master ka item sab SKU dropdowns (Production/Despatch/Consumption/PO/Calculator)
 // me dikhe — iske liye item ko state.skus me bhi sync karo (barcode = item code).
 // Purana SKU ho to uske fields update karo (production/despatched data safe rehta hai).
 function syncItemMasterToSku(it) {
   if (!it || !it.code) return;
+  if (itemMasterGroupType(it) === 'Consumable') return;
   if (!Array.isArray(state.skus)) state.skus = [];
   const fields = {
     vendor: it.vendor || 'Camlin',
@@ -32848,6 +32902,38 @@ function syncItemMasterToSku(it) {
       reelSize: '', cut: '', gsm: '', bookWt: 0
     }, fields));
   }
+}
+
+// Item Master ke Consumable-type items (group type = Consumable) ko
+// state.consumables me sync karo — tabhi wo Consumables stock list +
+// entry dropdown (econs_item) me dikhenge, chahe stock 0 hi kyun na ho.
+// Purane stock/entry wali item ko overwrite NAHI karo.
+function syncItemMasterToConsumables() {
+  if (!Array.isArray(state.itemMaster)) return;
+  if (!Array.isArray(state.consumables)) state.consumables = [];
+  state.itemMaster.forEach(it => {
+    if (!it || !it.code) return;
+    if (itemMasterGroupType(it) !== 'Consumable') return;
+    const name = String(it.code);
+    const exists = state.consumables.find(c => String(c.item) === name);
+    if (exists) {
+      // Category/unit update (stock/entry safe)
+      if (it.group) exists.category = it.group;
+      if (it.unit) exists.unit = it.unit;
+      return;
+    }
+    state.consumables.push({
+      category: it.group || 'Consumables',
+      item: name,
+      opening: 0,
+      inward: 0,
+      issued: 0,
+      stock: 0,
+      unit: it.unit || 'Pcs',
+      rate: 0,
+      amount: 0
+    });
+  });
 }
 
 function handleItemMasterSubmit(e) {
@@ -32901,12 +32987,17 @@ function handleItemMasterSubmit(e) {
   refreshOrderBookingItemCatalogue();
   // Naya/edited item ab SKU dropdowns (Prod/Despatch/Consumption/PO/Calc) me bhi dikhega
   syncItemMasterToSku(obj);
+  // Consumable-type items (Gum/Shrink/Tape/Ink...) Consumables stock list +
+  // entry dropdown me dikhenge — inhe SKU/Production lists me nahi bhejte.
+  syncItemMasterToConsumables();
   // Recalc ZAROORI: naye SKU me paperSpec/boardSpec/bookWt derive hote hain —
   // bina iske production entry me stock 0 dikhta aur entry reject hoti thi.
   // Render bhi zaroori taaki baaki screens (MRP/Stock/Dashboard) turant refresh hon.
   recalculateAllFormulas();
   populateSkuDropdowns();
   if (typeof populateCalculatorSkuDropdown === 'function') populateCalculatorSkuDropdown();
+  // Consumable item ka dropdown bhi turant update (naya item entry form me dikhe)
+  if (typeof populateConsumableDropdown === 'function') populateConsumableDropdown();
   saveState();
   renderAllViews();
 }
@@ -32951,11 +33042,23 @@ function deleteItemMaster(i) {
       if (!(s.production > 0) && !(s.despatched > 0) && !(s.orderQty > 0)) state.skus.splice(skuIdx, 1);
     }
   }
+  // Consumable sync entry bhi tab hato jab uska stock/ledger activity zero ho
+  if (Array.isArray(state.consumables)) {
+    const cIdx = state.consumables.findIndex(c => String(c.item) === String(it.code));
+    if (cIdx >= 0) {
+      const c = state.consumables[cIdx];
+      const hasActivity = (c.opening || 0) > 0 || (c.inward || 0) > 0 || (c.issued || 0) > 0 || (c.stock || 0) > 0;
+      if (!hasActivity) state.consumables.splice(cIdx, 1);
+    }
+  }
   clearItemMasterForm();
   renderItemMaster();
   refreshOrderBookingItemCatalogue();
   populateSkuDropdowns();
   if (typeof populateCalculatorSkuDropdown === 'function') populateCalculatorSkuDropdown();
+  // Consumable sync entry hati ho to uski list/dropdown bhi refresh
+  if (typeof populateConsumableDropdown === 'function') populateConsumableDropdown();
+  if (typeof renderConsumablesSheet === 'function') renderConsumablesSheet();
   saveState();
   showToast(`🗑️ Item ${it.code} deleted.`);
 }
