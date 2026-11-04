@@ -17847,7 +17847,6 @@ function ensureConsumableLedgerSeeded() {
 /* ==== Detailed Stock Statement — drill-down tree (L1 group → L2 subgroup
    → L3 item → L4 asli entry, entry alteration ke saath) ==== */
 let _dssExpanded = {};        // level keys ka expand/collapse state
-let _dssDefaultsDone = false; // pehli render par L1 groups default open
 let _dssPrintPending = false; // print click par render ke dauran print shell build hoga
 
 function toggleDssLevel(key) {
@@ -18813,34 +18812,34 @@ function renderDetailedStockReport() {
 
   function dssL1(g, items, force) {
     const key = 'L1:' + g.key;
-    const open = force || dssOpen(key, true);
+    const open = force || dssOpen(key, false);
     const s = dssSum(items);
-    return `<tr onclick="toggleDssLevel('${key}')" style="cursor:pointer; border-top:2px solid #78350f; border-bottom:2px solid #78350f; background:#92400e;">
-      <td style="white-space:nowrap; font-weight:900; font-size:13.5px; color:#ffffff; padding:9px 10px;">${open ? '▼' : '▶'} ${g.icon} ${g.label}</td>
-      <td style="font-weight:800; color:#fef3c7; font-size:11.5px; white-space:nowrap;">${items.length} Items</td>
-      <td style="font-weight:700; color:#ffffff; font-size:11.5px;">Main Group Total — click to ${open ? 'collapse' : 'expand'}</td>
-      <td class="num" style="font-weight:800; color:#ffffff; white-space:nowrap;">${dssFmt(s.op)}</td>
-      <td class="num" style="font-weight:800; color:#86efac; white-space:nowrap;">${s.ti > 0 ? '+' + dssFmt(s.ti) : '—'}</td>
-      <td class="num" style="font-weight:800; color:#fecaca; white-space:nowrap;">${s.to > 0 ? dssFmt(s.to) : '—'}</td>
-      <td class="num" style="background:${s.cl < 0 ? '#7f1d1d' : '#78350f'}; font-weight:900; font-size:13.5px; color:#ffffff; white-space:nowrap; border-left:1px solid #78350f; border-right:1px solid #78350f;">${dssFmt(s.cl)}</td>
-      <td class="num" style="color:#fef3c7; font-weight:700; white-space:nowrap;">—</td>
-      <td class="num" style="font-weight:900; color:#ffffff; white-space:nowrap;">₹ ${Math.round(s.amt).toLocaleString()}</td>
+    return `<tr onclick="toggleDssLevel('${key}')" style="cursor:pointer; border-bottom:1px solid #e2e8f0; background:#ffffff;">
+      <td style="white-space:nowrap; font-weight:900; font-size:13.5px; color:#1e293b; padding:9px 10px;">${open ? '▼' : '▶'} ${g.icon} ${g.label}</td>
+      <td style="font-weight:800; color:#475569; font-size:11.5px; white-space:nowrap;">${items.length} Items</td>
+      <td style="font-weight:700; color:#1e293b; font-size:11.5px;">Main Group Total — click to ${open ? 'collapse' : 'expand'}</td>
+      <td class="num" style="font-weight:800; color:#0f766e; white-space:nowrap;">${dssFmt(s.op)}</td>
+      <td class="num" style="font-weight:800; color:#047857; white-space:nowrap;">${s.ti > 0 ? '+' + dssFmt(s.ti) : '—'}</td>
+      <td class="num" style="font-weight:800; color:#b91c1c; white-space:nowrap;">${s.to > 0 ? dssFmt(s.to) : '—'}</td>
+      <td class="num" style="background:${s.cl < 0 ? '#fff1f2' : '#f0fdf4'}; font-weight:900; font-size:13.5px; color:#0f172a; white-space:nowrap; border-left:1px solid #e2e8f0; border-right:1px solid #e2e8f0;">${dssFmt(s.cl)}</td>
+      <td class="num" style="color:#64748b; font-weight:700; white-space:nowrap;">—</td>
+      <td class="num" style="font-weight:900; color:#047857; white-space:nowrap;">₹ ${Math.round(s.amt).toLocaleString()}</td>
     </tr>`;
   }
 
   function dssL2(sub, sKey, force, indentLabel) {
-    const open = force || dssOpen(sKey, true);
+    const open = force || dssOpen(sKey, false);
     const s = dssSum(sub.items);
-    return `<tr onclick="toggleDssLevel('${sKey}')" style="cursor:pointer; border-bottom:1px solid #312e81; background:#3730a3;">
-      <td style="white-space:nowrap; font-weight:800; font-size:12.5px; color:#ffffff; padding-left:26px;" title="${indentLabel}">${open ? '▼' : '▶'} ${sub.key}</td>
-      <td style="font-weight:700; color:#c7d2fe; font-size:11px; white-space:nowrap;">${sub.items.length} Items</td>
-      <td style="font-weight:600; color:#e0e7ff; font-size:11.5px;">Subgroup Total</td>
-      <td class="num" style="font-weight:700; color:#ffffff; white-space:nowrap;">${dssFmt(s.op)}</td>
-      <td class="num" style="font-weight:700; color:#86efac; white-space:nowrap;">${s.ti > 0 ? '+' + dssFmt(s.ti) : '—'}</td>
-      <td class="num" style="font-weight:700; color:#fca5a5; white-space:nowrap;">${s.to > 0 ? dssFmt(s.to) : '—'}</td>
-      <td class="num" style="background:${s.cl < 0 ? '#7f1d1d' : '#1e3a8a'}; font-weight:900; color:#ffffff; white-space:nowrap; border-left:1px solid #312e81; border-right:1px solid #312e81;">${dssFmt(s.cl)}</td>
-      <td class="num" style="color:#c7d2fe; font-weight:700; font-size:11.5px; white-space:nowrap;">—</td>
-      <td class="num" style="font-weight:800; color:#ffffff; white-space:nowrap;">₹ ${Math.round(s.amt).toLocaleString()}</td>
+    return `<tr onclick="toggleDssLevel('${sKey}')" style="cursor:pointer; border-bottom:1px solid #e2e8f0; background:#ffffff;">
+      <td style="white-space:nowrap; font-weight:800; font-size:12.5px; color:#1e293b; padding-left:26px;" title="${indentLabel}">${open ? '▼' : '▶'} ${sub.key}</td>
+      <td style="font-weight:700; color:#475569; font-size:11px; white-space:nowrap;">${sub.items.length} Items</td>
+      <td style="font-weight:600; color:#1e293b; font-size:11.5px;">Subgroup Total</td>
+      <td class="num" style="font-weight:700; color:#0f766e; white-space:nowrap;">${dssFmt(s.op)}</td>
+      <td class="num" style="font-weight:700; color:#047857; white-space:nowrap;">${s.ti > 0 ? '+' + dssFmt(s.ti) : '—'}</td>
+      <td class="num" style="font-weight:700; color:#b91c1c; white-space:nowrap;">${s.to > 0 ? dssFmt(s.to) : '—'}</td>
+      <td class="num" style="background:${s.cl < 0 ? '#fff1f2' : '#f0fdf4'}; font-weight:900; color:#0f172a; white-space:nowrap; border-left:1px solid #e2e8f0; border-right:1px solid #e2e8f0;">${dssFmt(s.cl)}</td>
+      <td class="num" style="color:#64748b; font-weight:700; font-size:11.5px; white-space:nowrap;">—</td>
+      <td class="num" style="font-weight:800; color:#047857; white-space:nowrap;">₹ ${Math.round(s.amt).toLocaleString()}</td>
     </tr>`;
   }
 
@@ -18876,7 +18875,7 @@ function renderDetailedStockReport() {
     dssBucket.forEach(bucket => {
       const g = bucket.g, items = bucket.items;
       html += dssL1(g, items, force);
-      if (!(force || dssOpen('L1:' + g.key, true))) return;
+      if (!(force || dssOpen('L1:' + g.key, false))) return;
 
       const subs = [];
       items.forEach(i => {
@@ -18889,7 +18888,7 @@ function renderDetailedStockReport() {
       subs.forEach(sub => {
         const sKey = 'L2:' + g.key + ':' + sub.key;
         html += dssL2(sub, sKey, force, sub.key);
-        if (!(force || dssOpen(sKey, true))) return;
+        if (!(force || dssOpen(sKey, false))) return;
         sub.items.forEach(i => {
           html += dssL3(i, force);
           const l3key = 'L3:' + (i.itemKey || i.code);
