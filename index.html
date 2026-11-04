@@ -2216,6 +2216,24 @@ body.print-flash-mode .no-print {
     display: none !important;
   }
 
+  /* Drill-down nav: selected row highlight — deep box par white text */
+  #detailedStockTableBody tr.dss-nav-row { cursor: pointer; }
+  #detailedStockTableBody tr.dss-nav-row:hover { background: #eff6ff !important; }
+  #detailedStockTableBody tr.dss-nav-row.dss-sel,
+  #detailedStockTableBody tr.dss-nav-row.dss-sel:hover {
+    background: #1d4ed8 !important;
+    outline: 2px solid #f59e0b;
+    outline-offset: -2px;
+  }
+  #detailedStockTableBody tr.dss-nav-row.dss-sel td {
+    background: #1d4ed8 !important;
+    color: #ffffff !important;
+    font-weight: 800;
+  }
+  #dssNavBar a { color: #93c5fd; text-decoration: none; font-weight: 700; }
+  #dssNavBar a:hover { color: #ffffff; text-decoration: underline; }
+  #dssNavBar a b { color: #fde047; }
+
   @media print {
     /* DSS print mode: app chhupo, sirf statement chhapo */
     body.print-dss-mode > *:not(#detailedStockPrint) {
@@ -4930,6 +4948,9 @@ body.print-flash-mode .no-print {
             Showing: <span id="detailedStockRowCount" style="color: #ffffff; font-weight: 700;">0</span> Inventory Line Items
           </div>
         </div>
+
+        <!-- Tally-style drill-down breadcrumb + Daybook date range -->
+        <div id="dssNavBar" class="no-print" style="display:none; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px; padding:8px 12px; background:#0f172a; border:1px solid #1e3a8a; border-radius:8px;"></div>
 
         <div class="table-responsive">
           <table class="data-table keep-last-col" id="tableDetailedStock" style="width:100%; font-size:12px;">
@@ -15342,7 +15363,12 @@ function executeQuotationPrint() {
 
 function switchSheet(sheetId, clickedEl) {
   state.activeSheet = sheetId;
-  
+
+  // Detailed Stock chhodne par drill-down nav reset (wapas aane par fresh statement)
+  if (sheetId !== 'detailed-stock' && typeof dssNavActive === 'function' && dssNavActive()) {
+    dssNavReset();
+  }
+
   // Highlight active tab in both legacy tab bar and left menu sidebar
   document.querySelectorAll('.sheet-tab, .reporting-nav-item').forEach(t => {
     const isTarget = (clickedEl && t === clickedEl) || 
@@ -16580,6 +16606,13 @@ function initKeyboardNavigation() {
         return;
       }
 
+      // Step B2: Detailed Stock drill-down — ESC se ek level upar (tree tak)
+      if (state.activeSheet === 'detailed-stock' && dssNavActive()) {
+        e.preventDefault();
+        dssNavUp();
+        return;
+      }
+
       // Step C: If in Entry mode, ESC goes back to Reporting mode
       if (state.mode === 'entry') {
         switchMode('reporting');
@@ -16602,6 +16635,13 @@ function initKeyboardNavigation() {
     }
 
     // 2. ARROW DOWN & ARROW UP (Keyboard se cursor move)
+    // Detailed Stock drill-down NAV active ho to arrows row selection chalate hain
+    if ((e.key === 'ArrowDown' || e.key === 'Down' || e.key === 'ArrowUp' || e.key === 'Up') &&
+        !isTyping && state.activeSheet === 'detailed-stock' && dssNavActive()) {
+      e.preventDefault();
+      dssNavMove((e.key === 'ArrowDown' || e.key === 'Down') ? 1 : -1);
+      return;
+    }
     if (e.key === 'ArrowDown' || e.key === 'Down') {
       if (!isTyping) {
         e.preventDefault();
@@ -16619,6 +16659,26 @@ function initKeyboardNavigation() {
     }
 
     // 3. ENTER KEY (Enter press se open)
+    // Detailed Stock Statement: Enter = Tally-style drill-down (level 0 par nav start)
+    // Sidebar focus kisi doosri sheet par ho to Enter wahi sheet kholta hai (purana behavior)
+    if (e.key === 'Enter' && !isTyping && state.activeSheet === 'detailed-stock') {
+      const aeTag = activeEl ? activeEl.tagName : '';
+      if (aeTag !== 'BUTTON' && aeTag !== 'A' && aeTag !== 'SELECT') {
+        let sidebarElsewhere = false;
+        if (!dssNavActive()) {
+          const sItems = getVisibleSidebarItems();
+          const fItem = (keyboardFocusIndex >= 0 && keyboardFocusIndex < sItems.length) ? sItems[keyboardFocusIndex] : null;
+          const fSheet = fItem ? fItem.getAttribute('data-sheet') : null;
+          sidebarElsewhere = !!fSheet && fSheet !== 'detailed-stock';
+        }
+        if (!sidebarElsewhere) {
+          e.preventDefault();
+          if (!dssNavActive()) dssNavGo(1);   // statement par Enter → Groups
+          else dssNavActivate();              // level par Enter → aage badho / action
+          return;
+        }
+      }
+    }
     if (e.key === 'Enter') {
       if (!isTyping) {
         const items = getVisibleSidebarItems();
@@ -17866,6 +17926,357 @@ function _dssDetailHtml(item, fromDate, toDate) {
   return html;
 }
 
+/* ==========================================================================
+   TALLY-STYLE DRILL-DOWN NAVIGATION (Detailed Stock Statement)
+   Levels: 0=statement tree → 1=Groups → 2=Subgroups → 3=Items →
+           4=Monthly Summary → 5=Daybook (date range) → 6=Voucher Alteration
+   Keys: Enter = aage badho, ArrowUp/Down = selection, Esc = ek level upar
+   ========================================================================== */
+let _dssNav = null;      // null = level 0 (normal tree view)
+let _dssNavRows = [];    // current level ke selectable rows ({html, onEnter})
+let _dssCtx = null;      // last render ka data context (filtered, dssBucket, dates)
+
+function dssNavActive() { return !!_dssNav && _dssNav.level > 0; }
+
+function dssNavReset() { _dssNav = null; _dssNavRows = []; _dssNavBarHide(); }
+
+/** Level par jao (breadcrumb se bhi ho sakta hai). */
+function dssNavGo(level) {
+  if (!_dssNav) _dssNav = { level: 1, sel: 0 };
+  _dssNav.level = Math.max(0, Math.min(6, level));
+  _dssNav.sel = 0;
+  if (_dssNav.level === 0) { dssNavReset(); }
+  renderDetailedStockReport();
+}
+
+/** Esc — ek level upar. */
+function dssNavUp() {
+  if (!dssNavActive()) return;
+  if (_dssNav.level <= 1) { dssNavReset(); renderDetailedStockReport(); return; }
+  _dssNav.level--;
+  _dssNav.sel = 0;
+  renderDetailedStockReport();
+}
+
+/** Arrow keys — selection move (row highlight). */
+function dssNavMove(delta) {
+  if (!dssNavActive() || !_dssNavRows.length) return;
+  const n = _dssNavRows.length;
+  _dssNav.sel = ((_dssNav.sel || 0) + delta % n + n) % n;
+  const tbody = document.getElementById('detailedStockTableBody');
+  if (!tbody) return;
+  Array.from(tbody.children).forEach((tr, i) => {
+    if (tr.classList.contains('dss-nav-row')) {
+      tr.classList.toggle('dss-sel', i === _dssNav.sel);
+    }
+  });
+  const sel = tbody.querySelector('.dss-nav-row.dss-sel');
+  if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest' });
+}
+
+/** Enter — selected row par drill-down / action. */
+function dssNavActivate() {
+  if (!dssNavActive()) return;
+  const row = _dssNavRows[_dssNav.sel || 0];
+  if (row && typeof row.onEnter === 'function') row.onEnter();
+}
+
+function dssNavFmt(n) { return Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+
+function dssNavSum(items) {
+  const s = { op: 0, ti: 0, to: 0, cl: 0, amt: 0 };
+  (items || []).forEach(i => { s.op += i.opening; s.ti += i.inward; s.to += i.outward; s.cl += i.stock; s.amt += i.amount; });
+  return s;
+}
+
+/** 9-col nav row (tree rows jaisa hi structure, selection highlight ke saath). */
+function dssNavRow(label, code, desc, op, ti, to, cl, rate, amt, onEnter, sub) {
+  const idx = _dssNavRows.length;
+  _dssNavRows.push({ html:
+    `<tr class="dss-nav-row${idx === (_dssNav.sel || 0) ? ' dss-sel' : ''}" onclick="dssNavRowClick(${idx})" style="cursor:pointer; border-bottom:1px solid #e2e8f0; background:#ffffff;">
+      <td style="white-space:nowrap; font-weight:800; color:#1e293b; font-size:12.5px; padding-left:14px;">${label}</td>
+      <td style="font-family:'JetBrains Mono',monospace; font-weight:700; color:#1e3a8a; white-space:nowrap; font-size:11.5px;">${code}</td>
+      <td style="font-weight:600; color:#1e293b; min-width:240px;">${desc}${sub ? ` <span style="font-size:10.5px; color:#64748b; font-weight:700;">${sub}</span>` : ''}</td>
+      <td class="num" style="background:#f8fafc; font-weight:700; color:#0f766e; white-space:nowrap;">${op === null || op === undefined ? '—' : dssNavFmt(op)}</td>
+      <td class="num" style="color:#047857; font-weight:700; white-space:nowrap;">${ti > 0 ? '+' + dssNavFmt(ti) : '—'}</td>
+      <td class="num" style="color:#b91c1c; font-weight:700; white-space:nowrap;">${to > 0 ? dssNavFmt(to) : '—'}</td>
+      <td class="num" style="background:#f0fdf4; border-left:1px solid #cbd5e1; border-right:1px solid #cbd5e1; font-weight:900; color:#0f172a; white-space:nowrap;">${dssNavFmt(cl)}</td>
+      <td class="num" style="color:#64748b; font-size:11.5px; white-space:nowrap;">${rate === null || rate === undefined ? '—' : '₹ ' + Number(rate).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+      <td class="num" style="font-weight:800; color:#047857; white-space:nowrap;">${amt === null || amt === undefined ? '—' : '₹ ' + Math.round(amt).toLocaleString()}</td>
+    </tr>`, onEnter: onEnter });
+}
+
+function dssNavRowClick(i) {
+  if (!dssNavActive()) return;
+  _dssNav.sel = i;
+  dssNavActivate();
+}
+
+/** Level 1-3 renderer: Groups → Subgroups → Items. Success par true. */
+function dssRenderNavTree() {
+  const ctx = _dssCtx;
+  if (!ctx) return false;
+  const nav = _dssNav;
+
+  // ---- Level 1: MAIN GROUPS ----
+  if (nav.level === 1) {
+    ctx.dssBucket.forEach(bucket => {
+      const s = dssNavSum(bucket.items);
+      dssNavRow(`${bucket.g.icon} ${bucket.g.label}`, `${bucket.items.length} Items`, 'Main Group — Enter par Subgroups', s.op, s.ti, s.to, s.cl, null, s.amt, () => {
+        nav.gKey = bucket.g.key; nav.subKey = null; nav.itemKey = null;
+        nav.level = 2; nav.sel = 0; renderDetailedStockReport();
+      }, '');
+    });
+    return true;
+  }
+
+  // ---- Level 2: SUBGROUPS of selected group ----
+  if (nav.level === 2) {
+    const bucket = ctx.dssBucket.find(b => b.g.key === nav.gKey);
+    if (!bucket) { nav.level = 1; nav.sel = 0; return dssRenderNavTree(); }
+    const subs = [];
+    bucket.items.forEach(i => {
+      const k = (bucket.g.key === 'CONS') ? String(i.category) : String(i.code || '');
+      let s = subs.find(x => x.key === k);
+      if (!s) { s = { key: k, items: [] }; subs.push(s); }
+      s.items.push(i);
+    });
+    if (!subs.length) { nav.level = 1; nav.sel = 0; return dssRenderNavTree(); }
+    subs.forEach(sub => {
+      const s = dssNavSum(sub.items);
+      dssNavRow(`▸ ${sub.key}`, `${sub.items.length} Items`, 'Subgroup — Enter par Item-wise Summary', s.op, s.ti, s.to, s.cl, null, s.amt, () => {
+        nav.subKey = sub.key; nav.itemKey = null;
+        nav.level = 3; nav.sel = 0; renderDetailedStockReport();
+      }, '');
+    });
+    return true;
+  }
+
+  // ---- Level 3: ITEMS of selected subgroup ----
+  if (nav.level === 3) {
+    const bucket = ctx.dssBucket.find(b => b.g.key === nav.gKey);
+    if (!bucket) { nav.level = 1; nav.sel = 0; return dssRenderNavTree(); }
+    const items = bucket.items.filter(i => {
+      const k = (bucket.g.key === 'CONS') ? String(i.category) : String(i.code || '');
+      return k === nav.subKey;
+    });
+    if (!items.length) { nav.level = 2; nav.sel = 0; return dssRenderNavTree(); }
+    items.forEach(it => {
+      // Name: description > code (consumables me code = asli item naam) > fallback
+      const name = (it.description && it.description !== '—') ? it.description
+        : (it.code && String(it.code).trim() && String(it.code) !== '—') ? it.code
+        : (String(it.category).indexOf('Paper') >= 0 ? 'Stock Item' : 'Godown Stock');
+      dssNavRow(`• ${name}`, it.code, `<span class="badge" style="background:#0369a1; color:#ffffff; font-weight:700;">${it.category}</span>`, it.opening, it.inward, it.outward, it.stock, it.rate, it.amount, () => {
+        nav.itemKey = it.itemKey || it.code;
+        nav.level = 4; nav.sel = 0; renderDetailedStockReport();
+      }, `${(it.dtx || []).length} entries ▸ Enter: Monthly Summary`);
+    });
+    return true;
+  }
+  return false;
+}
+
+/** Current nav par selected item resolve karo (level 4+ ke liye). */
+function dssNavResolveItem() {
+  const ctx = _dssCtx;
+  if (!ctx || !_dssNav) return null;
+  const key = String(_dssNav.itemKey);
+  for (const b of ctx.dssBucket) {
+    const it = b.items.find(x => String(x.itemKey || x.code) === key);
+    if (it) return it;
+  }
+  return null;
+}
+
+/** Level 4: Monthly Summary — Opening Balance + har month In/Out/Closing (Tally jaisa). */
+function dssRenderNavMonthly() {
+  const it = dssNavResolveItem();
+  if (!it) { _dssNav.level = 3; _dssNav.sel = 0; return dssRenderNavTree(); }
+  const ctx = _dssCtx;
+  const fromDate = ctx.fromDate, toDate = ctx.toDate;
+
+  // Period opening (range se pehle ka movement + base opening)
+  const base = Number(it.opening || 0);
+  const dtx = (it.dtx || []).filter(t => t.date >= fromDate && t.date <= toDate)
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+  // Opening row (Tally style: pehli row Opening Balance)
+  let run = base;
+  dssNavRow('🏦 Opening Balance', `${fromDate}`, `Balance as on ${fromDate} — period start`, null, null, null, run, it.rate, Math.max(0, run) * it.rate, () => {}, '');
+
+  // Month-wise aggregate
+  const months = {};
+  dtx.forEach(t => {
+    const mk = String(t.date || '').slice(0, 7);
+    if (!months[mk]) months[mk] = { in: 0, out: 0, n: 0 };
+    months[mk].in += Number(t.qIn || 0);
+    months[mk].out += Number(t.qOut || 0);
+    months[mk].n++;
+  });
+  const mkeys = Object.keys(months).sort();
+  if (!mkeys.length) {
+    dssNavRow('—', 'No Data', 'Is date range me koi transaction nahi', null, null, null, run, it.rate, Math.max(0, run) * it.rate, () => {}, '');
+    return true;
+  }
+  mkeys.forEach(mk => {
+    const m = months[mk];
+    const close = run + m.in - m.out;
+    const mLabel = new Date(mk + '-01T00:00:00').toLocaleString('en', { month: 'long', year: 'numeric' });
+    dssNavRow(`📅 ${mLabel}`, mk, 'Monthly Summary — Enter par Daybook khulega', run, m.in, m.out, close, it.rate, Math.max(0, close) * it.rate, () => {
+      _dssNav.month = mk;
+      _dssNav.dbFrom = null; _dssNav.dbTo = null;   // naye month ki fresh date range
+      _dssNav.level = 5; _dssNav.sel = 0;
+      renderDetailedStockReport();
+    }, `${m.n} entries ▸`);
+    run = close;
+  });
+  return true;
+}
+
+/** Level 5: Daybook — selected month ki datewise entries + date range option. */
+function dssRenderNavDaybook() {
+  const it = dssNavResolveItem();
+  if (!it) { _dssNav.level = 3; _dssNav.sel = 0; return dssRenderNavTree(); }
+  const nav = _dssNav;
+  const ctx = _dssCtx;
+  const m = nav.month || String(ctx.fromDate).slice(0, 7);
+  // Date range: month ki first/last date (user change kar sakta hai nav bar se)
+  if (!nav.dbFrom || !nav.dbTo) {
+    const y = Number(m.slice(0, 4)), mo = Number(m.slice(5, 7));
+    nav.dbFrom = `${m}-01`;
+    nav.dbTo = `${m}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`;
+    if (nav.dbFrom < ctx.fromDate) nav.dbFrom = ctx.fromDate;
+    if (nav.dbTo > ctx.toDate) nav.dbTo = ctx.toDate;
+  }
+
+  // Opening = period opening (fromDate par, pre-range movement already included)
+  // + fromDate se dbFrom tak ka movement
+  let run = Number(it.opening || 0);
+  (it.dtx || []).forEach(t => {
+    if (t.date >= ctx.fromDate && t.date < nav.dbFrom) run += Number(t.qIn || 0) - Number(t.qOut || 0);
+  });
+
+  dssNavRow('🏦 Opening Balance', nav.dbFrom, `Balance as on ${nav.dbFrom} — Daybook start`, null, null, null, run, it.rate, Math.max(0, run) * it.rate, () => {}, '');
+
+  const rows = (it.dtx || []).filter(t => t.date >= nav.dbFrom && t.date <= nav.dbTo)
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+  if (!rows.length) {
+    dssNavRow('—', 'No Entries', `Is date range (${nav.dbFrom} to ${nav.dbTo}) me koi entry nahi`, null, null, null, run, it.rate, Math.max(0, run) * it.rate, () => {}, '');
+    return true;
+  }
+
+  rows.forEach((t, ti) => {
+    const qIn = Number(t.qIn || 0), qOut = Number(t.qOut || 0);
+    run = run + qIn - qOut;
+    const d = String(t.date || '').split('-');
+    const dStr = d.length === 3 ? `${d[2]}-${d[1]}-${d[0].slice(2)}` : (t.date || '-');
+    const editable = !t.agg && t.source !== undefined && t.source !== null;
+    dssNavRow(`🗓️ ${dStr}`, t.label || '—', editable ? 'Transaction — Enter par Voucher Alteration' : 'Aggregate entry (edit nahi)', null, qIn, qOut, run, it.rate, Math.max(0, run) * it.rate, () => {
+      if (!editable) return;
+      _dssNav.tx = { source: t.source, idx: t.idx, txId: t.txId, label: t.label || '', date: t.date || '' };
+      _dssNav.level = 6; _dssNav.sel = 0;
+      renderDetailedStockReport();
+    }, editable ? '▸' : '');
+  });
+  return true;
+}
+
+/** Level 6: Voucher Alteration menu — Edit / Delete / Back (existing Daybook functions reuse). */
+function dssRenderNavVoucher() {
+  const nav = _dssNav;
+  const tx = nav.tx;
+  if (!tx) { nav.level = 5; nav.sel = 0; return dssRenderNavDaybook(); }
+
+  const doEdit = () => {
+    // Edit modal kholne se pehle nav daybook par le jao (save ke baad wahi view rahe)
+    nav.level = 5; nav.tx = null; nav.sel = 0;
+    renderDetailedStockReport();
+    if (tx.source === 'today' && tx.txId) openTxEntryEdit(tx.txId);
+    else daybookEditEntry(tx.source, tx.idx);
+  };
+  const doDelete = () => {
+    // daybookDeleteEntry andar khud confirm() + SKU qty adjust karta hai
+    if (tx.source === 'today' && tx.txId) daybookDeleteEntry('today', tx.idx);
+    else daybookDeleteEntry(tx.source, tx.idx);
+    nav.level = 5; nav.tx = null; nav.sel = 0;
+    renderDetailedStockReport();
+  };
+
+  dssNavRow('✏️ Edit Voucher', tx.date, `Alter: ${tx.label || 'entry'} — existing edit modal khulega`, null, null, null, null, null, null, () => {
+    doEdit();
+  }, 'Enter');
+  dssNavRow('🗑️ Delete Voucher', tx.date, `Delete: ${tx.label || 'entry'} — confirm ke baad delete`, null, null, null, null, null, null, () => {
+    doDelete();
+  }, 'Enter');
+  dssNavRow('↩️ Back to Daybook', nav.month || '', 'Wapas Daybook (month entries) par', null, null, null, null, null, null, () => {
+    nav.level = 5; nav.sel = 0; renderDetailedStockReport();
+  }, 'Esc');
+  return true;
+}
+
+/* ---- Drill-down nav bar: breadcrumb + Daybook date range (Tally style) ---- */
+function _dssNavBarHide() {
+  const bar = document.getElementById('dssNavBar');
+  if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
+}
+
+function dssNavBarRender() {
+  const bar = document.getElementById('dssNavBar');
+  if (!bar) return;
+  if (!dssNavActive()) { _dssNavBarHide(); return; }
+  const nav = _dssNav;
+  const names = { 1: 'Groups', 2: 'Subgroups', 3: 'Items', 4: 'Monthly Summary', 5: 'Daybook', 6: 'Voucher Alteration' };
+
+  // Breadcrumb path
+  const crumbs = ['<a href="#" onclick="dssNavGo(0); return false;">📦 Statement</a>'];
+  const push = (label, lvl) => crumbs.push(`<a href="#" onclick="dssNavGo(${lvl}); return false;">${label}</a>`);
+  if (nav.level >= 2 && nav.gKey) {
+    const b = (_dssCtx && _dssCtx.dssBucket || []).find(x => x.g.key === nav.gKey);
+    push(b ? `${b.g.icon} ${b.g.label}` : nav.gKey, 1);
+  }
+  if (nav.level >= 3 && nav.subKey) push(`▸ ${nav.subKey}`, 2);
+  if (nav.level >= 4 && nav.itemKey) {
+    const it = dssNavResolveItem();
+    push(`• ${it ? ((it.description && it.description !== '—') ? it.description : it.code) : nav.itemKey}`, 3);
+  }
+  if (nav.level >= 5 && nav.month) push(`📅 ${nav.month}`, 4);
+  if (nav.level >= 6) push('🧾 Voucher', 5);
+  push(`<b>${names[nav.level]}</b>`, nav.level);
+
+  // Daybook date range (level 5)
+  let rangeHtml = '';
+  if (nav.level === 5) {
+    rangeHtml = `
+      <span style="display:inline-flex; align-items:center; gap:6px; margin-left:12px;">
+        <label style="font-size:12px; font-weight:700; color:#93c5fd;">📅 From:</label>
+        <input type="date" id="dss_dbFrom" value="${nav.dbFrom || ''}" onchange="dssNavDbChange('from', this.value)" style="padding:4px 8px; border-radius:5px; border:1px solid #93c5fd; font-weight:700; font-size:12px; background:#ffffff; color:#0f172a;">
+        <label style="font-size:12px; font-weight:700; color:#93c5fd;">To:</label>
+        <input type="date" id="dss_dbTo" value="${nav.dbTo || ''}" onchange="dssNavDbChange('to', this.value)" style="padding:4px 8px; border-radius:5px; border:1px solid #93c5fd; font-weight:700; font-size:12px; background:#ffffff; color:#0f172a;">
+      </span>`;
+  }
+
+  bar.style.display = 'flex';
+  bar.innerHTML = `
+    <nav style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12.5px; color:#cbd5e1;">
+      ${crumbs.join(' <span style="color:#64748b;">›</span> ')}
+    </nav>
+    ${rangeHtml}
+    <span style="margin-left:auto; font-size:11.5px; font-weight:700; color:#93c5fd;">
+      ↑↓ Select &nbsp;•&nbsp; Enter Open &nbsp;•&nbsp; Esc Back
+    </span>`;
+}
+
+function dssNavDbChange(which, val) {
+  if (!dssNavActive() || !_dssNav) return;
+  if (which === 'from') _dssNav.dbFrom = val; else _dssNav.dbTo = val;
+  if (_dssNav.dbFrom && _dssNav.dbTo && _dssNav.dbFrom > _dssNav.dbTo) {
+    if (which === 'from') _dssNav.dbTo = val; else _dssNav.dbFrom = val;
+  }
+  _dssNav.sel = 0;
+  renderDetailedStockReport();
+}
+
 /**
  * Render Detailed Stock Report
  */
@@ -18315,13 +18726,16 @@ function renderDetailedStockReport() {
   if (elRowCount) elRowCount.textContent = `${filtered.length}`;
 
   // =========================================================================
-  // RENDER TREE: L1 group → L2 subgroup → L3 item → L4 datewise entries
+  // RENDER: Drill-down NAV active ho to Tally-style level view,
+  // warna purana click-toggle tree (L1 group → L2 subgroup → L3 item → L4 datewise)
   // =========================================================================
   const tbody = document.getElementById('detailedStockTableBody');
   if (!tbody) return;
   tbody.innerHTML = '';
 
   if (filtered.length === 0) {
+    // Filter me kuch nahi mila to drill-down nav bhi reset (stale breadcrumb nahi)
+    if (dssNavActive()) dssNavReset();
     tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:32px 14px; color:#64748b; font-weight:700;">No inventory records match the selected category & search filters.</td></tr>`;
     if (_dssPrintPending) {
       _dssPrintPending = false;
@@ -18339,6 +18753,39 @@ function renderDetailedStockReport() {
   const dssBucket = dssGroups.map(g => ({ g: g, items: filtered.filter(g.match) }));
   const dssOrphans = filtered.filter(i => !dssGroups.some(g => g.match(i)));
   if (dssOrphans.length) dssBucket.push({ g: { key: 'OTHER', icon: '🧾', label: 'OTHERS' }, items: dssOrphans });
+
+  // Drill-down nav ka data context (levels 1-6 isi se render hote hain)
+  _dssCtx = { filtered: filtered, dssBucket: dssBucket, fromDate: fromDate, toDate: toDate, totalValuation: totalValuation };
+
+  // ---- Drill-down NAV: active ho to Tally-style level view render ----
+  if (dssNavActive()) {
+    _dssNavRows = [];
+    if (!Number.isInteger(_dssNav.sel) || _dssNav.sel < 0) _dssNav.sel = 0;
+    let ok = false;
+    const lv = _dssNav.level;
+    if (lv === 1 || lv === 2 || lv === 3) ok = dssRenderNavTree();
+    else if (lv === 4) ok = dssRenderNavMonthly();
+    else if (lv === 5) ok = dssRenderNavDaybook();
+    else if (lv === 6) ok = dssRenderNavVoucher();
+    if (!ok || !_dssNavRows.length) { dssNavReset(); }
+    else {
+      if (_dssNav.sel >= _dssNavRows.length) _dssNav.sel = 0;
+      tbody.innerHTML = _dssNavRows.map((r, i) =>
+        i === _dssNav.sel ? r.html.replace('dss-nav-row"', 'dss-nav-row dss-sel"') : r.html
+      ).join('');
+      dssNavBarRender();
+      const rc = document.getElementById('detailedStockRowCount');
+      if (rc) rc.textContent = `${_dssNavRows.length}`;
+      const fv = document.getElementById('detailedStockFooterVal');
+      if (fv) fv.textContent = `₹ ${totalValuation.toLocaleString()}`;
+      if (_dssPrintPending) {
+        _dssPrintPending = false;
+        if (typeof _dssRenderPrint === 'function') _dssRenderPrint(tbody.innerHTML, totalValuation, fromDate, toDate, filtered.length);
+      }
+      return;
+    }
+  }
+  _dssNavBarHide();
 
   function dssSum(items) {
     const s = { op: 0, ti: 0, to: 0, cl: 0, amt: 0 };
