@@ -27521,15 +27521,19 @@ function buildWipBoardBarcodeDrilldownHtml(spec, totalWipBoard) {
     const bCode = s.barcode;
     const ups = s.ups || ((spec.compact.includes('200') || (s.size && s.size.toUpperCase().includes('A4'))) ? 3 : 8);
     
-    // Inwarded printed sheets for this barcode
-    let barcodePrinted = (state.boardWipByBarcode && state.boardWipByBarcode[bCode]) || 0;
-    
-    // Also include any ledger entries tagged with this barcode
+    // Inwarded printed sheets for this barcode.
+    // NOTE: boardWipByBarcode receipts already accumulate karta hai (24575),
+    // isliye ledger ko ADD karna double-count tha (77x98x190 me 46,500 dikh raha
+    // tha jagah 11,500). Max lo — dono source me se jo zyada ho (manual assign
+    // overrides map me only hote hain; legacy receipts ledger me only ho sakte hain).
+    const mapPrinted = (state.boardWipByBarcode && state.boardWipByBarcode[bCode]) || 0;
+    let ledgerPrinted = 0;
     (state.boardLedger || []).forEach(l => {
       if (l.barcode === bCode && l.printedRecd) {
-        barcodePrinted += (l.printedRecd || 0);
+        ledgerPrinted += (l.printedRecd || 0);
       }
     });
+    const barcodePrinted = Math.max(mapPrinted, ledgerPrinted);
 
     const prodPcs = s.production || 0;
     const consumedSheets = Math.ceil(prodPcs / ups);
@@ -39281,6 +39285,8 @@ function daybookSaveModal(e) {
   } else if (source === 'board') {
     const l = (state.boardLedger || [])[idx];
     if (!l) return;
+    const oldPrinted = Number(l.printedRecd || 0);
+    const oldBarcode = l.barcode;
     l.date = val('daybook_date') || l.date;
     l.inv = val('daybook_inv');
     l.party = val('daybook_party');
@@ -39288,6 +39294,22 @@ function daybookSaveModal(e) {
     l.inward = num('daybook_inward');
     l.outPrint = num('daybook_outprint');
     l.printedRecd = num('daybook_printed');
+    // boardWipByBarcode SYNC — printedRecd ya barcode badalne par map me delta
+    // apply karo (warna edit ke baad map stale reh jaata tha → phantom WIP).
+    const newPrinted = Number(l.printedRecd || 0);
+    if ((oldPrinted !== newPrinted || String(oldBarcode || '') !== String(l.barcode || '')) &&
+        (oldBarcode || l.barcode)) {
+      state.boardWipByBarcode = state.boardWipByBarcode || {};
+      if (oldBarcode) {
+        const ob = String(oldBarcode);
+        state.boardWipByBarcode[ob] = Math.max(0,
+          Number(state.boardWipByBarcode[ob] || 0) - oldPrinted);
+      }
+      if (l.barcode && newPrinted > 0) {
+        const nb = String(l.barcode);
+        state.boardWipByBarcode[nb] = Number(state.boardWipByBarcode[nb] || 0) + newPrinted;
+      }
+    }
   } else if (source === 'consumable') {
     const l = (state.consumableLedger || [])[idx];
     if (!l) return;
@@ -39391,6 +39413,16 @@ function daybookDeleteEntry(source, idx) {
   } else if (source === 'paper') {
     (state.papersLedger || []).splice(idx, 1);
   } else if (source === 'board') {
+    // boardWipByBarcode REVERSE — printed-recd entry delete karne par WIP map
+    // me se sheets minus karo. Warn map me phantom (inflated) WIP reh jaata tha
+    // (77x98x190 me +23,500 Sh ka case: receipts delete hui par map me rahe gaye).
+    const delBoardEntry = (state.boardLedger || [])[idx];
+    if (delBoardEntry && delBoardEntry.barcode && Number(delBoardEntry.printedRecd || 0) > 0) {
+      state.boardWipByBarcode = state.boardWipByBarcode || {};
+      const delBc = String(delBoardEntry.barcode);
+      state.boardWipByBarcode[delBc] = Math.max(0,
+        Number(state.boardWipByBarcode[delBc] || 0) - Number(delBoardEntry.printedRecd || 0));
+    }
     (state.boardLedger || []).splice(idx, 1);
   } else if (source === 'consumable') {
     const l = (state.consumableLedger || [])[idx];
