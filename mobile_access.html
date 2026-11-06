@@ -518,7 +518,7 @@
   function copyLink(elementId) {
     const text = document.getElementById(elementId).textContent.trim();
     // Sirf asli http(s) link copy ho — "लोड हो रहा है / ⚠️ guidance" waghera nahi
-    if (!/^https?:\/\//i.test(text)) { showToast("⚠️ लिंक अभी तैयार नहीं है!"); return; }
+    if (text.indexOf('http://') !== 0 && text.indexOf('https://') !== 0) { showToast("⚠️ लिंक अभी तैयार नहीं है!"); return; }
     navigator.clipboard.writeText(text).then(() => {
       showToast("लिंक कॉपी हो गया! अब WhatsApp पर पेस्ट कर सकते हैं।");
     }).catch(() => {
