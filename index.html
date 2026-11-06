@@ -19189,7 +19189,17 @@ function _boardProdConsumedFor(compactB) {
   let total = 0, lastDate = '';
   matched.forEach(s => {
     total += Number(s.boardSheetsRequired || 0);
-    const d = String(s.lastProdDate || '');
+    let d = String(s.lastProdDate || '');
+    // lastProdDate DEAD field hai (kahin set hi nahi hota — 0 setters) → fallback
+    // '2026-10-15' consumption ko receipts (10-22/24) se PEHLE rakh deta tha →
+    // Detailed Stock statement me interim −1,055 red (asli production 2026-10-23).
+    // Asli date Production tx me hoti hai (todayTransactions, save: line 23769).
+    (state.todayTransactions || []).forEach(ptx => {
+      if (String(ptx.type || '').indexOf('Production') < 0) return;
+      if (String(ptx.barcode || '') !== String(s.barcode)) return;
+      const pd = String(ptx.date || '');
+      if (pd > d) d = pd;
+    });
     if (d > lastDate) lastDate = d;
   });
   return { matched: matched, total: total, lastDate: lastDate };
@@ -27519,7 +27529,17 @@ function buildWipBoardBarcodeDrilldownHtml(spec, totalWipBoard) {
 
   matchingSkus.forEach(s => {
     const bCode = s.barcode;
-    const ups = s.ups || ((spec.compact.includes('200') || (s.size && s.size.toUpperCase().includes('A4'))) ? 3 : 8);
+    // Board divisor = barcode 3rd-char rule (recalc line 14106 + production 23563
+    // jaisa). s.ups (paper "Ups Division" 3/4 field) board ke liye GALAT tha —
+    // 77x98x190 me 8,436 pcs pe 2,109 dikhta tha jagah asli 1,055 (8 ups).
+    const bc3 = String(s.barcode || '').charAt(2);
+    let boardDiv = 8;
+    if (bc3 === '3') boardDiv = 8;
+    else if (bc3 === '5') boardDiv = 3;
+    else {
+      const isA4Sku = (s.size && s.size.toUpperCase().includes('A4')) || (s.description && s.description.toUpperCase().includes('A4')) || (s.ups === 3);
+      boardDiv = isA4Sku ? 3 : 8;
+    }
     
     // Inwarded printed sheets for this barcode.
     // NOTE: boardWipByBarcode receipts already accumulate karta hai (24575),
@@ -27536,9 +27556,9 @@ function buildWipBoardBarcodeDrilldownHtml(spec, totalWipBoard) {
     const barcodePrinted = Math.max(mapPrinted, ledgerPrinted);
 
     const prodPcs = s.production || 0;
-    const consumedSheets = Math.ceil(prodPcs / ups);
+    const consumedSheets = Number(s.boardSheetsRequired) || Math.ceil(prodPcs / boardDiv);
     const availWipSheets = (barcodePrinted - consumedSheets);
-    const capacityPcs = Math.max(0, availWipSheets) * ups;
+    const capacityPcs = Math.max(0, availWipSheets) * boardDiv;
 
     sumPrinted += barcodePrinted;
     sumProd += prodPcs;
@@ -27556,7 +27576,7 @@ function buildWipBoardBarcodeDrilldownHtml(spec, totalWipBoard) {
         <td style="font-weight:800; color:#1e3a8a; text-align:left;">${bCode}</td>
         <td style="text-align:left; font-weight:600;">${s.description}</td>
         <td>${getVendorBadgeHtml(s.vendor)}</td>
-        <td class="num">${ups} ups</td>
+        <td class="num">${boardDiv} ups</td>
         <td class="num" style="font-weight:700; color:#0e7490; background:#ecfeff;">${barcodePrinted.toLocaleString()}</td>
         <td class="num" style="font-weight:700;">${prodPcs.toLocaleString()}</td>
         <td class="num" style="font-weight:700; color:#b45309;">${consumedSheets.toLocaleString()}</td>
@@ -36791,8 +36811,16 @@ function renderBoardWipAuditDetails(size) {
     const ups = s.ups || 3;
     const consumedSheets = Number(s.boardSheetsRequired) || Math.ceil(prodQty / ups);
     if (prodQty <= 0 && consumedSheets <= 0) return;
+    // Actual production tx date (latest) — lastProdDate DEAD field (0 setters) →
+    // fallback '2026-10-15' ki jagah asli date (2026-10-23) row par dikhni chahiye.
+    let prodDate = '';
+    (state.todayTransactions || []).forEach(ptx => {
+      if (String(ptx.type || '').indexOf('Production') < 0) return;
+      if (String(ptx.barcode || '') !== String(s.barcode)) return;
+      if (String(ptx.date || '') > prodDate) prodDate = String(ptx.date || '');
+    });
     rawRows.push({
-      date: s.lastProdDate || '2026-10-15',
+      date: prodDate || s.lastProdDate || '2026-10-15',
       type: 'Production Consumption',
       code: s.barcode,
       description: s.description || s.title || '-',
