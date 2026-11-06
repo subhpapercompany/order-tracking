@@ -39208,6 +39208,7 @@ function daybookOpenEditor(source, idx) {
     html += daybookInput('Processed (Kg)', 'daybook_processed', 'number', raw.processedKg || 0, 'min="0" step="0.01"');
     html += daybookInput('Wastage (Kg)', 'daybook_wastage', 'number', raw.wastageKg || 0, 'min="0" step="0.01"');
     html += daybookInput('WIP Type', 'daybook_wiptype', 'text', raw.wipType || '');
+    html += daybookInput('Rate (₹/Kg)', 'daybook_rate', 'number', raw.rate || 0, 'min="0" step="0.01"');
     html += daybookInput('Notes', 'daybook_notes', 'text', raw.notes || '');
   } else if (source === 'board') {
     html += daybookInput('Entry Date', 'daybook_date', 'date', daybookNormalizeDate(raw.date) || daybookTodayISO());
@@ -39217,11 +39218,14 @@ function daybookOpenEditor(source, idx) {
     html += daybookInput('Inward (Sheets)', 'daybook_inward', 'number', raw.inward || 0, 'min="0" step="1"');
     html += daybookInput('Out for Printing', 'daybook_outprint', 'number', raw.outPrint || 0, 'min="0" step="1"');
     html += daybookInput('Printed Recd', 'daybook_printed', 'number', raw.printedRecd || 0, 'min="0" step="1"');
+    html += daybookInput('Rate (₹/Sheet)', 'daybook_rate', 'number', raw.rate || 0, 'min="0" step="0.01"');
+    html += daybookInput('Barcode', 'daybook_barcode', 'text', raw.barcode || '');
   } else if (source === 'consumable') {
     html += daybookInput('Entry Date', 'daybook_date', 'date', daybookNormalizeDate(raw.date) || daybookTodayISO());
     html += daybookInput('Item', 'daybook_item', 'text', raw.item || '', 'readonly');
     html += daybookInput('Category', 'daybook_category', 'text', raw.category || '', 'readonly');
     html += daybookInput('Movement Type', 'daybook_movetype', 'text', raw.type || '');
+    html += daybookInput('Rate (₹)', 'daybook_rate', 'number', raw.rate || 0, 'min="0" step="0.01"');
     html += daybookInput('Qty In', 'daybook_qtyin', 'number', raw.qtyIn || 0, 'min="0" step="0.01"');
     html += daybookInput('Qty Out', 'daybook_qtyout', 'number', raw.qtyOut || 0, 'min="0" step="0.01"');
     html += daybookInput('Reference', 'daybook_ref', 'text', raw.ref || '');
@@ -39309,6 +39313,7 @@ function daybookSaveModal(e) {
     l.processedKg = num('daybook_processed');
     l.wastageKg = num('daybook_wastage');
     l.wipType = val('daybook_wiptype');
+    l.rate = num('daybook_rate');
     l.notes = val('daybook_notes');
   } else if (source === 'board') {
     const l = (state.boardLedger || [])[idx];
@@ -39319,9 +39324,11 @@ function daybookSaveModal(e) {
     l.inv = val('daybook_inv');
     l.party = val('daybook_party');
     l.size = val('daybook_size');
+    l.barcode = val('daybook_barcode');
     l.inward = num('daybook_inward');
     l.outPrint = num('daybook_outprint');
     l.printedRecd = num('daybook_printed');
+    l.rate = num('daybook_rate');
     // boardWipByBarcode SYNC — printedRecd ya barcode badalne par map me delta
     // apply karo (warna edit ke baad map stale reh jaata tha → phantom WIP).
     const newPrinted = Number(l.printedRecd || 0);
@@ -39347,6 +39354,7 @@ function daybookSaveModal(e) {
     const newOut = num('daybook_qtyout');
     l.date = val('daybook_date') || l.date;
     l.type = val('daybook_movetype') || l.type;
+    l.rate = num('daybook_rate');
     l.qtyIn = newIn;
     l.qtyOut = newOut;
     l.ref = val('daybook_ref');
