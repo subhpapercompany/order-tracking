@@ -424,51 +424,101 @@
 <script>
   let activeTunnelUrl = "";
   let activeWifiUrl = "";
+  let tunnelRetries = 0;
+  const TUNNEL_MAX_RETRIES = 8; // 8 × 3 sec = 24 sec (cloudflared start hone ka time)
 
   function getQrUrl(dataText) {
     return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(dataText)}&margin=6`;
   }
 
+  /** QR image dikhao — empty src se browser page-URL QR bana deta hai (broken QR), isliye helper. */
+  function showQr(id, url) {
+    const img = document.getElementById(id);
+    if (!img) return;
+    img.src = getQrUrl(url);
+    const box = img.closest('.qr-box');
+    if (box) box.style.display = '';
+  }
+
+  /** QR aur uska white frame dono hide (khali box na dikhe). */
+  function hideQr(id) {
+    const img = document.getElementById(id);
+    if (!img) return;
+    img.removeAttribute('src');
+    const box = img.closest('.qr-box');
+    if (box) box.style.display = 'none';
+  }
+
+  /** GitHub Pages (github.io) par local API exist nahi karti — galat fallback URL
+      (hostname:8080) ki jagah sahi guidance dikhao, QR mat dikhao. */
+  function showPagesGuidance() {
+    const localLink = 'http://localhost:8080/mobile_access.html';
+    activeWifiUrl = '';
+    activeTunnelUrl = '';
+    document.getElementById('urlWifi').textContent = '⚠️ यह पेज GitHub Pages (online copy) से खुला है — Wi-Fi/LAN QR यहाँ नहीं बनेंगे। Connectivity Hub ऑफिस कंप्यूटर पर खोलें: ' + localLink;
+    document.getElementById('urlTunnel').textContent = '⚠️ सुरंग (4G/5G) QR सिर्फ ऑफिस कंप्यूटर पर मिलेगा — वहीं से यह पेज खोलें: ' + localLink;
+    document.getElementById('urlHotspot').textContent = '⚠️ हॉटस्पॉट QR भी ऑफिस कंप्यूटर (localhost:8080) पर ही चलेगा: ' + localLink;
+    hideQr('qrWifi'); hideQr('qrTunnel'); hideQr('qrHotspot');
+    const b = document.getElementById('btnOpenWifi');
+    if (b) b.href = localLink;
+  }
+
+  function setTunnelUnavailable(msg) {
+    document.getElementById('urlTunnel').textContent = msg;
+    hideQr('qrTunnel');
+  }
+
   async function loadNetworkInfo() {
+    // Pages se khula to API hai hi nahi — fetch karne ka koi matlab nahi
+    if (/\.github\.io$/i.test(window.location.hostname || '')) { showPagesGuidance(); return; }
     try {
       const res = await fetch('/api/network-info');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       
       // 1. Wi-Fi
       activeWifiUrl = data.wifi_url || `http://${window.location.hostname}:8080/`;
       document.getElementById('urlWifi').textContent = activeWifiUrl;
-      document.getElementById('qrWifi').src = getQrUrl(activeWifiUrl);
+      showQr('qrWifi', activeWifiUrl);
       document.getElementById('btnOpenWifi').href = activeWifiUrl;
 
-      // 2. Tunnel 4G/5G
+      // 2. Tunnel 4G/5G — nahi hai to limited retry, phir clear message (endless loop nahi)
       if (data.tunnel_url) {
+        tunnelRetries = 0;
         activeTunnelUrl = data.tunnel_url;
         document.getElementById('urlTunnel').textContent = activeTunnelUrl;
-        document.getElementById('qrTunnel').src = getQrUrl(activeTunnelUrl);
-      } else {
-        document.getElementById('urlTunnel').textContent = "सुरंग (Tunnel) कनेक्ट हो रहा है...";
-        // Retry in 3 seconds
+        showQr('qrTunnel', activeTunnelUrl);
+      } else if (tunnelRetries < TUNNEL_MAX_RETRIES) {
+        tunnelRetries++;
+        document.getElementById('urlTunnel').textContent = `सुरंग (Tunnel) कनेक्ट हो रहा है... (${tunnelRetries}/${TUNNEL_MAX_RETRIES})`;
+        hideQr('qrTunnel');
         setTimeout(loadNetworkInfo, 3000);
+      } else {
+        setTunnelUnavailable('❌ सुरंग उपलब्ध नहीं (cloudflared बंद है) — Launch_Software.bat फिर चलाएँ। तब तक Wi-Fi/हॉटस्पॉट QR इस्तेमाल करें।');
       }
 
       // 3. Hotspot
       const hotspotUrl = data.hotspot_url || 'http://192.168.137.1:8080/';
       document.getElementById('urlHotspot').textContent = hotspotUrl;
-      document.getElementById('qrHotspot').src = getQrUrl(hotspotUrl);
+      showQr('qrHotspot', hotspotUrl);
 
     } catch (err) {
-      // Fallback if opened directly via file://
+      // Defensive: Pages par aaya to guidance (fetch fail hone par bhi)
+      if (/\.github\.io$/i.test(window.location.hostname || '')) { showPagesGuidance(); return; }
+      // Fallback if opened directly via file:// (server band hai)
       const localHost = window.location.hostname || '192.168.1.4';
       activeWifiUrl = `http://${localHost}:8080/`;
       document.getElementById('urlWifi').textContent = activeWifiUrl;
-      document.getElementById('qrWifi').src = getQrUrl(activeWifiUrl);
-      document.getElementById('qrHotspot').src = getQrUrl('http://192.168.137.1:8080/');
+      showQr('qrWifi', activeWifiUrl);
+      showQr('qrHotspot', 'http://192.168.137.1:8080/');
+      setTunnelUnavailable('❌ लोकल सर्वर (localhost:8080) नहीं मिला — server.py चालू करके पेज रिफ्रेश करें।');
     }
   }
 
   function copyLink(elementId) {
     const text = document.getElementById(elementId).textContent.trim();
-    if (!text || text.includes('हो रहा है')) return;
+    // Sirf asli http(s) link copy ho — "लोड हो रहा है / ⚠️ guidance" waghera nahi
+    if (!/^https?:\/\//i.test(text)) { showToast("⚠️ लिंक अभी तैयार नहीं है!"); return; }
     navigator.clipboard.writeText(text).then(() => {
       showToast("लिंक कॉपी हो गया! अब WhatsApp पर पेस्ट कर सकते हैं।");
     }).catch(() => {
