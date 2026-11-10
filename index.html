@@ -12735,6 +12735,9 @@ function getFullEnterpriseStatePayload() {
     boardLedger: state.boardLedger || [],
     boardWipByBarcode: state.boardWipByBarcode || {},
     consumables: state.consumables || [],
+    consumableLedger: state.consumableLedger || [],
+    camlinLedger: state.camlinLedger || null,
+    commercial: state.commercial || null,
     todayTransactions: state.todayTransactions || [],
     poRequests: state.poRequests || [],
     poReleases: state.poReleases || [],
@@ -12905,6 +12908,17 @@ function loadStateFromDatabaseObject(parsed) {
   if (parsed.financials) state.financials = parsed.financials;
   if (Array.isArray(parsed.dailyFlashReports)) state.dailyFlashReports = parsed.dailyFlashReports;
   if (Array.isArray(parsed.ranjitMakingEntries)) state.ranjitMakingEntries = parsed.ranjitMakingEntries;
+  // Missing keys: pehle ye save payload me the lekin load me kabhi read nahi hote the
+  if (Array.isArray(parsed.consumableLedger)) state.consumableLedger = parsed.consumableLedger;
+  if (Array.isArray(parsed.itemMaster)) state.itemMaster = parsed.itemMaster;
+  if (Array.isArray(parsed.masterGroups) && parsed.masterGroups.length > 0) {
+    state.masterGroups = (typeof normalizeMasterGroupsVendors === 'function')
+      ? normalizeMasterGroupsVendors(parsed.masterGroups)
+      : parsed.masterGroups;
+  }
+  if (Array.isArray(parsed.ledgerMaster)) state.ledgerMaster = parsed.ledgerMaster;
+  if (parsed.camlinLedger && typeof parsed.camlinLedger === 'object') state.camlinLedger = parsed.camlinLedger;
+  if (parsed.commercial && typeof parsed.commercial === 'object') state.commercial = parsed.commercial;
   if (parsed.hr && typeof parsed.hr === 'object') {
     state.hr = parsed.hr;
     if (typeof initHRModule === 'function') initHRModule();
@@ -13053,6 +13067,10 @@ function hydrateFromDatabaseObject(parsed) {
   state.financials = parsed.financials || JSON.parse(JSON.stringify(DEFAULT_FINANCIALS));
   if (Array.isArray(parsed.dailyFlashReports)) state.dailyFlashReports = parsed.dailyFlashReports;
   if (Array.isArray(parsed.ranjitMakingEntries)) state.ranjitMakingEntries = parsed.ranjitMakingEntries;
+  // Camlin Party Ledger & Hundi (commercial) — pehle save payload me the hi nahi,
+  // isliye ye entries reload par gayab ho jati thi. Ab persist + load dono honge.
+  if (parsed.camlinLedger && typeof parsed.camlinLedger === 'object') state.camlinLedger = parsed.camlinLedger;
+  if (parsed.commercial && typeof parsed.commercial === 'object') state.commercial = parsed.commercial;
   if (parsed.hr && typeof parsed.hr === 'object') {
     state.hr = parsed.hr;
     // HR data apply hone par TURANT sanitize: Old Due (live ledger) recompute + Cash Paid auto-fill cleanup.
@@ -15387,7 +15405,11 @@ function switchSheet(sheetId, clickedEl) {
   // Update export button label with active sheet name
   updateExportButtonLabel();
 
-  if (sheetId === 'ordersheet') {
+  // Dashboard — pehle yahan render hota hi nahi tha, isliye purani entries/summary dikhti thi
+  if (sheetId === 'dashboard') {
+    renderKPIs();
+    renderDashboardTable();
+  } else if (sheetId === 'ordersheet') {
     renderOrderSheet();
   } else if (sheetId === 'daybook') {
     renderDaybook();
@@ -15425,6 +15447,22 @@ function switchSheet(sheetId, clickedEl) {
     renderDetailedStockReport();
   } else if (sheetId === 'invledger') {
     renderInventoryLedger();
+  } else if (sheetId === 'bookwt') {
+    renderBookWtMaster();
+  } else if (sheetId === 'manufacturing') {
+    renderManufacturingSheet();
+  } else if (sheetId === 'despatched') {
+    renderDespatchedSheet();
+  } else if (sheetId === 'consumption') {
+    renderConsumptionSheet();
+  } else if (sheetId === 'papers') {
+    renderPapersSheet();
+  } else if (sheetId === 'porequest') {
+    renderPoRequestSheet();
+  } else if (sheetId === 'porelease') {
+    renderPoReleaseSheet();
+  } else if (sheetId === 'potracking') {
+    renderPoTrackingSheet();
   }
 
   try { syncKeyboardFocusWithActive(); } catch (_) {}
@@ -16000,6 +16038,42 @@ function calculateMrpRequirements(vendor = 'all') {
     boardSpecs = ['45.5 x 91 x 190', '45.5 x 91 x 200', '77 x 98 x 190', '44 x 1010 x 250gsm', '46 x 91 x 250gsm', '78 x 98 x 230gsm', '76 x 98 x 230gsm'];
   }
 
+  // ============ DYNAMIC SPEC DISCOVERY ============
+  // Naya size ki reel / board aayi to plan me APNE AAP column ban jaye.
+  // (Pehle ye list sirf hardcoded thi — isliye jaise hi "Reels : 97X37X58",
+  //  "Reels : 90X43X58", "Reels : 72.8X37X58" jaisi nayi reels aayin, inka
+  //  stock hone ke bawajood Paper & Board Plan me koi column hi nahi banta tha.)
+  const _seenPaperSpecs = new Set(paperSpecs);
+  const _pushPaperSpec = (spec, entryVendor) => {
+    const sp = String(spec || '').trim();
+    if (!sp || _seenPaperSpecs.has(sp)) return;
+    // Vendor scope ke bahar ki spec na dikhe (same rule jo baaki jagah lagta hai)
+    if (!isPaperMatchingVendor(sp, String(entryVendor || ''), vendor)) return;
+    _seenPaperSpecs.add(sp);
+    paperSpecs.push(sp);
+  };
+  (state.papersSummary || []).forEach(p => _pushPaperSpec(p && p.reelSize, p && p.vendor));
+  (state.papersLedger || []).forEach(l => _pushPaperSpec(l && l.reelSize, l && l.vendor));
+  if (state.materialStock && state.materialStock.paper) {
+    Object.keys(state.materialStock.paper).forEach(k => _pushPaperSpec(k, ''));
+  }
+  (state.skus || []).forEach(s => _pushPaperSpec(s && s.paperSpec, s && s.vendor));
+
+  const _seenBoardSpecs = new Set(boardSpecs);
+  const _pushBoardSpec = (size, entryVendor) => {
+    const sp = String(size || '').trim();
+    if (!sp || _seenBoardSpecs.has(sp)) return;
+    if (!isBoardMatchingVendor(sp, String(entryVendor || ''), vendor)) return;
+    _seenBoardSpecs.add(sp);
+    boardSpecs.push(sp);
+  };
+  (state.boardSummary || []).forEach(b => _pushBoardSpec(b && b.size, b && b.vendor));
+  (state.boardLedger || []).forEach(b => _pushBoardSpec(b && (b.size || b.boardSize), b && b.vendor));
+  if (state.materialStock && state.materialStock.board) {
+    Object.keys(state.materialStock.board).forEach(k => _pushBoardSpec(k, ''));
+  }
+  (state.skus || []).forEach(s => _pushBoardSpec(s && s.boardSpec, s && s.vendor));
+
   const requiredPaper = {};
   paperSpecs.forEach(spec => {
     requiredPaper[spec] = {};
@@ -16277,7 +16351,9 @@ function renderMaterialPlanningDashboard() {
 
     let html = `<thead><tr>`;
     paperSpecs.forEach(spec => {
-      const meta = specMeta[spec] || { label: spec, bg: '#e0f2fe', text: '#0369a1', footBg: '#bae6fd' };
+      // Naya spec (jo specMeta me nahi hai) — "Reels : 97X37X58" ko "97×37×58" dikhao
+      const prettyLabel = String(spec).replace(/^\s*Reels\s*:\s*/i, '').replace(/\s*[xX]\s*/g, '×');
+      const meta = specMeta[spec] || { label: prettyLabel, bg: '#e0f2fe', text: '#0369a1', footBg: '#bae6fd' };
       html += `<th style="background:${meta.bg}; color:${meta.text}; text-align:center; font-weight:800; border:1px solid #000; padding:6px 4px; font-size:12px;">${meta.label}</th>`;
     });
     html += `</tr></thead><tbody>`;
@@ -16387,7 +16463,8 @@ function renderMaterialPlanningDashboard() {
 
     let html = `<tbody>`;
     boardSpecs.forEach(spec => {
-      const meta = boardMetaMap[spec] || { labelBg: '#f1f5f9', valBg: '#ffffff', label: spec };
+      const prettyBoardLabel = String(spec).replace(/^\s*(Reels|Board)\s*:\s*/i, '').replace(/\s*[xX]\s*/g, '×');
+      const meta = boardMetaMap[spec] || { labelBg: '#f1f5f9', valBg: '#ffffff', label: prettyBoardLabel };
       const qty = Math.round(dataSource[spec] || 0);
       totSheets += qty;
 
@@ -16749,6 +16826,15 @@ function renderAllViews() {
   renderDetailedStockReport();
   renderInventoryLedger();
   renderDaybook();
+
+  // Ledger / register views jo pehle renderAllViews me include hi nahi the.
+  // Ab har entry ke baad ye related reports bhi turant refresh hongi.
+  // (Har ek guarded hai — koi ek fail ho to baaki chalte rahenge.)
+  try { renderCamlinLedgerScreen(); } catch (_) {}
+  try { renderAdvanceLedgerView(); } catch (_) {}
+  try { renderFlashReportsScreen(); } catch (_) {}
+  try { renderRanjitMakingBill(); } catch (_) {}
+  try { renderHundiRegisterTable(); } catch (_) {}
 }
 
 function isPaperMatchingVendor(reelSize, vendor, activeVendor) {
@@ -16815,6 +16901,8 @@ function renderKPIs() {
     const specs = (activeV === 'ITC') ? ['89.8x43x56', '96.7x37x56'] :
                   (activeV === 'Camlin') ? ['90x43x57', '97x37x54', '97x37x57'] :
                   ['90x43x57', '97x37x54', '97x37x57', '89.8x43x56', '96.7x37x56'];
+    // Naya size ki reel/materialStock me ho to uska WIP bhi KPI me count ho
+    Object.keys(savedStock.paper).forEach(k => { if (specs.indexOf(k) === -1) specs.push(k); });
     specs.forEach(sp => {
       if (savedStock.paper[sp]) {
         Object.values(savedStock.paper[sp]).forEach(v => {
@@ -16836,6 +16924,8 @@ function renderKPIs() {
     const bSpecs = (activeV === 'ITC') ? ['44 x 1010 x 250gsm', '46 x 91 x 250gsm', '78 x 98 x 230gsm', '76 x 98 x 230gsm'] :
                    (activeV === 'Camlin') ? ['45.5 x 91 x 190', '45.5 x 91 x 200', '77 x 98 x 190'] :
                    ['45.5 x 91 x 190', '45.5 x 91 x 200', '77 x 98 x 190', '44 x 1010 x 250gsm', '46 x 91 x 250gsm', '78 x 98 x 230gsm', '76 x 98 x 230gsm'];
+    // Naya size board materialStock me ho to uska stock bhi KPI me count ho
+    Object.keys(savedStock.board).forEach(k => { if (bSpecs.indexOf(k) === -1) bSpecs.push(k); });
     bSpecs.forEach(bSp => {
       totBoardSheets += (Number(savedStock.board[bSp]) || 0);
     });
@@ -38234,9 +38324,7 @@ function saveCamlinVoucher() {
   // Recalculate and commit to database
   recalcCamlinLedgerEngine(false);
 
-  if (typeof saveDatabase === 'function') {
-    saveDatabase();
-  }
+  saveState();
 
   renderCamlinLedgerScreen();
   closeCamlinVoucherModal();
@@ -38264,9 +38352,7 @@ function deleteCamlinVoucher(txId) {
   ledger.transactions = ledger.transactions.filter(t => t.id !== txId);
   recalcCamlinLedgerEngine(false);
 
-  if (typeof saveDatabase === 'function') {
-    saveDatabase();
-  }
+  saveState();
 
   renderCamlinLedgerScreen();
   if (typeof showToast === 'function') {
@@ -38295,9 +38381,7 @@ function syncCamlinWithFinancials() {
       amount: inv.balanceDue
     }));
 
-    if (typeof saveDatabase === 'function') {
-      saveDatabase();
-    }
+    saveState();
 
     if (typeof showToast === 'function') {
       showToast(`Financials sheet synchronized: Open Advance = ₹ ${fmtCamINR(sum.openAdvanceRemaining, 0)} with ${pendingInvs.length} due bills.`, 'success');
@@ -38720,9 +38804,11 @@ function saveCamlinPaymentEntryForm() {
   recalcCamlinLedgerEngine(false);
 
   // Commit to disk
-  if (typeof saveDatabase === 'function') {
-    saveDatabase();
-  }
+  saveState();
+
+  // Ledger table abhi refresh karo — pehle ye sirf form render karta tha,
+  // isliye nayi payment entry screen par nahi dikhti thi.
+  renderCamlinLedgerScreen();
 
   if (typeof showToast === 'function') {
     showToast(`Payment of ₹ ${fmtCamINR(bankAmt + advAdj)} saved against ${invNo} successfully!`, 'success');
