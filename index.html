@@ -19541,9 +19541,13 @@ function buildInventoryLedgerRows(itemKey) {
     }
 
   } else if (itemKey.indexOf('PAPER_WIP:') === 0) {
-    const parts = itemKey.split(':');
-    const spec = parts[1];
-    const rKey = parts[2];
+    // Key = PAPER_WIP:<spec>:<ruling>. Spec me colon ho sakta hai
+    // ("Reels : 97X37X58") — ruling (Single Line/Unruled/...) me nahi.
+    // Isliye spec = last colon se pehle, ruling = last colon ke baad.
+    const innerSpec = itemKey.slice('PAPER_WIP:'.length);
+    const lastColonSpec = innerSpec.lastIndexOf(':');
+    const spec = lastColonSpec >= 0 ? innerSpec.slice(0, lastColonSpec) : innerSpec;
+    const rKey = lastColonSpec >= 0 ? innerSpec.slice(lastColonSpec + 1) : '';
     const compactSpec = (spec || '').replace(/\s+/g, '').toLowerCase();
     let baseOpening = 0;
     if (savedStock.paper) {
@@ -19601,7 +19605,9 @@ function buildInventoryLedgerRows(itemKey) {
     });
 
   } else if (itemKey.indexOf('PAPER_REELS:') === 0) {
-    const spec = itemKey.split(':')[1];
+    // NOTE: spec ke andar bhi colon ho sakta hai (jaise "Reels : 97X37X58") —
+    // isliye prefix SLICE karte hain, split(':') se spec aadha kat jata tha.
+    const spec = itemKey.slice('PAPER_REELS:'.length);
     const compactSpec = (spec || '').replace(/\s+/g, '').toLowerCase();
     const pSum = (state.papersSummary || []).find(p => (p.reelSize || '').replace(/\s+/g, '').toLowerCase() === compactSpec);
     title = `Paper - ${spec} : Reel Form`;
@@ -19880,9 +19886,16 @@ function renderInventoryLedger() {
     const actVI = state.activeVendor || 'all';
     let okVI = true;
     if (key.indexOf('PAPER_') === 0) {
-      okVI = isPaperMatchingVendor(String(key.split(':')[1] || ''), '', actVI);
+      // Spec me colon ho sakta hai ("Reels : 97X37X58") — split(':')[1] nahi.
+      // PAPER_WIP me spec ke BAAD ruling bhi hoti hai (last colon ke baad).
+      let specVI = key.slice(key.indexOf(':') + 1);
+      if (key.indexOf('PAPER_WIP:') === 0) {
+        const lcVI = specVI.lastIndexOf(':');
+        if (lcVI >= 0) specVI = specVI.slice(0, lcVI);
+      }
+      okVI = isPaperMatchingVendor(String(specVI || ''), '', actVI);
     } else if (key.indexOf('BOARD_') === 0) {
-      okVI = isBoardMatchingVendor(String(key.split(':')[1] || ''), '', actVI);
+      okVI = isBoardMatchingVendor(String(key.slice(key.indexOf(':') + 1) || ''), '', actVI);
     } else if (key.indexOf('FG:') === 0) {
       const skuVI = (state.skus || []).find(s => String(s.barcode) === String(key.slice(3)));
       okVI = isMatchingVendor(skuVI ? skuVI.vendor : '', actVI);
