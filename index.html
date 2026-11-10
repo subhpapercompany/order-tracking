@@ -16757,15 +16757,16 @@ function isPaperMatchingVendor(reelSize, vendor, activeVendor) {
   const v = String(vendor || '').toLowerCase();
   const r = String(reelSize || '').toLowerCase();
 
+  if (v.includes(target)) return true;
   if (target === 'itc') {
     return v.includes('itc') || r.includes('89.8') || r.includes('96.7');
   }
   if (target === 'camlin') {
-    if (v.includes('itc') || r.includes('89.8') || r.includes('96.7')) return false;
+    if (v.includes('itc') || r.includes('89.8') || r.includes('96.7') || v.includes('other')) return false;
     return true;
   }
   if (target === 'others') {
-    return v.includes('other');
+    return v.includes('other') || (!r.includes('89.8') && !r.includes('96.7') && !v.includes('itc') && !v.includes('camlin'));
   }
   return true;
 }
@@ -18352,20 +18353,41 @@ function renderDetailedStockReport() {
   // =========================================================================
   if (catFilter === 'all' || catFilter === 'Paper') {
     const paperSpecs = ['90x43x57', '97x37x54', '97x37x57', '89.8x43x56', '96.7x37x56'];
+    const addDssPaperSpec = (rawS) => {
+      const s0 = String(rawS || '').trim();
+      if (!s0) return;
+      const c0 = s0.replace(/\s+/g, '').toLowerCase();
+      if (!paperSpecs.some(x => x.replace(/\s+/g, '').toLowerCase() === c0)) paperSpecs.push(s0);
+    };
+    (state.papersSummary || []).forEach(p => addDssPaperSpec(p.reelSize));
+    (state.papersLedger || []).forEach(pl => addDssPaperSpec(pl.reelSize));
+    (state.masterGroups || []).filter(g => (g.type || '') === 'Paper').forEach(g => addDssPaperSpec(g.name));
+    if (state.materialStock && state.materialStock.paper) {
+      Object.keys(state.materialStock.paper).forEach(k => addDssPaperSpec(k));
+    }
     const rulings = ['Unruled', 'Single Line', 'Four Line', 'Med. Square', 'Double Rule', 'Index'];
 
     paperSpecs.forEach(spec => {
+      const compactSpec = spec.replace(/\s+/g, '').toLowerCase();
       // A. Cut Sheets WIP for each Ruling
       rulings.forEach(rKey => {
-        let baseOpening = (savedStock.paper && savedStock.paper[spec] && savedStock.paper[spec][rKey]) || 0;
-        if (rKey === 'Med. Square' && !baseOpening && savedStock.paper && savedStock.paper[spec]) {
-          baseOpening = savedStock.paper[spec]['Med.Square'] || savedStock.paper[spec]['MED. SQUARE'] || 0;
+        let baseOpening = 0;
+        if (savedStock.paper) {
+          const matchKey = Object.keys(savedStock.paper).find(k => k.replace(/\s+/g, '').toLowerCase() === compactSpec);
+          if (matchKey && savedStock.paper[matchKey]) {
+            baseOpening = savedStock.paper[matchKey][rKey] || 0;
+            if (rKey === 'Med. Square' && !baseOpening) {
+              baseOpening = savedStock.paper[matchKey]['Med.Square'] || savedStock.paper[matchKey]['MED. SQUARE'] || 0;
+            }
+          }
         }
+        const pSumWip = (state.papersSummary || []).find(p => (p.reelSize || '').replace(/\s+/g, '').toLowerCase() === compactSpec && p.wipType === rKey);
+        if (!baseOpening && pSumWip) baseOpening = pSumWip.openingWipKg || 0;
 
         const txs = [];
 
         (state.papersLedger || []).forEach((pl, pli) => {
-          if (pl.reelSize === spec && pl.wipType === rKey) {
+          if ((pl.reelSize || '').replace(/\s+/g, '').toLowerCase() === compactSpec && pl.wipType === rKey) {
             // Exclude initial opening marker
             if (pl.notes !== 'Opening Stock Entry') {
               const inKg = Number(pl.processedKg || pl.inwardKg || 0);
@@ -18454,12 +18476,12 @@ function renderDetailedStockReport() {
       });
 
       // B. Mother Reels
-      const pSum = (state.papersSummary || []).find(p => p.reelSize === spec);
+      const pSum = (state.papersSummary || []).find(p => (p.reelSize || '').replace(/\s+/g, '').toLowerCase() === compactSpec);
       const baseReel = pSum ? (pSum.openingReelsKg || 0) : 0;
       const rTxs = [];
 
       (state.papersLedger || []).forEach((pl, pli) => {
-        if (pl.reelSize === spec && pl.notes !== 'Opening Stock Entry') {
+        if ((pl.reelSize || '').replace(/\s+/g, '').toLowerCase() === compactSpec && pl.notes !== 'Opening Stock Entry') {
           if (Number(pl.inwardKg || 0) > 0) rTxs.push({ date: pl.date || '2026-10-05', qIn: Number(pl.inwardKg), qOut: 0, label: `Reel Inward${pl.inv ? ' (Inv ' + pl.inv + ')' : ''}`, source: 'paper', idx: pli });
           if (Number(pl.processedKg || 0) > 0) rTxs.push({ date: pl.date || '2026-10-10', qIn: 0, qOut: Number(pl.processedKg), label: `Reel → Cut Sheets (Slitting)${pl.inv ? ' (Inv ' + pl.inv + ')' : ''}`, source: 'paper', idx: pli });
         }
@@ -18494,6 +18516,15 @@ function renderDetailedStockReport() {
   // =========================================================================
   if (catFilter === 'all' || catFilter === 'Board') {
     const boardSizes = ['45.5 x 91 x 190', '45.5 x 91 x 200', '77 x 98 x 190', '44 x 1010 x 250gsm', '46 x 91 x 250gsm', '78 x 98 x 230gsm', '76 x 98 x 230gsm'];
+    const addDssBoardSize = (rawS) => {
+      const s0 = String(rawS || '').trim();
+      if (!s0) return;
+      const c0 = s0.replace(/\s+/g, '').toLowerCase();
+      if (!boardSizes.some(x => x.replace(/\s+/g, '').toLowerCase() === c0)) boardSizes.push(s0.replace(/x/gi, ' x '));
+    };
+    (state.boardSummary || []).forEach(bSum => addDssBoardSize(bSum.size));
+    (state.boardLedger || []).forEach(bl => addDssBoardSize(bl.size));
+    (state.masterGroups || []).filter(g => (g.type || '') === 'Board').forEach(g => addDssBoardSize(g.name));
 
     boardSizes.forEach(size => {
       const compactB = size.replace(/\s+/g, '').toLowerCase();
@@ -19059,10 +19090,34 @@ function populateInventoryLedgerItems() {
   const actV = state.activeVendor || 'all';
   const grpPaper = document.createElement('optgroup');
   grpPaper.label = '📜 Paper';
-  const paperSpecs = ['90x43x57', '97x37x54', '97x37x57', '89.8x43x56', '96.7x37x56']
-    .filter(sp => isPaperMatchingVendor(sp, '', actV));
+  const paperSpecs = ['90x43x57', '97x37x54', '97x37x57', '89.8x43x56', '96.7x37x56'];
+
+  // Dynamic scan for all paper reel sizes in data (Summary, Ledger, Groups, Stock, Item Master)
+  const addInvPaperSpec = (rawS, vend) => {
+    const s0 = String(rawS || '').trim();
+    if (!s0) return;
+    const c0 = s0.replace(/\s+/g, '').toLowerCase();
+    if (!paperSpecs.some(x => x.replace(/\s+/g, '').toLowerCase() === c0)) {
+      paperSpecs.push(s0);
+    }
+  };
+  (state.papersSummary || []).forEach(p => addInvPaperSpec(p.reelSize, p.vendor));
+  (state.papersLedger || []).forEach(pl => addInvPaperSpec(pl.reelSize, pl.vendor));
+  (state.masterGroups || []).filter(g => (g.type || '') === 'Paper').forEach(g => addInvPaperSpec(g.name, g.vendor));
+  if (state.materialStock && state.materialStock.paper) {
+    Object.keys(state.materialStock.paper).forEach(k => addInvPaperSpec(k));
+  }
+  (state.itemMaster || []).forEach(it => {
+    const gType = ((state.masterGroups || []).find(g => g.name === it.group) || {}).type;
+    if (gType === 'Paper' || String(it.code || '').toLowerCase().includes('reel') || String(it.group || '').toLowerCase().includes('paper')) {
+      addInvPaperSpec(it.code, it.vendor);
+      if (it.size) addInvPaperSpec(it.size, it.vendor);
+    }
+  });
+
+  const filteredPaperSpecs = paperSpecs.filter(sp => isPaperMatchingVendor(sp, '', actV));
   const rulings = ['Unruled', 'Single Line', 'Four Line', 'Med. Square', 'Double Rule', 'Index'];
-  paperSpecs.forEach(spec => {
+  filteredPaperSpecs.forEach(spec => {
     const optAll = document.createElement('option');
     optAll.value = `PAPER_ALL:${spec}`;
     optAll.textContent = `Paper - ${spec} — Reel + WIP (Drill-down)`;
@@ -19084,13 +19139,15 @@ function populateInventoryLedgerItems() {
   const grpBoard = document.createElement('optgroup');
   grpBoard.label = '📦 Title Cover Board (Raw & WIP Printed Covers)';
   const boardSizes = ['45.5 x 91 x 190', '45.5 x 91 x 200', '77 x 98 x 190', '44 x 1010 x 250gsm', '46 x 91 x 250gsm', '78 x 98 x 230gsm', '76 x 98 x 230gsm'];
-  // Data me koi aur size bhi ho (boardSummary) to wo bhi dropdown me aa jaye
-  (state.boardSummary || []).forEach(bSum => {
-    const s0 = String(bSum.size || '').trim();
+  const addInvBoardSize = (rawS) => {
+    const s0 = String(rawS || '').trim();
     if (!s0) return;
     const c0 = s0.replace(/\s+/g, '').toLowerCase();
     if (!boardSizes.some(x => x.replace(/\s+/g, '').toLowerCase() === c0)) boardSizes.push(s0.replace(/x/gi, ' x '));
-  });
+  };
+  (state.boardSummary || []).forEach(bSum => addInvBoardSize(bSum.size));
+  (state.boardLedger || []).forEach(bl => addInvBoardSize(bl.size));
+  (state.masterGroups || []).filter(g => (g.type || '') === 'Board').forEach(g => addInvBoardSize(g.name));
   boardSizes.forEach(size => {
     if (!isBoardMatchingVendor(size, '', actV)) return;
     const o0 = document.createElement('option');
@@ -19148,13 +19205,38 @@ function populateInventoryLedgerItems() {
   // Group 4: Inks, Cartons (CFC) & Consumables
   const grpCons = document.createElement('optgroup');
   grpCons.label = '🧪 Inks, Cartons (CFC) & Consumables';
-  (state.consumables || []).forEach(c => {
+  const consumableList = (state.consumables || []).slice();
+  (state.consumableLedger || []).forEach(cl => {
+    if (cl.item && !consumableList.some(c => c.item === cl.item)) {
+      consumableList.push({ category: cl.category || 'General', item: cl.item, stock: 0, unit: cl.unit || 'Pcs' });
+    }
+  });
+  consumableList.forEach(c => {
     const opt = document.createElement('option');
     opt.value = `CONSUMABLE:${c.item}`;
-    opt.textContent = `${c.category} - ${c.item} (Stock: ${(c.stock || 0).toLocaleString()} ${c.unit})`;
+    opt.textContent = `${c.category || 'Consumable'} - ${c.item} (Stock: ${(c.stock || 0).toLocaleString()} ${c.unit || 'Pcs'})`;
     grpCons.appendChild(opt);
   });
-  sel.appendChild(grpCons);
+  if (grpCons.querySelectorAll('option').length) sel.appendChild(grpCons);
+
+  // Group 5: Other Catalog Items (Item Master se)
+  const grpOther = document.createElement('optgroup');
+  grpOther.label = '📦 Other Catalog Items';
+  (state.itemMaster || []).forEach(it => {
+    if (!it.code) return;
+    const codeStr = String(it.code);
+    const inFG = (state.skus || []).some(s => String(s.barcode) === codeStr);
+    const inCons = consumableList.some(c => c.item === codeStr);
+    const inPaper = paperSpecs.some(sp => sp.replace(/\s+/g, '').toLowerCase() === codeStr.replace(/\s+/g, '').toLowerCase());
+    const inBoard = boardSizes.some(bs => bs.replace(/\s+/g, '').toLowerCase() === codeStr.replace(/\s+/g, '').toLowerCase());
+    if (!inFG && !inCons && !inPaper && !inBoard) {
+      const opt = document.createElement('option');
+      opt.value = `FG:${codeStr}`;
+      opt.textContent = `Item - ${codeStr} : ${it.description || codeStr}`;
+      grpOther.appendChild(opt);
+    }
+  });
+  if (grpOther.querySelectorAll('option').length) sel.appendChild(grpOther);
 
   if (prev) {
     let found = false;
@@ -19253,7 +19335,8 @@ function buildInventoryLedgerRows(itemKey) {
     // SPEC-level main group: Reel Form + har WIP ruling ek-ek summary row,
     // row click par uska datewise in/out (FIFO value ke saath) drill-down.
     const spec = itemKey.slice('PAPER_ALL:'.length);
-    const pSum = (state.papersSummary || []).find(p => p.reelSize === spec);
+    const compactSpec = (spec || '').replace(/\s+/g, '').toLowerCase();
+    const pSum = (state.papersSummary || []).find(p => (p.reelSize || '').replace(/\s+/g, '').toLowerCase() === compactSpec);
     title = `Paper - ${spec} — Reel + WIP (Drill-down)`;
     category = 'Paper (Reel + WIP)';
     unit = 'Kg';
@@ -19269,7 +19352,7 @@ function buildInventoryLedgerRows(itemKey) {
     // Slitting andaruni stage hai — uska churn total In/Out me count nahi hota
     // (detail Reel / WIP ruling groups me rehti hai). Closing = reel + WIP − consumed.
     (state.papersLedger || []).forEach(pl => {
-      if (pl.reelSize !== spec) return;
+      if ((pl.reelSize || '').replace(/\s+/g, '').toLowerCase() !== compactSpec) return;
       if (pl.notes === 'Opening Stock Entry') return;
       const qIn = Number(pl.inwardKg || 0);
       if (qIn > 0) rows.push({ date: pl.date || '2026-10-05', type: 'Mill Inward (Reel)', ref: pl.inv || '-', qtyIn: qIn, qtyOut: 0, rate: Number(pl.rate) || 0, notes: pl.notes || '' });
@@ -19282,7 +19365,7 @@ function buildInventoryLedgerRows(itemKey) {
       const sVendor = (s.vendor && s.vendor.toUpperCase().includes('ITC')) ? 'ITC' : 'Camlin';
       let pSpec = sVendor === 'ITC' ? (isA4 ? '89.8x43x56' : '96.7x37x56') : (isA4 ? '90x43x57' : (((s.pages || 52) <= 56) ? '97x37x54' : '97x37x57'));
       if (s.paperSpec) pSpec = s.paperSpec;
-      if (pSpec === spec) {
+      if (pSpec && pSpec.replace(/\s+/g, '').toLowerCase() === compactSpec) {
         const bWt = s.bookWtPaper || s.bookWt || 0;
         const consKg = Number(s.paperConsumptionKg) || ((s.production || 0) * bWt * 1.0025);
         if (consKg > 0) rows.push({ date: s.lastProdDate || '2026-10-15', type: 'Production Consumption (FG)', ref: s.barcode || '-', qtyIn: 0, qtyOut: consKg, rate: Number(s.paperRate) || 0, notes: s.description || '' });
@@ -19371,19 +19454,28 @@ function buildInventoryLedgerRows(itemKey) {
     const parts = itemKey.split(':');
     const spec = parts[1];
     const rKey = parts[2];
-    let baseOpening = (savedStock.paper && savedStock.paper[spec] && savedStock.paper[spec][rKey]) || 0;
-    if (rKey === 'Med. Square' && !baseOpening && savedStock.paper && savedStock.paper[spec]) {
-      baseOpening = savedStock.paper[spec]['Med.Square'] || savedStock.paper[spec]['MED. SQUARE'] || 0;
+    const compactSpec = (spec || '').replace(/\s+/g, '').toLowerCase();
+    let baseOpening = 0;
+    if (savedStock.paper) {
+      const matchKey = Object.keys(savedStock.paper).find(k => k.replace(/\s+/g, '').toLowerCase() === compactSpec);
+      if (matchKey && savedStock.paper[matchKey]) {
+        baseOpening = savedStock.paper[matchKey][rKey] || 0;
+        if (rKey === 'Med. Square' && !baseOpening) {
+          baseOpening = savedStock.paper[matchKey]['Med.Square'] || savedStock.paper[matchKey]['MED. SQUARE'] || savedStock.paper[matchKey]['Square'] || 0;
+        }
+      }
     }
+    const pSumWip = (state.papersSummary || []).find(p => (p.reelSize || '').replace(/\s+/g, '').toLowerCase() === compactSpec && p.wipType === rKey);
+    if (!baseOpening && pSumWip) baseOpening = pSumWip.openingWipKg || 0;
     title = `Paper - ${spec} : ${rKey}`;
     category = 'Paper WIP';
     unit = 'Kg';
-    rate = 77.0;
+    rate = (pSumWip && Number(pSumWip.rate)) || 77.0;
     base = baseOpening;
 
     // Slitting se WIP aaya (processed) - Detailed Stock jaisa hi
     (state.papersLedger || []).forEach(pl => {
-      if (pl.reelSize !== spec || pl.wipType !== rKey) return;
+      if ((pl.reelSize || '').replace(/\s+/g, '').toLowerCase() !== compactSpec || pl.wipType !== rKey) return;
       if (pl.notes === 'Opening Stock Entry') return;
       const inKg = Number(pl.processedKg || pl.inwardKg || 0);
       if (inKg > 0) {
@@ -19411,7 +19503,7 @@ function buildInventoryLedgerRows(itemKey) {
       else if (rRaw.includes('INDEX')) skuRuling = 'Index';
       else skuRuling = 'Single Line';
 
-      if (pSpec === spec && skuRuling === rKey) {
+      if (pSpec && pSpec.replace(/\s+/g, '').toLowerCase() === compactSpec && skuRuling === rKey) {
         const bWt = s.bookWtPaper || s.bookWt || 0;
         const consKg = Number(s.paperConsumptionKg) || (prodQty * bWt * 1.0025);
         rows.push({ date: s.lastProdDate || '2026-10-15', type: 'Production Consumption', ref: s.barcode || '-', qtyIn: 0, qtyOut: consKg, rate: Number(s.paperRate) || 0, notes: s.description || '' });
@@ -19420,15 +19512,16 @@ function buildInventoryLedgerRows(itemKey) {
 
   } else if (itemKey.indexOf('PAPER_REELS:') === 0) {
     const spec = itemKey.split(':')[1];
-    const pSum = (state.papersSummary || []).find(p => p.reelSize === spec);
+    const compactSpec = (spec || '').replace(/\s+/g, '').toLowerCase();
+    const pSum = (state.papersSummary || []).find(p => (p.reelSize || '').replace(/\s+/g, '').toLowerCase() === compactSpec);
     title = `Paper - ${spec} : Reel Form`;
     category = 'Paper (Reels)';
     unit = 'Kg';
-    rate = 77.0;
+    rate = pSum ? (Number(pSum.rate) || 77.0) : 77.0;
     base = pSum ? (pSum.openingReelsKg || 0) : 0;
 
     (state.papersLedger || []).forEach(pl => {
-      if (pl.reelSize !== spec) return;
+      if ((pl.reelSize || '').replace(/\s+/g, '').toLowerCase() !== compactSpec) return;
       if (pl.notes === 'Opening Stock Entry') return;
       const qIn = Number(pl.inwardKg || 0);
       const qOut = Number(pl.processedKg || 0);
@@ -24243,18 +24336,39 @@ function populatePaperSpecDropdown() {
   const allPaperGroups = (state.masterGroups || []).filter(g => (g.type || '') === 'Paper');
   const groups = allPaperGroups.filter(g => masterVendorMatch(g.vendor));
   let html = '<option value="" disabled selected></option>';
+  const added = new Set();
   if (groups.length > 0) {
     groups.forEach(g => {
       const v = String(g.vendor || 'All');
       const label = g.desc ? `${g.name} (${g.desc})` : `${g.name}${v !== 'All' ? ' — ' + v : ''}`;
       html += `<option value="${escapeHtml(String(g.name))}">${escapeHtml(label)}</option>`;
+      added.add(String(g.name).replace(/\s+/g, '').toLowerCase());
     });
   } else if (allPaperGroups.length === 0) {
     // Master hi nahi hai (fresh DB) — purane hardcoded Camlin specs
     ['90x43x57 (A4 Longbook Spec)', '97x37x57 (A5 Copy Spec)', '97x37x54 (A5 56Pg Spec)'].forEach(t => {
-      html += `<option value="${t.split(' ')[0]}">${t}</option>`;
+      const val = t.split(' ')[0];
+      html += `<option value="${val}">${t}</option>`;
+      added.add(val.toLowerCase());
     });
   }
+  // Include any extra specs existing in papersSummary or papersLedger (jaise nayi reel sizes)
+  (state.papersSummary || []).forEach(p => {
+    const s0 = String(p.reelSize || '').trim();
+    const c0 = s0.replace(/\s+/g, '').toLowerCase();
+    if (s0 && !added.has(c0)) {
+      html += `<option value="${escapeHtml(s0)}">${escapeHtml(s0)}</option>`;
+      added.add(c0);
+    }
+  });
+  (state.papersLedger || []).forEach(pl => {
+    const s0 = String(pl.reelSize || '').trim();
+    const c0 = s0.replace(/\s+/g, '').toLowerCase();
+    if (s0 && !added.has(c0)) {
+      html += `<option value="${escapeHtml(s0)}">${escapeHtml(s0)}</option>`;
+      added.add(c0);
+    }
+  });
   // (vendor ke liye koi group nahi ho to sirf blank — Camlin specs galat nahi dikhenge)
   sel.innerHTML = html;
   // Pehle se selected value preserve karo (agar abhi bhi list me ho)
@@ -24326,7 +24440,8 @@ function handlePaperInwardProcessSubmit(e) {
   }
 
   // Update Papers Summary
-  let summary = state.papersSummary.find(p => p.reelSize === spec);
+  const compactSpec = String(spec || '').replace(/\s+/g, '').toLowerCase();
+  let summary = state.papersSummary.find(p => (p.reelSize || '').replace(/\s+/g, '').toLowerCase() === compactSpec);
   if (!summary) {
     summary = { reelSize: spec, wipType, openingWipKg: 0, openingReelsKg: 0, inwardKg: 0, processedKg: 0, wastageKg: 0, wipKg: 0, reelsKg: 0, rate };
     state.papersSummary.push(summary);
