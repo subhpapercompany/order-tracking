@@ -17176,6 +17176,19 @@ function renderDashboardTable() {
 
     if (!vendorMatch || !searchMatch || !statusMatch) return;
 
+    // ZERO-ACTIVITY row: Item Master se sync hue raw-material codes (jaise
+    // "Shah (97x37x58)") ya bina order ke add kiye gaye items — na order/old
+    // stock, na production/despatch, na closing stock, na consumption.
+    // Dashboard (Order/Prod/Despatch/Consumation Master) me aise rows ka
+    // dikhane ke liye kuch nahi hota — isliye hide. Active SEARCH me hi
+    // dikhenge taaki user unhe edit/delete kar sake.
+    const hasAnyActivity = (sku.orderQty || 0) > 0 || (sku.oldStock || 0) > 0 ||
+      (sku.production || 0) > 0 || (sku.despatched || 0) > 0 ||
+      (sku.closingStock || 0) > 0 || (sku.dueProduction || 0) > 0 ||
+      (sku.dueDespatched || 0) > 0 || (sku.paperConsumptionKg || 0) > 0 ||
+      (sku.totalPaperConsumptionKg || 0) > 0;
+    if (!hasAnyActivity && !filterText) return;
+
     const duePaper = sku.duePaperRequiredKg !== undefined ? sku.duePaperRequiredKg : Math.max(0, (sku.dueProduction || 0) * (sku.bookWt || 0) * 1.0025);
     const dueBoard = sku.dueBoardSheets !== undefined ? sku.dueBoardSheets : Math.ceil(Math.max(0, sku.dueProduction || 0) / (sku.ups || 8));
 
@@ -33581,7 +33594,12 @@ function itemMasterGroupType(it) {
 // Purana SKU ho to uske fields update karo (production/despatched data safe rehta hai).
 function syncItemMasterToSku(it) {
   if (!it || !it.code) return;
-  if (itemMasterGroupType(it) === 'Consumable') return;
+  // Raw material groups — Paper (reels/sheets) aur Board — notebook products
+  // nahi hain. Inka SKU copy banega to Dashboard/FG/Prod-Despatch dropdowns me
+  // junk rows aayengi (jaise "Shah (97x37x58)" — order/production sab 0).
+  // Waisa hi rule jo Consumable par hai.
+  const _gType = itemMasterGroupType(it);
+  if (_gType === 'Consumable' || _gType === 'Paper' || _gType === 'Board') return;
   if (!Array.isArray(state.skus)) state.skus = [];
   const fields = {
     vendor: it.vendor || 'Camlin',
