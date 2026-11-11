@@ -13500,6 +13500,9 @@ async function checkServerForRealtimeSync() {
 
 function startLocalRealTimeSync() {
   if (!window.location.protocol.startsWith('http')) return;
+  // GitHub Pages (online copy) par local API exist nahi karti — 800ms poll
+  // sirf 404-storm banega. Wahan realtime sync Drive 4-sec pulse karta hai.
+  if (/(^|\.)github\.io$/i.test(window.location.hostname)) return;
   if (_localSyncTimer) clearInterval(_localSyncTimer);
 
   // Snappier polling for near-instant cross-device sync
