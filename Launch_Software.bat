@@ -30,6 +30,13 @@ if "%PY_BIN%"=="" (
 )
 
 if "%PY_BIN%"=="" (
+    :: Python nahi hai — bundled PowerShell server use karo (bina admin/LAN-safe)
+    if exist "%~dp0serve_local.ps1" (
+        echo Python not found - starting built-in PowerShell server...
+        start "" powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0serve_local.ps1"
+        ping -n 3 127.0.0.1 >nul 2>&1
+        goto :tunnel_check
+    )
     echo [ERROR] Python not found on system!
     pause
     exit /b 1
