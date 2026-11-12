@@ -421,22 +421,49 @@
 
 <div class="toast" id="toast">लिंक कॉपी हो गया!</div>
 
+<!-- Local QR library: internet OFFLINE hone par bhi QR ban jaaye
+     (api.qrserver.com external dependency fallback ke roop me rehta hai) -->
+<script src="qrcode.min.js"></script>
 <script>
   let activeTunnelUrl = "";
   let activeWifiUrl = "";
   let tunnelRetries = 0;
+  let _netBusy = false; // parallel loadNetworkInfo chains ka guard
   const TUNNEL_MAX_RETRIES = 8; // 8 × 3 sec = 24 sec (cloudflared start hone ka time)
 
   function getQrUrl(dataText) {
     return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(dataText)}&margin=6`;
   }
 
-  /** QR image dikhao — empty src se browser page-URL QR bana deta hai (broken QR), isliye helper. */
+  /** QR dikhao — (1) local qrcode.min.js (offline, internet nahi chahiye),
+      (2) lib na mile to external api.qrserver.com fallback. */
   function showQr(id, url) {
     const img = document.getElementById(id);
     if (!img) return;
-    img.src = getQrUrl(url);
     const box = img.closest('.qr-box');
+    const holderId = id + 'Local';
+    let holder = document.getElementById(holderId);
+    if (window.QRCode) {
+      if (!holder) {
+        holder = document.createElement('div');
+        holder.id = holderId;
+        holder.style.cssText = 'display:none;text-align:center;background:#fff;padding:6px;border-radius:8px;';
+        img.parentNode.insertBefore(holder, img);
+      }
+      holder.innerHTML = '';
+      new QRCode(holder, {
+        text: url, width: 190, height: 190,
+        colorDark: '#000000', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      holder.style.display = 'block';
+      img.style.display = 'none';
+    } else {
+      // fallback: online API (purana behavior)
+      img.src = getQrUrl(url);
+      img.style.display = '';
+      if (holder) holder.style.display = 'none';
+    }
     if (box) box.style.display = '';
   }
 
@@ -445,6 +472,8 @@
     const img = document.getElementById(id);
     if (!img) return;
     img.removeAttribute('src');
+    const holder = document.getElementById(id + 'Local');
+    if (holder) { holder.innerHTML = ''; holder.style.display = 'none'; }
     const box = img.closest('.qr-box');
     if (box) box.style.display = 'none';
   }
@@ -471,6 +500,8 @@
   async function loadNetworkInfo() {
     // Pages se khula to API hai hi nahi — fetch karne ka koi matlab nahi
     if (/\.github\.io$/i.test(window.location.hostname || '')) { showPagesGuidance(); return; }
+    if (_netBusy) return;  // ek time par ek hi chain (interval + retry overlap nahi)
+    _netBusy = true;
     try {
       const res = await fetch('/api/network-info');
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -512,6 +543,8 @@
       showQr('qrWifi', activeWifiUrl);
       showQr('qrHotspot', 'http://192.168.137.1:8080/');
       setTunnelUnavailable('❌ लोकल सर्वर (localhost:8080) नहीं मिला — server.py चालू करके पेज रिफ्रेश करें।');
+    } finally {
+      _netBusy = false;
     }
   }
 
@@ -551,6 +584,18 @@
   }
 
   loadNetworkInfo();
+
+  // Auto-refresh: cloudflared reboot par NAYA URL deta hai aur LAN IP bhi badal
+  // sakta hai — stale QR phone scan karke fail na ho, 20s me khud update hota rahe.
+  // (tab visible ho tabhi — background me band rehta hai)
+  if (!/\.github\.io$/i.test(window.location.hostname || '')) {
+    setInterval(() => {
+      if (document.visibilityState === 'visible') loadNetworkInfo();
+    }, 20000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') loadNetworkInfo();
+    });
+  }
 </script>
 </body>
 </html>

@@ -15,8 +15,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <!-- Centralized Multi-System Database Auto-Loader (Reads directly from data/ folder) -->
-  <script src="data/Order_Tracking_Data.js"></script>
 <style>
   :root {
     --primary: #1e3a8a;
@@ -13278,12 +13276,24 @@ async function initApp() {
     }
   }
 
-  // 1. First priority on HTTP: Always fetch the live disk database so ALL devices see the exact same data!
+  // 1. HTTP par disk database fetch karo — lekin ANDHE ANDHA overwrite MAT karo.
+  //    (Purana behavior: disk hamesha Drive ko overwrite karta tha. Agar kisi Pages/mobile
+  //    device ne Drive par naya data bheja hai toh wo boot par GHAR ja raha tha — isi wajah
+  //    se local stale reh jata tha. Ab DONO me se JAYADA latest timestamp wala chunta hai.)
   if (window.location.protocol.startsWith('http')) {
     try {
       const resp = await fetch('data/Order_Tracking_Database.json?_t=' + Date.now());
       if (resp.ok) {
-        masterDb = await resp.json();
+        const diskDb = await resp.json();
+        const tDrive = masterDb && masterDb.timestamp ? new Date(masterDb.timestamp).getTime() : 0;
+        const tDisk = diskDb && diskDb.timestamp ? new Date(diskDb.timestamp).getTime() : 0;
+        if (masterDb && tDrive > tDisk) {
+          // Drive newer hai — disk ko turant mirror kar do (single source of truth = Drive)
+          console.log("☁️ Drive database is newer than server disk — using Drive and re-mirroring disk.");
+          triggerServerAutoSync(masterDb);
+        } else {
+          masterDb = diskDb;
+        }
       }
     } catch (e) {
       console.warn("Could not fetch live DB from server:", e);
@@ -13781,6 +13791,16 @@ async function syncNowFromGoogleDrive() {
     const dbObj = res.database || res.data;
     if (res && res.status === 'success' && dbObj) {
       hydrateFromDatabaseObject(dbObj);
+      // Pulse ko batao ki ye timestamp already apply ho chuka (dobara hydrate ki zarurat nahi)
+      _lastGDriveKnownTimestamp = dbObj.timestamp || res.timestamp;
+      // PERSIST: manual pull ke baad LS + server disk bhi update — warna agla reload
+      // purana localStorage/disk wapas le aata (same data-loss bug as pulse).
+      try {
+        const payload = getFullEnterpriseStatePayload();
+        payload.timestamp = dbObj.timestamp || payload.timestamp;
+        try { localStorage.setItem('subh_order_tracking_clean_master', JSON.stringify(payload)); } catch (_) {}
+        triggerServerAutoSync(payload);
+      } catch (_) {}
       recalculateAllFormulas();
       renderAllViews();
       updateLiveHeaderBadge();
@@ -13821,14 +13841,36 @@ function startGoogleDrivePulse() {
           if (!_lastGDriveKnownTimestamp) {
             _lastGDriveKnownTimestamp = remoteTs;
           } else if (remoteTs && remoteTs !== _lastGDriveKnownTimestamp) {
+            // User abhi type kar raha hai toh uska likha hua data mat udao —
+            // agla 4-sec cycle fresh hokar apply kar lega (ts tab tak known nahi hua).
+            const ae = document.activeElement;
+            if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) {
+              return;
+            }
             console.log("☁️ Real-time Google Drive update detected from mobile/external device!");
             _lastGDriveKnownTimestamp = remoteTs;
+            // Content-diff: payload har baar fresh timestamp stamp karta hai, isliye
+            // sirf ASLI data-change par hi render/persist karo (warna push-back loop).
+            const fp = () => { const p = getFullEnterpriseStatePayload(); delete p.timestamp; return JSON.stringify(p); };
+            const before = fp();
             hydrateFromDatabaseObject(dbObj);
-            recalculateAllFormulas();
-            setActiveVendor(state.activeVendor || 'all', false);
-            updateLiveHeaderBadge();
-            updateGDriveStatusBadge("Drive: Live (Updated)", true);
-            showToast("☁️ Real-time update: Latest records received from Google Drive!");
+            if (fp() !== before) {
+              recalculateAllFormulas();
+              setActiveVendor(state.activeVendor || 'all', false);
+              updateLiveHeaderBadge();
+              // DATA-LOSS FIX: purana code sirf MEMORY me hydrate karta tha — reload par
+              // stale localStorage/disk wapas aa jata tha (aaj tak wahi hota tha). Ab remote
+              // timestamp ke saath LS + server disk par bhi persist hota hai.
+              // (Drive push NAHI — Drive already latest hai, wapas push = infinite loop.)
+              try {
+                const payload = getFullEnterpriseStatePayload();
+                payload.timestamp = remoteTs;
+                try { localStorage.setItem('subh_order_tracking_clean_master', JSON.stringify(payload)); } catch (_) {}
+                triggerServerAutoSync(payload);
+              } catch (_) {}
+              updateGDriveStatusBadge("Drive: Live (Updated)", true);
+              showToast("☁️ Real-time update: Latest records received from Google Drive!");
+            }
           }
         }
       }
@@ -21335,6 +21377,114 @@ function autoFetchAllFinancials() {
   showToast("⚡ ALL Financial reporting fields & Stock valuations auto-synchronized!");
 }
 
+/* ===== DEAD-FUNCTION FIXES (audit: ye 4 buttons onclick the lekin function hi nahi tha) ===== */
+// Entry-form ke 4 "Auto-Fetch" buttons — sab master autoFetchAllFinancials par redirect.
+function autoFetchCustomerAdvance() { autoFetchAllFinancials(); }
+function autoFetchPendingBills() { autoFetchAllFinancials(); }
+function autoFetchFlashReportBalances() { autoFetchAllFinancials(); }
+function autoFetchFinStockValuations() { autoFetchAllFinancials(); }
+
+// oninput handlers — SAFETY: row re-render MAT karo (user abhi type kar raha hai,
+// DOM rebuild se focus/typing kharab hogi). Sirf fin field + matching scalar input fill.
+function onFinCustomerInputChange(val) {
+  const fin = getFinancialsState();
+  fin.customer = val;
+  const match = (typeof FIN_CUSTOMERS !== 'undefined' ? FIN_CUSTOMERS : []).find(c => c.name.toLowerCase() === String(val || '').toLowerCase());
+  if (match) {
+    fin.openAdvance = match.openAdvance;
+    if (match.defaultParty) fin.partyName = match.defaultParty;
+    if (match.defaultPayable !== undefined) fin.payableToParty = match.defaultPayable;
+    if (match.defaultReceivable !== undefined) fin.receivableFromParty = match.defaultReceivable;
+    const elOpen = document.getElementById('finEntryOpenAdvance');
+    if (elOpen) elOpen.value = match.openAdvance;
+    const elParty = document.getElementById('finEntryPartyName');
+    if (elParty && match.defaultParty) elParty.value = match.defaultParty;
+    const elPay = document.getElementById('finEntryPayableParty');
+    if (elPay && match.defaultPayable !== undefined) elPay.value = match.defaultPayable;
+    const elRec = document.getElementById('finEntryReceivableParty');
+    if (elRec && match.defaultReceivable !== undefined) elRec.value = match.defaultReceivable;
+  }
+  recalcFinEntry();
+}
+
+function onFinPartyInputChange(val) {
+  const fin = getFinancialsState();
+  fin.partyName = val;
+  let match = getFinKnownParties().find(p => p.name === val);
+  if (!match && typeof FIN_PAPER_MILLS !== 'undefined') {
+    const m = FIN_PAPER_MILLS.find(x => x.name.toLowerCase() === String(val || '').toLowerCase() || x.short.toLowerCase() === String(val || '').toLowerCase());
+    if (m && m.defaultPayable) match = { name: m.name, payable: m.defaultPayable };
+  }
+  if (match && match.payable !== undefined) {
+    fin.payableToParty = match.payable || 0;
+    const elPay = document.getElementById('finEntryPayableParty');
+    if (elPay) elPay.value = fin.payableToParty;
+  }
+  recalcFinEntry();
+}
+
+function onFinRmSpecChange(val) {
+  const fin = getFinancialsState();
+  fin.rmSpec = val;
+  const opt = getFinRmReelOptions().find(r => r.spec === val);
+  if (opt) {
+    fin.rawMaterialVal = opt.amount;
+    const el = document.getElementById('finEntryRmVal');
+    if (el) el.value = opt.amount;
+  }
+  recalcFinEntry();
+}
+
+function onFinWipSpecChange(val) {
+  const fin = getFinancialsState();
+  fin.wipSpec = val;
+  const opt = getFinWipOptions().find(w => w.spec === val);
+  if (opt) {
+    fin.wipPaperVal = opt.amount;
+    const el = document.getElementById('finEntryWipVal');
+    if (el) el.value = opt.amount;
+  }
+  recalcFinEntry();
+}
+
+// onchange handlers — commit ho chuka hai, ab row re-render safe hai
+// (report-side twins: onRepBillInvSelect / onRepFgBarcodeSelect ka entry-side mirror).
+function onFinBillInvChange(idx, invNo) {
+  const known = getFinKnownInvoices().find(i => i.invoiceNo === invNo);
+  const fin = getFinancialsState();
+  if (known && fin.billDueList[idx]) {
+    fin.billDueList[idx].invoiceNo = known.invoiceNo;
+    if (known.date) fin.billDueList[idx].date = known.date;
+    if (known.amount) fin.billDueList[idx].amount = known.amount;
+    renderFinBillDueRows();
+  }
+  recalcFinEntry();
+}
+
+function onFinFgBarcodeSelect(idx, bc) {
+  const fin = getFinancialsState();
+  const foundSku = (state.skus || []).find(s => s.barcode === bc);
+  const catItem = typeof PRODUCT_CATALOGUE !== 'undefined' ? PRODUCT_CATALOGUE[bc] : null;
+
+  const pcs = foundSku ? (Number(foundSku.closingStock) || 1000) : 1000;
+  let wt = foundSku ? Number(foundSku.bookWt) : (catItem ? Number(catItem.bookWt) : 0.205);
+  if (!wt || wt <= 0) wt = 0.205;
+  const kg = Number((pcs * wt).toFixed(2));
+  const rate = getFifoPaperRateForSku(foundSku ? (foundSku.paperSpec || foundSku.size) : '');
+  const amt = Math.round(kg * rate);
+
+  if (fin.finishedGoodsList[idx]) {
+    fin.finishedGoodsList[idx].barcode = bc;
+    fin.finishedGoodsList[idx].desc = foundSku ? (foundSku.description || '') : (catItem ? (catItem.title || '') : '');
+    fin.finishedGoodsList[idx].pcs = pcs;
+    fin.finishedGoodsList[idx].kg = kg;
+    fin.finishedGoodsList[idx].rate = rate;
+    fin.finishedGoodsList[idx].amount = amt;
+  }
+  renderFinFgRows();
+  recalcFinEntry();
+}
+
 function updateFinAsOnDate(val) {
   const fin = getFinancialsState();
   fin.asOnDate = val.trim();
@@ -21690,6 +21840,14 @@ function promptQuitSoftware() {
 
 function closeQuitModal() {
   const modal = document.getElementById('quitConfirmModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+// Generic modal closer (audit: closeModal(id) bahut jagah call hota tha par tha hi nahi)
+function closeModal(id) {
+  const modal = document.getElementById(id);
   if (modal) {
     modal.style.display = 'none';
   }
@@ -29946,6 +30104,18 @@ function closeEditPoRequestModal() {
   if (m) m.style.display = 'none';
 }
 
+// ===== PO Tracking edit modal (orphan — koi opener fields populate hi nahi karta,
+// isliye save ka drama nahi: sirf close. Neeche savePoTrackingEdit bhi yahi karta hai.) =====
+function closeEditPoTrackingModal() {
+  const m = document.getElementById('editPoTrackingModal');
+  if (m) m.style.display = 'none';
+}
+
+function savePoTrackingEdit(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  closeEditPoTrackingModal();
+}
+
 function calcEditPoReqDue() {
   const ord = parseFloat(document.getElementById('edit_poreq_orderQty') ? document.getElementById('edit_poreq_orderQty').value : 0) || 0;
   const prod = parseFloat(document.getElementById('edit_poreq_producedQty') ? document.getElementById('edit_poreq_producedQty').value : 0) || 0;
@@ -30231,6 +30401,11 @@ function updatePoRelBulkDeleteBtn() {
       if (countSpan) countSpan.textContent = '0';
     }
   }
+}
+
+// Row checkbox onchange → sirf counter/bulk-btn update (audit: function missing tha)
+function updateSelectedPoRelCount() {
+  updatePoRelBulkDeleteBtn();
 }
 
 function deleteSelectedPoReleases() {
