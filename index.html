@@ -33304,28 +33304,20 @@ function seedInitialPayrollRecordsIfEmpty() {
     const records = labourers.map(l => {
       const dailyRate = Number(l.dailyRate) || 500;
       const otRate = Number(l.otRatePerHour) || 60;
-      const att = {
-        sat: { status: 'P', ot: 2 },
-        sun: { status: 'WO', ot: 0 },
-        mon: { status: 'P', ot: 2 },
-        tue: { status: 'P', ot: 0 },
-        wed: { status: 'P', ot: 2 },
-        thu: { status: 'P', ot: 0 },
-        fri: { status: 'P', ot: 2 }
-      };
-      const days = 5.0; // 5 days worked
-      const otHours = 8;
-      const normalWage = days * dailyRate;
-      const otWage = otHours * otRate;
-      const gross = normalWage + otWage;
+      const att = {}; // AUTO-FILL BAND — user attendance khud fill karega
+      const days = 0;
+      const otHours = 0;
+      const normalWage = 0;
+      const otWage = 0;
+      const gross = 0;
       const esi = 0; // 100% company paid
       const pf = 0;  // 100% company paid
       const ptax = 0; // Worker ka P.Tax nahi kata jata hai (Exempt)
       const openAdv = getWorkerOutstandingAdvance(l.id, week.startSat);
-      const advDeduct = openAdv > 0 ? Math.min(openAdv, 500) : 0;
+      const advDeduct = 0; // AUTO-FILL BAND — user khud deduction enter karega
       const newAdv = 0;
-      const closingAdv = openAdv - advDeduct + newAdv;
-      const netPay = Math.max(0, gross - advDeduct + newAdv);
+      const closingAdv = openAdv;
+      const netPay = 0;
       const cashPaid = null; // Default KHALI — user asli cash manually enter karega
       const carryForward = netPay - 0; // Khali = poora net wage due
       return {
@@ -34350,20 +34342,12 @@ function getActiveWeeklyLabourSheet() {
         designation: l.designation,
         dailyRate: dailyRate,
         otRatePerHour: otRate,
-        attendance: {
-          sat: { status: 'P', ot: 0 },
-          sun: { status: 'WO', ot: 0 },
-          mon: { status: 'P', ot: 0 },
-          tue: { status: 'P', ot: 0 },
-          wed: { status: 'P', ot: 0 },
-          thu: { status: 'P', ot: 0 },
-          fri: { status: 'P', ot: 0 }
-        },
-        totalDays: 6.0,
+        attendance: {},   // AUTO-FILL BAND — user P/HD/A/WO khud fill karega
+        totalDays: 0,
         totalOtHours: 0,
-        normalWage: 6.0 * dailyRate,
+        normalWage: 0,
         otWage: 0,
-        grossWage: 6.0 * dailyRate,
+        grossWage: 0,
         esiDeduction: 0,
         pfDeduction: 0,
         ptaxDeduction: 0,
@@ -34371,9 +34355,9 @@ function getActiveWeeklyLabourSheet() {
         advanceDeduction: 0,
         newAdvance: 0,
         closingAdvance: openAdv,
-        netPayable: 6.0 * dailyRate,
+        netPayable: 0,
         cashPaid: null, // Default KHALI — user asli cash manually enter karega
-        carryForward: 6.0 * dailyRate
+        carryForward: 0
       });
     }
   });
@@ -34427,11 +34411,11 @@ function renderLabourWeeklySheetView() {
     totCarry += (r.carryForward || 0);
 
     const attCells = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'].map(dk => {
-      const a = (r.attendance && r.attendance[dk]) || { status: 'P', ot: 0 };
+      const a = (r.attendance && r.attendance[dk]) || { status: '', ot: 0 };
       const stColor = a.status === 'P' ? '#15803d' : a.status === 'HD' ? '#b45309' : a.status === 'A' ? '#dc2626' : '#64748b';
       const otBadge = a.ot > 0 ? `<span style="font-size:9.5px; color:#7c3aed; font-weight:800;">+${a.ot}h</span>` : '';
       return `<td style="text-align:center; font-size:11px; padding:4px;">
-        <span style="font-weight:800; color:${stColor};">${a.status}</span>
+        <span style="font-weight:800; color:${stColor};">${a.status || '—'}</span>
         ${otBadge ? '<br>' + otBadge : ''}
       </td>`;
     }).join('');
@@ -34532,11 +34516,12 @@ function renderWeeklyLabourEntryGrid() {
 
   tbody.innerHTML = records.map((r, idx) => {
     const attInputs = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'].map(dk => {
-      const a = (r.attendance && r.attendance[dk]) || { status: 'P', ot: 0 };
-      const stClass = `status-${a.status.toLowerCase()}`;
+      const a = (r.attendance && r.attendance[dk]) || { status: '', ot: 0 };
+      const stClass = a.status ? `status-${a.status.toLowerCase()}` : 'status-unmarked';
       return `
         <td style="padding: 4px; text-align: center;">
           <select class="att-cell-select ${stClass}" onchange="onLabourAttChange('${r.workerId}', '${dk}', this.value)" style="width:100%; margin-bottom:2px;">
+            <option value="" ${!a.status ? 'selected' : ''}>—</option>
             <option value="P" ${a.status === 'P' ? 'selected' : ''}>P</option>
             <option value="HD" ${a.status === 'HD' ? 'selected' : ''}>HD</option>
             <option value="A" ${a.status === 'A' ? 'selected' : ''}>A</option>
@@ -34587,7 +34572,7 @@ function onLabourAttChange(workerId, dayKey, status) {
   const r = (sheet.records || []).find(x => x.workerId === workerId);
   if (!r) return;
   if (!r.attendance) r.attendance = {};
-  if (!r.attendance[dayKey]) r.attendance[dayKey] = { status: 'P', ot: 0 };
+  if (!r.attendance[dayKey]) r.attendance[dayKey] = { status: '', ot: 0 };   // NO auto-P — user khud mark karega
   r.attendance[dayKey].status = status;
   recalcLabourRecord(r);
   updateLabourRowDOM(r);
@@ -34598,7 +34583,7 @@ function onLabourOtChange(workerId, dayKey, otVal) {
   const r = (sheet.records || []).find(x => x.workerId === workerId);
   if (!r) return;
   if (!r.attendance) r.attendance = {};
-  if (!r.attendance[dayKey]) r.attendance[dayKey] = { status: 'P', ot: 0 };
+  if (!r.attendance[dayKey]) r.attendance[dayKey] = { status: '', ot: 0 };   // NO auto-P — attendance user mark karega
   r.attendance[dayKey].ot = Number(otVal) || 0;
   recalcLabourRecord(r);
   updateLabourRowDOM(r);
@@ -34651,8 +34636,9 @@ function recalcLabourRecord(r) {
   let days = 0;
   let otHrs = 0;
   ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'].forEach(dk => {
-    const a = (r.attendance && r.attendance[dk]) || { status: 'P', ot: 0 };
-    days += (daysMap[a.status] !== undefined ? daysMap[a.status] : 1.0);
+    const a = (r.attendance && r.attendance[dk]) || { status: '', ot: 0 };
+    // KHALI status (—) = 0 din. Pehle unknown/blank ko chupke se 1.0 din maanta tha (auto-fill).
+    days += (a.status ? (daysMap[a.status] !== undefined ? daysMap[a.status] : 1.0) : 0);
     otHrs += (Number(a.ot) || 0);
   });
   r.totalDays = days;
