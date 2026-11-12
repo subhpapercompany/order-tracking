@@ -19853,7 +19853,7 @@ function _invLedgerTr(r, idx, rate, indent) {
         <td class="num" style="text-align:right; color:#047857; font-weight:600; white-space:nowrap;">${r.qtyIn > 0 ? '₹ ' + Math.round(vIn).toLocaleString() : '-'}</td>
         <td class="num" style="text-align:right; color:#b45309; font-weight:600; white-space:nowrap;">${r.qtyOut > 0 ? '₹ ' + Math.round(vOut).toLocaleString() : '-'}</td>
         <td class="num" style="text-align:right; background:${balNeg ? '#fee2e2' : '#eff6ff'}; color:${balNeg ? '#dc2626' : '#1e3a8a'}; font-weight:900; white-space:nowrap;">${fmt(r.bal)}</td>
-        <td class="num" style="text-align:right; background:${balNeg ? '#fff1f2' : '#f0fdf4'}; color:${balNeg ? '#b91c1c' : '#047857'}; font-weight:800; white-space:nowrap;">₹ ${Math.round(Math.max(0, r.balVal !== undefined ? r.balVal : Math.max(0, r.bal) * (r.balanceRate !== undefined ? r.balanceRate : rate))).toLocaleString()}</td>
+        <td class="num" style="text-align:right; background:${balNeg ? '#fff1f2' : '#f0fdf4'}; color:${balNeg ? '#b91c1c' : '#047857'}; font-weight:800; white-space:nowrap;">₹ ${Math.round(r.balVal !== undefined ? r.balVal : r.bal * (r.balanceRate !== undefined ? r.balanceRate : rate)).toLocaleString()}</td>
       </tr>`;
 }
 
@@ -19880,15 +19880,24 @@ function _invLedgerGroupStats(c, fromDate, toDate) {
 
     if (qi > 0) { inVal = qi * rRate; layers.push({ qty: qi, rate: rRate }); }
     let need = qo;
-    while (need > 0 && layers.length) {
-      const L = layers[0];
+    let li = 0;
+    while (need > 0 && li < layers.length) {
+      const L = layers[li];
+      if (L.qty <= 0.000001) {
+        // Deficit (negative) layer ko consume MAT karo — sirf positive FIFO layer se khao.
+        if (L.qty > -0.000001) layers.splice(li, 1); else li++;
+        continue;
+      }
       const take = Math.min(L.qty, need);
       outVal += take * L.rate;
       rateUsed = L.rate;
       L.qty -= take; need -= take;
-      if (L.qty <= 0.000001) layers.shift();
+      if (L.qty <= 0.000001) layers.splice(li, 1); else li++;
     }
-    if (qo > 0 && need > 0) outVal += need * defRate;   // shortfall opening layer se
+    if (qo > 0 && need > 0) {
+      outVal += need * defRate;   // shortfall opening layer se
+      layers.push({ qty: -need, rate: defRate });   // deficit layer — closing value sahi rahe
+    }
 
     run = Number((run + qi - qo).toFixed(2));
     ti += qi; to += qo;
@@ -19985,19 +19994,31 @@ function renderInventoryLedger() {
   const fifoAdd = (layers, qty, r) => { if (qty > 0) layers.push({ qty: qty, rate: r }); };
   const fifoTake = (layers, qty, def) => {
     let need = qty, val = 0, rateUsed = def;
-    while (need > 0.000001 && layers.length) {
-      const L = layers[0];
+    let li = 0;
+    while (need > 0.000001 && li < layers.length) {
+      const L = layers[li];
+      if (L.qty <= 0.000001) {
+        // Deficit (negative) layer ko consume MAT karo — sirf positive FIFO layer se khao.
+        if (L.qty > -0.000001) layers.splice(li, 1); else li++;
+        continue;
+      }
       const take = Math.min(L.qty, need);
       val += take * L.rate; rateUsed = L.rate;
       L.qty -= take; need -= take;
-      if (L.qty <= 0.000001) layers.shift();
+      if (L.qty <= 0.000001) layers.splice(li, 1); else li++;
     }
-    if (need > 0.000001) val += need * def;
+    if (need > 0.000001) {
+      val += need * def;
+      // VALUE-LOSS FIX: stock negative hua (out > available) — deficit layer push karo
+      // taaki sum(layers) hamesha ΣIn₹ − ΣOut₹ bana rahe. Pehle shortfall "gayab"
+      // ho jata tha → balance value hamesha zyada nikalti thi (e.g. ₹90,131 kam).
+      layers.push({ qty: -need, rate: def });
+    }
     return { val: val, rateUsed: rateUsed };
   };
 
   const layers = [];
-  if (opening > 0) layers.push({ qty: opening, rate: defRate });
+  if (Math.abs(opening) > 0.000001) layers.push({ qty: opening, rate: defRate });   // negative opening = deficit layer
   allRows.filter(r => String(r.date || '') < fromDate).forEach(r => {
     const rr = Number(r.rate) > 0 ? Number(r.rate) : defRate;
     fifoAdd(layers, Number(r.qtyIn || 0), rr);
@@ -20023,7 +20044,7 @@ function renderInventoryLedger() {
   });
 
   let closing = running;
-  let closingValue = Math.round(Math.max(0, layers.reduce((a, l) => a + l.qty * l.rate, 0)));
+  let closingValue = Math.round(layers.reduce((a, l) => a + l.qty * l.rate, 0));   // clamp HATAO — deficit bhi dikhe
 
   // CONSOLIDATED mode: KPI/footer group-stats se — summary rows aur upar ke cards
   // hamesha ek hi number dikhayen (FIFO layers child-wise bante hain).
@@ -20040,7 +20061,7 @@ function renderInventoryLedger() {
       gs.disp.slice(1).forEach(r => merged.push(r));
     });
     opening = gOpen; totIn = gIn; totOut = gOut; totInVal = gInVal; totOutVal = gOutVal;
-    closing = Number(gClose.toFixed(2)); closingValue = Math.round(Math.max(0, gCloseVal));
+    closing = Number(gClose.toFixed(2)); closingValue = Math.round(gCloseVal);   // clamp HATAO
     merged[0].bal = opening; merged[0].balVal = gCloseVal;
     disp.length = 0; merged.forEach(r => disp.push(r));
     running = closing;
@@ -20127,7 +20148,7 @@ function renderInventoryLedger() {
         <td class="num" style="text-align:right; color:#047857; font-weight:700; white-space:nowrap;">${gs.totIn > 0 ? '₹ ' + Math.round(gs.totInVal).toLocaleString() : '-'}</td>
         <td class="num" style="text-align:right; color:#b45309; font-weight:700; white-space:nowrap;">${gs.totOut > 0 ? '₹ ' + Math.round(gs.totOutVal).toLocaleString() : '-'}</td>
         <td class="num" style="text-align:right; background:${gNeg ? '#fee2e2' : '#e0e7ff'}; color:${gNeg ? '#dc2626' : '#312e81'}; font-weight:900; white-space:nowrap;">${fmt(gs.closing)}</td>
-        <td class="num" style="text-align:right; background:${gNeg ? '#fff1f2' : '#eef2ff'}; color:${gNeg ? '#b91c1c' : '#3730a3'}; font-weight:900; white-space:nowrap;">₹ ${Math.round(Math.max(0, gs.closingValue)).toLocaleString()}</td>
+        <td class="num" style="text-align:right; background:${gNeg ? '#fff1f2' : '#eef2ff'}; color:${gNeg ? '#b91c1c' : '#3730a3'}; font-weight:900; white-space:nowrap;">₹ ${Math.round(gs.closingValue).toLocaleString()}</td>
       </tr>`;
       if (isOpen) gs.disp.forEach((r, i2) => { html += _invLedgerTr(r, i2, d.rate, true); });
     });
@@ -20205,7 +20226,7 @@ function exportInventoryLedgerCSV() {
       Math.round((r.qtyIn || 0) * v.rate),
       Math.round((r.qtyOut || 0) * v.rate),
       fmtN(r.bal),
-      Math.round(Math.max(0, r.bal) * v.rate)
+      Math.round(r.balVal !== undefined ? r.balVal : r.bal * v.rate)
     ]);
   });
   rows.push([]);
