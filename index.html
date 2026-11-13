@@ -19625,13 +19625,20 @@ function buildInventoryLedgerRows(itemKey) {
     rate = (pSumWip && Number(pSumWip.rate)) || 77.0;
     base = baseOpening;
 
-    // Slitting se WIP aaya (processed) - Detailed Stock jaisa hi
+    // Slitting se WIP aaya (processed) + trimming wastage ko OUT dikhao
     (state.papersLedger || []).forEach(pl => {
       if ((pl.reelSize || '').replace(/\s+/g, '').toLowerCase() !== compactSpec || pl.wipType !== rKey) return;
       if (pl.notes === 'Opening Stock Entry') return;
-      const inKg = Number(pl.processedKg || pl.inwardKg || 0);
+      const procKg = Number(pl.processedKg || 0);
+      const trimKg = Number(pl.wastageKg || 0);
+      const inKg = procKg > 0 ? procKg : Number(pl.inwardKg || 0);
       if (inKg > 0) {
         rows.push({ date: pl.date || '2026-10-05', type: 'Processed (Slitting In)', ref: pl.inv || '-', qtyIn: inKg, qtyOut: 0, rate: Number(pl.rate) || 0, notes: pl.notes || (`Slitting se ${rKey} WIP bana`) });
+      }
+      // TRIMMING FIX: pehle ye row hi nahi banti thi —598 processed +8 trim par
+      // bhi closing 598 dikhta tha. Ab OUT row banegi: 598 − 8 = 590 asli WIP.
+      if (trimKg > 0) {
+        rows.push({ date: pl.date || '2026-10-05', type: 'Trimming Wastage (Loss)', ref: pl.inv || '-', qtyIn: 0, qtyOut: trimKg, rate: Number(pl.rate) || 0, notes: `Edge trim — ${trimKg} Kg WIP me nahi gaya` });
       }
     });
 
@@ -36406,7 +36413,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-13-1';
+const APP_VERSION = '2026-11-13-2';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
