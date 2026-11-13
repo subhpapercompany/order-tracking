@@ -36395,6 +36395,62 @@ if ('serviceWorker' in navigator &&
 }
 
 // ==============================================================================
+// AUTO-UPDATE PROMPT — "Update nahi huwa app me" FIX
+// -----------------------------------------------------------------------------
+// Problem: purana tab ghanton/dinon chalta rehta hai (ya server dead hone par
+// SW purana cached shell de deta hai) — user ko pata hi nahi chalta ki naya
+// code aa gaya. Ab page har 10 min version.json check karega; agar value is
+// APP_VERSION se alag hai toh "Naya update aaya" toast + Refresh button.
+//
+// *** HAR DEPLOY PAR: version.json ka "v" aur yahan APP_VERSION dono badlo
+//     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
+//     aayega. ***
+// ==============================================================================
+const APP_VERSION = '2026-11-13-1';
+let _appUpdateToastShown = false;
+
+async function checkForAppUpdate() {
+  if (_appUpdateToastShown) return;
+  try {
+    // ?t= cache-bust — warna SW static-asset rule me version.json cache kar leta
+    const resp = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!resp.ok) return;
+    const info = await resp.json();
+    if (info && info.v && info.v !== APP_VERSION) showAppUpdateToast();
+  } catch (_) { /* offline — chup chaap skip */ }
+}
+
+function showAppUpdateToast() {
+  if (document.getElementById('appUpdateToast')) return;
+  _appUpdateToastShown = true;
+  const d = document.createElement('div');
+  d.id = 'appUpdateToast';
+  d.style.cssText = 'position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:99999;' +
+    'background:#0f172a; color:#fff; padding:12px 18px; border-radius:14px;' +
+    'box-shadow:0 10px 34px rgba(0,0,0,.4); display:flex; align-items:center; gap:14px;' +
+    'font-size:14px; font-weight:700; max-width:94vw; border:1px solid #334155;';
+  const msg = document.createElement('span');
+  msg.textContent = '🔄 Naya update aaya hai — latest code ke liye Refresh karein.';
+  const btn = document.createElement('button');
+  btn.textContent = 'Refresh';
+  btn.style.cssText = 'background:#22c55e; color:#052e16; border:none; padding:9px 18px;' +
+    'border-radius:9px; font-weight:800; cursor:pointer; font-size:14px;';
+  btn.onclick = () => location.reload();
+  const x = document.createElement('button');
+  x.textContent = '✕';
+  x.setAttribute('aria-label', 'Close');
+  x.style.cssText = 'background:transparent; color:#94a3b8; border:none; font-size:17px; cursor:pointer; padding:0 4px;';
+  x.onclick = () => d.remove();
+  d.appendChild(msg); d.appendChild(btn); d.appendChild(x);
+  document.body.appendChild(d);
+}
+
+window.addEventListener('load', () => {
+  setTimeout(checkForAppUpdate, 4000);                       // page load ke thodi der baad
+  setInterval(checkForAppUpdate, 10 * 60 * 1000);            // har 10 minute
+});
+
+// ==============================================================================
 // ADVANCED HR EXTENSIONS: PHOTO, AADHAAR, LABOUR PF/ESI CO-PAID & STAFF DAILY ATT
 // ==============================================================================
 
