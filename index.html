@@ -9080,7 +9080,7 @@ body.print-flash-mode .no-print {
                     <div id="ep_availIndexStock" style="font-weight:700; color:#0f766e; font-size:13px; padding-top:4px;">0 Kg</div>
                   </div>
                   <div style="font-size:11px; color:#64748b; line-height:1.3;">
-                    <em>💡 Production me sirf WIP paper use hota hai — dono dropdown me sirf WIP specs listed hain (Reels wali rows nahi). Default SKU paper size par set hai — WIP unavailable ho to doosri size choose karein.</em>
+                    <em>💡 Entries <b>size : ruling</b> format me hain (e.g. 90x43x57 : Single Line) — jo ruling chunegi usi WIP bucket se stock check aur consumption hoga. Reels wali rows nahi. Default SKU paper size + ruling par set hai.</em>
                   </div>
                 </div>
               </div>
@@ -16224,22 +16224,8 @@ function calculateMrpRequirements(vendor = 'all') {
     const bcThirdChar = String(s.barcode || '').trim().charAt(2);
     if (s.ups && bcThirdChar !== '3' && bcThirdChar !== '5') ups = s.ups;
 
-    // Ruling
-    const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
-    let rKey = 'Single Line';
-    if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) {
-      rKey = 'Double Rule';
-    } else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) {
-      rKey = 'Unruled';
-    } else if (rRaw.includes('FOUR') || rRaw.includes('4L')) {
-      rKey = 'Four Line';
-    } else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) {
-      rKey = 'Med. Square';
-    } else if (rRaw.includes('INDEX')) {
-      rKey = 'Index';
-    } else {
-      rKey = 'Single Line';
-    }
+    // Ruling — production me chosen ruling (sku.paperRuling) prefer
+    const rKey = skuPaperRuling(s);
 
     // Paper and Index Requirements separation
     const wtBreakdown = calcBookWeightBreakdown(s);
@@ -16363,14 +16349,7 @@ function renderMaterialPlanningDashboard() {
     }
     if (s.paperSpec && paperSpecs.includes(s.paperSpec)) pSpec = s.paperSpec;
 
-    const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
-    let rKey = 'Single Line';
-    if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) rKey = 'Double Rule';
-    else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) rKey = 'Unruled';
-    else if (rRaw.includes('FOUR') || rRaw.includes('4L')) rKey = 'Four Line';
-    else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) rKey = 'Med. Square';
-    else if (rRaw.includes('INDEX')) rKey = 'Index';
-    else rKey = 'Single Line';
+    const rKey = skuPaperRuling(s);   // production me chosen ruling (sku.paperRuling) prefer
 
     const consumedPaperKg = Number(s.paperConsumptionKg) || (prodQty * (s.bookWtPaper || s.bookWt || 0) * 1.0025);
     if (inStockPaper[pSpec] && inStockPaper[pSpec][rKey] !== undefined) {
@@ -18583,14 +18562,7 @@ function renderDetailedStockReport() {
           let pSpec = sVendor === 'ITC' ? (isA4 ? '89.8x43x56' : '96.7x37x56') : (isA4 ? '90x43x57' : (((s.pages || 52) <= 56) ? '97x37x54' : '97x37x57'));
           if (s.paperSpec) pSpec = s.paperSpec;
 
-          const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
-          let skuRuling = 'Single Line';
-          if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) skuRuling = 'Double Rule';
-          else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
-          else if (rRaw.includes('FOUR') || rRaw.includes('4L')) skuRuling = 'Four Line';
-          else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) skuRuling = 'Med. Square';
-          else if (rRaw.includes('INDEX')) skuRuling = 'Index';
-          else skuRuling = 'Single Line';
+          const skuRuling = skuPaperRuling(s);   // chosen ruling (sku.paperRuling) prefer
 
           if (pSpec === spec && skuRuling === rKey) {
             const bWt = s.bookWtPaper || s.bookWt || 0;
@@ -19682,14 +19654,7 @@ function buildInventoryLedgerRows(itemKey) {
       let pSpec = sVendor === 'ITC' ? (isA4 ? '89.8x43x56' : '96.7x37x56') : (isA4 ? '90x43x57' : (((s.pages || 52) <= 56) ? '97x37x54' : '97x37x57'));
       if (s.paperSpec) pSpec = s.paperSpec;
 
-      const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
-      let skuRuling = 'Single Line';
-      if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) skuRuling = 'Double Rule';
-      else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
-      else if (rRaw.includes('FOUR') || rRaw.includes('4L')) skuRuling = 'Four Line';
-      else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) skuRuling = 'Med. Square';
-      else if (rRaw.includes('INDEX')) skuRuling = 'Index';
-      else skuRuling = 'Single Line';
+      const skuRuling = skuPaperRuling(s);   // chosen ruling (sku.paperRuling) prefer
 
       if (pSpec && pSpec.replace(/\s+/g, '').toLowerCase() === compactSpec && skuRuling === rKey) {
         const bWt = s.bookWtPaper || s.bookWt || 0;
@@ -22351,20 +22316,28 @@ function populateProdIndexSpecsDropdown(sku) {
   // ---- MASTER PAPER LIST: sabhi papers (summary + stock + ledger), zero-stock bhi ----
   const allSpecs = allPaperSpecsForDropdown();
 
-  // ---- Body Paper dropdown — hamesha active (body har production me use hota hai) ----
+  // ---- Body Paper dropdown — har size × har ruling ki WIP row alag entry:
+  // "90x43x57 : Single Line (WIP: ...)" — jo ruling chunegi usi bucket se stock+consumption ----
   if (bodySelect) {
     bodySelect.innerHTML = '';
     const bodySpecs = allSpecs.slice();
     const bodyDefault = sku.paperSpec || '';
     if (bodyDefault && bodySpecs.indexOf(bodyDefault) < 0) bodySpecs.unshift(bodyDefault);
     const rKey = prodRulingKey(sku);
+    const buckets = bodyRulingBuckets();
     bodySpecs.forEach(sp => {
-      const opt = document.createElement('option');
-      opt.value = sp;
-      opt.textContent = `${sp}  (WIP: ${getAvailablePaperStock(sp, rKey).toLocaleString()} Kg)`;
-      if (sp === bodyDefault) opt.selected = true;
-      bodySelect.appendChild(opt);
+      buckets.forEach(rk => {
+        const opt = document.createElement('option');
+        opt.value = `${sp}|${rk}`;
+        opt.textContent = `${sp} : ${rk} (WIP: ${getAvailablePaperStock(sp, rk).toLocaleString()} Kg)`;
+        if (sp === bodyDefault && rk === rKey) opt.selected = true;
+        bodySelect.appendChild(opt);
+      });
     });
+    if (bodySelect.selectedIndex < 0 && bodySpecs.length) {
+      const hit = Array.from(bodySelect.options).find(o => o.value === `${bodySpecs[0]}|${rKey}`);
+      if (hit) hit.selected = true; else bodySelect.selectedIndex = 0;
+    }
     bodySelect.disabled = false;
     updateAvailBodyStockDisplay(bodySelect.value, sku);
   }
@@ -22407,7 +22380,7 @@ function populateProdIndexSpecsDropdown(sku) {
     }
     const opt = document.createElement('option');
     opt.value = sp;
-    opt.textContent = `${sp}  (WIP: ${stockKg.toLocaleString()} Kg)`;
+    opt.textContent = `${sp} : Index (WIP: ${stockKg.toLocaleString()} Kg)`;
     if (sp === defaultSpec) opt.selected = true;
     specSelect.appendChild(opt);
   });
@@ -22450,16 +22423,17 @@ function allPaperSpecsForDropdown() {
   return out;
 }
 
-/** Available Body Stock — validation (getAvailablePaperStock) wahi formula jo save par check hota hai. */
-function updateAvailBodyStockDisplay(spec, sku) {
+/** Available Body WIP — value "spec|ruling" parse karke usi bucket ka stock (save wahi check karta hai). */
+function updateAvailBodyStockDisplay(specVal, sku) {
   const stockEl = document.getElementById('ep_availBodyStock');
   if (!stockEl) return;
-  if (!spec || !sku) {
+  if (!specVal || !sku) {
     stockEl.textContent = '—';
     stockEl.style.color = '#64748b';
     return;
   }
-  const stockKg = getAvailablePaperStock(spec, prodRulingKey(sku));
+  const pv = parseBodySpecValue(specVal);
+  const stockKg = getAvailablePaperStock(pv.spec, pv.ruling || prodRulingKey(sku));
   stockEl.textContent = `${stockKg.toLocaleString()} Kg`;
   stockEl.style.color = stockKg > 0 ? '#0f766e' : '#b91c1c';
 }
@@ -22554,10 +22528,13 @@ function calcProdLogPreview() {
 
   updateAvailIndexStockDisplay(selectedIndexSpec);
 
-  // Body Paper selection — default SKU paperSpec (save isi ko honor karta hai)
+  // Body Paper selection — value "spec|ruling" (save isi ko honor karta hai)
   const bodySpecSelect = document.getElementById('ep_bodySpec');
-  const selectedBodySpec = (bodySpecSelect && bodySpecSelect.value) ? bodySpecSelect.value : (sku.paperSpec || '');
-  updateAvailBodyStockDisplay(selectedBodySpec, sku);
+  const bodySelVal = (bodySpecSelect && bodySpecSelect.value) ? bodySpecSelect.value : (sku.paperSpec || '');
+  updateAvailBodyStockDisplay(bodySelVal, sku);
+  const _bpPv = parseBodySpecValue(bodySelVal);
+  const selectedBodySpec = _bpPv.spec;
+  const selectedBodyRuling = _bpPv.ruling || prodRulingKey(sku);
 
   const newProd = (sku.production || 0) + addQty - rejQtyPv;   // Rejection FG se minus
   const newDue = (sku.orderQty || 0) - (sku.oldStock || 0) - newProd;
@@ -22612,7 +22589,8 @@ function calcProdLogPreview() {
   if (document.getElementById('ep_cfcConsBatch')) document.getElementById('ep_cfcConsBatch').value = `${batchCfc.toLocaleString()} Boxes`;
   updateAvailCfcStockDisplay(cfcName);
 
-  let formulaText = `Output: +${addQty.toLocaleString()} Pcs | Paper (${selectedBodySpec || sku.paperSpec || 'Paper'}): ${batchPaper.toLocaleString()} Kg`;
+  const bodyLabel = selectedBodySpec ? `${selectedBodySpec} : ${selectedBodyRuling}` : 'Paper';
+  let formulaText = `Output: +${addQty.toLocaleString()} Pcs | Paper (${bodyLabel}): ${batchPaper.toLocaleString()} Kg`;
   if (hasIndex) {
     formulaText += ` | Index (${selectedIndexSpec}): ${batchIndex.toLocaleString()} Kg`;
   }
@@ -23974,8 +23952,9 @@ function resetOrderBookingFormForNextEntry() {
  * Real-time Available Paper WIP Stock Engine
  * (Prevents double deduction and guarantees 100% mathematical accuracy)
  */
-/** SKU ruling → stock bucket key. Validation aur body-stock display dono isi ko use karein. */
+/** SKU ruling → stock bucket key. Production entry me chosen ruling (sku.paperRuling) ho to wahi prefer. */
 function prodRulingKey(sku) {
+  if (sku && String(sku.paperRuling || '').trim()) return String(sku.paperRuling).trim();
   const rRaw = String((sku && sku.ruling) || getRulingFromProductCode(sku && sku.barcode, sku && sku.description)).toUpperCase();
   if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) return 'Double Rule';
   if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) return 'Unruled';
@@ -24027,13 +24006,7 @@ function getAvailablePaperStock(spec, rulingKey) {
     let pSpec = sVendor === 'ITC' ? (isA4 ? '89.8x43x56' : '96.7x37x56') : (isA4 ? '90x43x57' : (((s.pages || 52) <= 56) ? '97x37x54' : '97x37x57'));
     if (s.paperSpec) pSpec = s.paperSpec;
 
-    const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
-    let rKey = 'Single Line';
-    if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) rKey = 'Double Rule';
-    else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) rKey = 'Unruled';
-    else if (rRaw.includes('FOUR') || rRaw.includes('4L')) rKey = 'Four Line';
-    else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) rKey = 'Med. Square';
-    else rKey = 'Single Line';
+    const rKey = skuPaperRuling(s);   // production me chosen ruling (sku.paperRuling) prefer
 
     if (pSpec === spec && rKey === rulingKey) {
       consumed += Number(s.paperConsumptionKg) || (prod * (s.bookWtPaper || s.bookWt || 0) * 1.0025);
@@ -24041,6 +24014,44 @@ function getAvailablePaperStock(spec, rulingKey) {
   });
   const result = baseOpening - consumed;
   return Number((result < 0 ? 0 : result).toFixed(2));
+}
+
+/** SKU ki effective body ruling — production entry me chosen ruling (sku.paperRuling) prefer,
+ *  warna ruling/product-code se derive. Sabhi stock views (DSS/drill/MRP/shortage) isi ko use. */
+function skuPaperRuling(sku) {
+  if (sku && String(sku.paperRuling || '').trim()) return String(sku.paperRuling).trim();
+  const rRaw = String((sku && sku.ruling) || (sku && getRulingFromProductCode(sku.barcode, sku.description)) || '').toUpperCase();
+  if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) return 'Double Rule';
+  if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) return 'Unruled';
+  if (rRaw.includes('FOUR') || rRaw.includes('4L')) return 'Four Line';
+  if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) return 'Med. Square';
+  if (rRaw.includes('INDEX')) return 'Index';
+  return 'Single Line';
+}
+
+/** Body dropdown option value "spec|ruling" ke parts (purani sirf-spec values bhi safe). */
+function parseBodySpecValue(v) {
+  const s = String(v == null ? '' : v);
+  const i = s.lastIndexOf('|');
+  return i < 0 ? { spec: s, ruling: '' } : { spec: s.slice(0, i), ruling: s.slice(i + 1) };
+}
+
+/** Body WIP ruling buckets — standard rulings + materialStock me koi extra key (Index chhod ke). */
+function bodyRulingBuckets() {
+  const std = ['Reel Form', 'Single Line', 'Double Rule', 'Unruled', 'Four Line', 'Med. Square'];
+  const norm = s => String(s || '').toLowerCase().replace(/[\s.]/g, '');
+  const out = std.slice();
+  const seen = new Set(std.map(norm));
+  const ms = (state.materialStock && state.materialStock.paper) || {};
+  Object.keys(ms).forEach(k => {
+    Object.keys(ms[k] || {}).forEach(rk => {
+      const n = norm(rk);
+      if (!n || n === 'index' || seen.has(n)) return;
+      seen.add(n);
+      out.push(rk);
+    });
+  });
+  return out;
 }
 
 function handleProductionLogSubmit(e) {
@@ -24068,7 +24079,9 @@ function handleProductionLogSubmit(e) {
   const indexSpecSelect = document.getElementById('ep_indexSpec');
   const selectedIndexSpec = (indexSpecSelect && indexSpecSelect.value) ? indexSpecSelect.value : (sku.indexSpec || sku.paperSpec || '90x43x57');
   const bodySpecSelect = document.getElementById('ep_bodySpec');
-  const selectedBodySpec = (bodySpecSelect && bodySpecSelect.value) ? bodySpecSelect.value : (sku.paperSpec || '');
+  const _bpPv = parseBodySpecValue((bodySpecSelect && bodySpecSelect.value) ? bodySpecSelect.value : (sku.paperSpec || ''));
+  const selectedBodySpec = _bpPv.spec;
+  const selectedBodyRuling = _bpPv.ruling || prodRulingKey(sku);
 
   const date = document.getElementById('ep_date') ? document.getElementById('ep_date').value : '';
   const machine = document.getElementById('ep_machine') ? document.getElementById('ep_machine').value : '';
@@ -24102,8 +24115,8 @@ function handleProductionLogSubmit(e) {
   const batchIndex = Number((addQty * wtBreakdown.bookWtIndex * 1.0025).toFixed(2));
   const batchBoard = Math.ceil(addQty / boardDivisor);
 
-  // Ruling key (validation aur body-stock display dono same helper se)
-  const rKey = prodRulingKey(sku);
+  // Ruling key — dropdown se chosen ruling ("spec|ruling") isi bucket par validation+consumption
+  const rKey = selectedBodyRuling;
 
   // Carton / CFC Requirements — sirf NET (produced - rejection) qty par.
   // Paper/Index/Board ki tarah gross addQty par NAHI: reject hue pack nahi hote.
@@ -24189,6 +24202,7 @@ function handleProductionLogSubmit(e) {
   sku.hasIndex = hasIndex;
   sku.indexSpec = selectedIndexSpec;
   if (selectedBodySpec) sku.paperSpec = selectedBodySpec;   // body selection recalc mapping me honor
+  if (selectedBodyRuling) sku.paperRuling = selectedBodyRuling;   // chosen ruling — consumption isi WIP bucket se
   sku.bookWtPaper = wtBreakdown.bookWtPaper;
   sku.bookWtIndex = wtBreakdown.bookWtIndex;
   sku.bookWt = wtBreakdown.totalBookWt;
@@ -24274,7 +24288,7 @@ function handleProductionLogSubmit(e) {
   }
 
   // Record into Today's Transactions
-  const impactDesc = `Paper: ${batchPaper.toLocaleString()} Kg (${sku.paperSpec})` + 
+  const impactDesc = `Paper: ${batchPaper.toLocaleString()} Kg (${sku.paperSpec}${sku.paperRuling ? ' : ' + sku.paperRuling : ''})` + 
                      (hasIndex ? ` | Index: ${batchIndex.toLocaleString()} Kg (${selectedIndexSpec})` : '') + 
                      ` | Board: ${batchBoard.toLocaleString()} Sheets` +
                      (batchCfc > 0 ? ` | CFC: ${batchCfc.toLocaleString()} Boxes (${cfcItemName})` : '');
@@ -24475,6 +24489,7 @@ function txeBoardDivisor(sku) {
 }
 
 function txeRulingKey(sku) {
+  if (sku && String(sku.paperRuling || '').trim()) return String(sku.paperRuling).trim();
   const rRaw = String(sku.ruling || (typeof getRulingFromProductCode === 'function' ? getRulingFromProductCode(sku.barcode, sku.description) : '')).toUpperCase();
   if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) return 'Double Rule';
   if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) return 'Unruled';
@@ -27535,6 +27550,7 @@ function saveSkuEdit(e) {
 
   // Size/Vendor identity change → paperSpec recalc se dobara derive ho (warna purana reh jata)
   const _oldIdent = [sku.vendor, sku.size, sku.reelSize, sku.cut, sku.pages, sku.ups].join('|');
+  const _oldRuling = String(sku.ruling || '');
   sku.vendor = document.getElementById('edit_sku_vendor').value;
   sku.description = document.getElementById('edit_sku_desc').value;
   if (document.getElementById('edit_sku_mrp')) sku.mrp = parseFloat(document.getElementById('edit_sku_mrp').value) || 40;
@@ -27564,6 +27580,7 @@ function saveSkuEdit(e) {
 
   const _newIdent = [sku.vendor, sku.size, sku.reelSize, sku.cut, sku.pages, sku.ups].join('|');
   if (_oldIdent !== _newIdent) sku.paperSpec = '';   // identity badli → recalc naya default derive karega
+  if (_oldRuling !== String(sku.ruling || '')) sku.paperRuling = '';   // ruling badli → chosen WIP bucket clear
 
   recalculateAllFormulas();
   saveState();
@@ -36912,14 +36929,7 @@ function computeWipShortageBalance(spec, rKey) {
     else { pSpec = isA4 ? '90x43x57' : (((s.pages || 52) <= 56) ? '97x37x54' : '97x37x57'); }
     if (s.paperSpec) pSpec = s.paperSpec;
 
-    const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
-    let skuRuling = 'Single Line';
-    if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) skuRuling = 'Double Rule';
-    else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
-    else if (rRaw.includes('FOUR') || rRaw.includes('4L')) skuRuling = 'Four Line';
-    else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) skuRuling = 'Med. Square';
-    else if (rRaw.includes('INDEX')) skuRuling = 'Index';
-    else skuRuling = 'Single Line';
+    const skuRuling = skuPaperRuling(s);   // chosen ruling (sku.paperRuling) prefer
 
     if (pSpec === spec && (rKey === 'ALL' || skuRuling === rKey)) {
       const prodQty = s.production || 0;
@@ -37059,14 +37069,7 @@ function renderPaperWipAuditDetails(spec, rKey) {
     if (s.paperSpec) pSpec = s.paperSpec;
 
     // Ruling matching
-    const rRaw = String(s.ruling || getRulingFromProductCode(s.barcode, s.description)).toUpperCase();
-    let skuRuling = 'Single Line';
-    if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) skuRuling = 'Double Rule';
-    else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) skuRuling = 'Unruled';
-    else if (rRaw.includes('FOUR') || rRaw.includes('4L')) skuRuling = 'Four Line';
-    else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) skuRuling = 'Med. Square';
-    else if (rRaw.includes('INDEX')) skuRuling = 'Index';
-    else skuRuling = 'Single Line';
+    const skuRuling = skuPaperRuling(s);   // chosen ruling (sku.paperRuling) prefer
 
     const specMatch = (pSpec === spec);
     const rulingMatch = (rKey === 'ALL' || skuRuling === rKey);
