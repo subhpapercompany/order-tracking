@@ -11666,9 +11666,12 @@ body.print-flash-mode .no-print {
         <div class="form-group"><label>Order Quantity</label><input type="number" id="edit_poreq_orderQty" required oninput="calcEditPoReqDue()"></div>
         <div class="form-group"><label>Produced Qty <span style="color:#0f766e;">(auto — Production Log se, edit bhi kar sakte hain)</span></label><input type="number" id="edit_poreq_producedQty" min="0" oninput="calcEditPoReqDue()" style="background:#ffffff; color:#0f172a;" title="Auto Daily Production Log se bharta hai — zarurat ho to edit kar sakte hain"></div>
         <div id="edit_poreq_calc_msg" style="grid-column: span 3; background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:7px 12px; font-size:12px; color:#14532d; font-weight:600; display:flex; align-items:center; gap:8px;"></div>
-        <div class="form-group"><label>Board GSM</label><input type="number" id="edit_poreq_boardGsm" step="1"></div>
-        <div class="form-group"><label>Sheet Width (cm)</label><input type="number" id="edit_poreq_boardWidth" step="0.1"></div>
-        <div class="form-group"><label>Sheet Length (cm)</label><input type="number" id="edit_poreq_boardLength" step="0.1"></div>
+        <div class="form-group"><label>Paper GSM <span style="color:#0f766e;">(auto)</span></label><input type="number" id="edit_poreq_paperGsm" step="1"></div>
+        <div class="form-group"><label>Reel Width (cm) <span style="color:#0f766e;">(auto)</span></label><input type="number" id="edit_poreq_reelWidth" step="0.1"></div>
+        <div class="form-group"><label>Reel Cut Off (cm) <span style="color:#0f766e;">(auto)</span></label><input type="number" id="edit_poreq_reelCut" step="0.1"></div>
+        <div class="form-group"><label>Board GSM <span style="color:#0f766e;">(auto)</span></label><input type="number" id="edit_poreq_boardGsm" step="1"></div>
+        <div class="form-group"><label>Sheet Width (cm) <span style="color:#0f766e;">(auto)</span></label><input type="number" id="edit_poreq_boardWidth" step="0.1"></div>
+        <div class="form-group"><label>Sheet Length (cm) <span style="color:#0f766e;">(auto)</span></label><input type="number" id="edit_poreq_boardLength" step="0.1"></div>
         <div class="form-group"><label>Paper Rate (₹/Kg)</label><input type="number" id="edit_poreq_paperRate" step="0.01"></div>
         <div class="form-group">
           <label>Paper Tax %</label>
@@ -26263,11 +26266,14 @@ function masterExportCurrentSheetToExcel() {
       const pages = (!isNaN(parsedPages) && parsedPages > 0) ? parsedPages : ((sku && sku.pages) || cat.pages || r.noOfPages || 52);
 
       const totalOrderQty = parseFloat((sku && (sku.initialOrderQty !== undefined ? sku.initialOrderQty : sku.orderQty)) || r.totalOrderQuantity || r.orderQuantity || 0);
-      // OPTION A: Produced = Daily Production Log ka total (PO Requests ka sum nahi)
-      const cumulativeProduced = parseFloat((sku && sku.production) || 0);
+      // Produced = max(Production Log, record me entered value) — screen report se same
+      const cumulativeProduced = Math.max(
+        parseFloat((sku && sku.production) || 0),
+        parseFloat(r.producedQuantity || 0)
+      );
       const dueForProduced = Math.max(0, totalOrderQty - cumulativeProduced);
 
-      // Board specs
+      // Board specs — stored-first (edit se aayi value), warna code-digit defaults
       let boardGsm = 190, sheetLengthCm = 91, sheetWidthCm = 45.5;
       if (thirdChar === '3') {
         boardGsm = 190; sheetLengthCm = 98; sheetWidthCm = 77;
@@ -26275,8 +26281,11 @@ function masterExportCurrentSheetToExcel() {
         boardGsm = (pages <= 175) ? 190 : 200;
         sheetLengthCm = 91; sheetWidthCm = 45.5;
       }
-      // Paper specs
-      let paperGsm = 90, reelWidthCm = 57, reelCutOffCm = 43, pageDivider = 12;
+      if (r.boardGsm) boardGsm = r.boardGsm;
+      if (r.sheetWidthCm) sheetWidthCm = r.sheetWidthCm;
+      if (r.sheetLengthCm) sheetLengthCm = r.sheetLengthCm;
+      // Paper specs — stored-first, warna code-digit defaults
+      let paperGsm = 57, reelWidthCm = 90, reelCutOffCm = 43, pageDivider = 12;
       if (thirdChar === '3') {
         paperGsm = (pages <= 56) ? 54 : 57;
         reelWidthCm = 97;
@@ -26288,17 +26297,14 @@ function masterExportCurrentSheetToExcel() {
         reelCutOffCm = 43;
         pageDivider = 12;
       }
+      if (r.paperGsm) paperGsm = r.paperGsm;
+      if (r.reelWidthCm) reelWidthCm = r.reelWidthCm;
+      if (r.reelCutOffCm) reelCutOffCm = r.reelCutOffCm;
 
       const bookWtPaper = Number((((reelWidthCm * reelCutOffCm * paperGsm) / 20000 / 493.75) * (pages / pageDivider)).toFixed(5));
-      let bookWtBoard = 0;
-      if (thirdChar === '3') {
-        bookWtBoard = Number((((77 * 98 * 190) / 20000 / 487.5) / 8).toFixed(5));
-      } else if (thirdChar === '5') {
-        const bGsm = (pages <= 175) ? 190 : 200;
-        bookWtBoard = Number((((45.5 * 91 * bGsm) / 20000 / 487.5) / 3).toFixed(5));
-      } else {
-        bookWtBoard = Number(((((sheetWidthCm * sheetLengthCm * boardGsm) / 20000 / 487.5) / 4)).toFixed(5));
-      }
+      // Book Wt Board — unified (resolved specs se), ups: '5'→3, '3'→8, baaki 4 (purana default)
+      const boardUps = (thirdChar === '5') ? 3 : (thirdChar === '3') ? 8 : 4;
+      const bookWtBoard = Number(((((sheetWidthCm * sheetLengthCm * boardGsm) / 20000 / 487.5) / boardUps)).toFixed(5));
 
       const paperRate = parseFloat(r.paperRate !== undefined ? r.paperRate : 77.00) || 77.00;
       const paperTaxPct = parseFloat(r.paperTaxPct || 0);
@@ -28768,19 +28774,16 @@ function calcPoReqLivePreview() {
   document.getElementById('poreq_perBookPaperCost').value = perBookPaper;
 
   const bSpecs = getRespectiveBoardSpecs(pCode);
-  const bWidth = parseFloat(document.getElementById('poreq_boardWidth').value) || bSpecs.sheetWidthCm;
-  const bLength = parseFloat(document.getElementById('poreq_boardLength').value) || bSpecs.sheetLengthCm;
-  const bGsm = parseFloat(document.getElementById('poreq_boardGsm').value) || bSpecs.boardGsm;
+  // Board specs AUTO-fill hote hain par EDITABLE hain — user ne jo dala wahi calculate hogi.
+  // Defaults: '3' → 77x98x190, '5 → pages rule, baaki bSpecs.
+  let bWidth = parseFloat(document.getElementById('poreq_boardWidth').value);
+  let bLength = parseFloat(document.getElementById('poreq_boardLength').value);
+  let bGsm = parseFloat(document.getElementById('poreq_boardGsm').value);
+  if (isNaN(bWidth) || !bWidth) bWidth = (thirdChar === '3') ? 77 : (thirdChar === '5') ? 45.5 : bSpecs.sheetWidthCm;
+  if (isNaN(bLength) || !bLength) bLength = (thirdChar === '3') ? 98 : (thirdChar === '5') ? 91 : bSpecs.sheetLengthCm;
+  if (isNaN(bGsm) || !bGsm) bGsm = (thirdChar === '3') ? 190 : (thirdChar === '5') ? ((pages <= 175) ? 190 : 200) : bSpecs.boardGsm;
   const bUps = (thirdChar === '5') ? 3 : (thirdChar === '3' ? 8 : (bSpecs.boardUps || 8));
-  let bookWtBoard = 0;
-  if (thirdChar === '3') {
-    bookWtBoard = parseFloat((((77 * 98 * 190) / 20000 / 487.5) / 8).toFixed(5));
-  } else if (thirdChar === '5') {
-    const bGsm = (pages <= 175) ? 190 : 200;
-    bookWtBoard = parseFloat((((45.5 * 91 * bGsm) / 20000 / 487.5) / 3).toFixed(5));
-  } else {
-    bookWtBoard = parseFloat((((bWidth * bLength * bGsm) / 20000 / 487.5 / bUps)).toFixed(5));
-  }
+  const bookWtBoard = parseFloat((((bWidth * bLength * bGsm) / 20000 / 487.5) / bUps).toFixed(5));
   document.getElementById('poreq_bookWtBoard').value = bookWtBoard;
 
   const bRate = parseFloat(document.getElementById('poreq_boardRate').value) || 55.00;
@@ -29554,12 +29557,16 @@ function calculatePoRequestKclApprovedRate(code) {
       sheetWidthCm = 45.5;
     }
   } else {
-    boardGsm = (sku && sku.boardGsm) || (r && r.boardGsm) || (cat && cat.boardGsm) || bSpecs.boardGsm || 190;
-    sheetWidthCm = (sku && sku.sheetWidthCm) || (r && r.sheetWidthCm) || (cat && cat.boardWidth) || bSpecs.sheetWidthCm || 45.5;
-    sheetLengthCm = (sku && sku.sheetLengthCm) || (r && r.sheetLengthCm) || (cat && cat.boardLength) || bSpecs.sheetLengthCm || 91;
+    boardGsm = (sku && sku.boardGsm) || (cat && cat.boardGsm) || bSpecs.boardGsm || 190;
+    sheetWidthCm = (sku && sku.sheetWidthCm) || (cat && cat.boardWidth) || bSpecs.sheetWidthCm || 45.5;
+    sheetLengthCm = (sku && sku.sheetLengthCm) || (cat && cat.boardLength) || bSpecs.sheetLengthCm || 91;
   }
+  // Stored-first: record me edit se aayi specs ho to wahi (report/export se same)
+  if (r.boardGsm) boardGsm = r.boardGsm;
+  if (r.sheetWidthCm) sheetWidthCm = r.sheetWidthCm;
+  if (r.sheetLengthCm) sheetLengthCm = r.sheetLengthCm;
 
-  const boardUps = bSpecs.boardUps || 3;
+  const boardUps = (thirdChar === '5') ? 3 : (thirdChar === '3') ? 8 : (bSpecs.boardUps || 3);
 
   let paperGsm = 57;
   let reelWidthCm = 90;
@@ -29574,23 +29581,18 @@ function calculatePoRequestKclApprovedRate(code) {
     reelCutOffCm = 43;
     paperGsm = 57;
   } else {
-    paperGsm = (sku && sku.gsm) || cat.paperGsm || r.paperGsm || 57;
-    reelWidthCm = (sku && sku.reelSize) || cat.reelWidth || r.reelWidthCm || 90;
-    reelCutOffCm = (sku && sku.cut) || cat.reelCut || r.reelCutOffCm || 43;
+    paperGsm = (sku && sku.gsm) || (cat && cat.paperGsm) || 57;
+    reelWidthCm = (sku && sku.reelSize) || (cat && cat.reelWidth) || 90;
+    reelCutOffCm = (sku && sku.cut) || (cat && cat.reelCut) || 43;
   }
+  if (r.paperGsm) paperGsm = r.paperGsm;
+  if (r.reelWidthCm) reelWidthCm = r.reelWidthCm;
+  if (r.reelCutOffCm) reelCutOffCm = r.reelCutOffCm;
 
   let pageDivider = (thirdChar === '5') ? 12 : 16;
   const bookWtPaper = Number((((reelWidthCm * reelCutOffCm * paperGsm) / 20000 / 493.75) * (pages / pageDivider)).toFixed(5));
 
-  let bookWtBoard = 0;
-  if (thirdChar === '3') {
-    bookWtBoard = Number((((77 * 98 * 190) / 20000 / 487.5) / 8).toFixed(5));
-  } else if (thirdChar === '5') {
-    const bGsm = (pages <= 175) ? 190 : 200;
-    bookWtBoard = Number((((45.5 * 91 * bGsm) / 20000 / 487.5) / 3).toFixed(5));
-  } else {
-    bookWtBoard = Number(((((sheetWidthCm * sheetLengthCm * boardGsm) / 20000 / 487.5) / boardUps)).toFixed(5));
-  }
+  const bookWtBoard = Number(((((sheetWidthCm * sheetLengthCm * boardGsm) / 20000 / 487.5) / boardUps)).toFixed(5));
 
   const paperRate = parseFloat(r && r.paperRate !== undefined && r.paperRate !== null ? r.paperRate : 77.00) || 77.00;
   const paperTaxPct = (r && r.paperTaxPct !== undefined && r.paperTaxPct !== null) ? parseFloat(r.paperTaxPct) : 0;
@@ -29747,8 +29749,12 @@ function renderPoRequestSheet() {
     // Auto-fetch Order Qty & Produced Qty from live booking
     const totalOrderQty = parseFloat((sku && (sku.initialOrderQty !== undefined ? sku.initialOrderQty : sku.orderQty)) || r.totalOrderQuantity || r.orderQuantity || 0);
 
-    // OPTION A: Produced = Daily Production Log ka total (PO Requests ka sum nahi)
-    const cumulativeProduced = parseFloat((sku && sku.production) || 0);
+    // Produced = max(Daily Production Log, record me entered value):
+    // user ne 46000 enter kiya to wahi dikhe (log 0 ho tab bhi); log zyada ho to log fresh.
+    const cumulativeProduced = Math.max(
+      parseFloat((sku && sku.production) || 0),
+      parseFloat((r && r.producedQuantity) || 0)
+    );
 
     // Calculate Rest Order Due for Produced
     const dueForProduced = Math.max(0, totalOrderQty - cumulativeProduced);
@@ -29762,71 +29768,63 @@ function renderPoRequestSheet() {
     //    if pages <= 175: Board GSM = 190, Sheet Length = 91, Sheet Width = 45.5
     //    if pages > 175:  Board GSM = 200, Sheet Length = 91, Sheet Width = 45.5
     const thirdChar = codeStr.charAt(2);
-    let boardGsm = 190;
-    let sheetLengthCm = 91;
-    let sheetWidthCm = 45.5;
+    // Board Specs: formula defaults (code-digit rule) — phir STORED value (edit se aayi) prefer.
+    // Stored-first = user ne edit me dims/gsm badli to wahi report me + bookWt me follow hogi.
+    let defBoardGsm = 190;
+    let defSheetLength = 91;
+    let defSheetWidth = 45.5;
 
     if (thirdChar === '3') {
-      boardGsm = 190;
-      sheetLengthCm = 98;
-      sheetWidthCm = 77;
+      defBoardGsm = 190;
+      defSheetLength = 98;
+      defSheetWidth = 77;
     } else if (thirdChar === '5') {
-      if (pages <= 175) {
-        boardGsm = 190;
-        sheetLengthCm = 91;
-        sheetWidthCm = 45.5;
-      } else {
-        boardGsm = 200;
-        sheetLengthCm = 91;
-        sheetWidthCm = 45.5;
-      }
+      defBoardGsm = (pages <= 175) ? 190 : 200;
+      defSheetLength = 91;
+      defSheetWidth = 45.5;
     } else {
-      boardGsm = (sku && sku.boardGsm) || (r && r.boardGsm) || (cat && cat.boardGsm) || bSpecs.boardGsm;
-      sheetWidthCm = (sku && sku.sheetWidthCm) || (r && r.sheetWidthCm) || (cat && cat.boardWidth) || bSpecs.sheetWidthCm;
-      sheetLengthCm = (sku && sku.sheetLengthCm) || (r && r.sheetLengthCm) || (cat && cat.boardLength) || bSpecs.sheetLengthCm;
+      defBoardGsm = (sku && sku.boardGsm) || (cat && cat.boardGsm) || bSpecs.boardGsm;
+      defSheetWidth = (sku && sku.sheetWidthCm) || (cat && cat.boardWidth) || bSpecs.sheetWidthCm;
+      defSheetLength = (sku && sku.sheetLengthCm) || (cat && cat.boardLength) || bSpecs.sheetLengthCm;
     }
 
-    const boardUps = bSpecs.boardUps;
+    const boardGsm = (r && r.boardGsm) || defBoardGsm;
+    const sheetWidthCm = (r && r.sheetWidthCm) || defSheetWidth;
+    const sheetLengthCm = (r && r.sheetLengthCm) || defSheetLength;
 
-    // TAB PO REQUEST REPORT FORMULA: Paper Specs
-    // 3rd digit === '3': Reel Width = 97 cm, Cut Size = 37 cm, Paper GSM = (pages <= 56 ? 54 : 57)
-    // 3rd digit === '5': Reel Width = 90 cm, Cut Size = 43 cm, Paper GSM = 57
-    let paperGsm = 57;
-    let reelWidthCm = 90;
-    let reelCutOffCm = 43;
+    // Book Wt Board — unified formula (resolved specs se), ups code-digit rule se:
+    // '3' → /8, '5' → /3, baaki bSpecs.boardUps — defaults par pehle jaisi value.
+    const boardUps = (thirdChar === '5') ? 3 : (thirdChar === '3' ? 8 : (bSpecs.boardUps || 8));
+    const bookWtBoard = Number(((((sheetWidthCm * sheetLengthCm * boardGsm) / 20000 / 487.5) / boardUps)).toFixed(5));
+
+    // Paper Specs: formula defaults (code-digit rule) — phir STORED value prefer (edit se aayi).
+    let defPaperGsm = 57;
+    let defReelWidth = 90;
+    let defReelCut = 43;
 
     if (thirdChar === '3') {
-      reelWidthCm = 97;
-      reelCutOffCm = 37;
-      paperGsm = (pages <= 56) ? 54 : 57;
+      defReelWidth = 97;
+      defReelCut = 37;
+      defPaperGsm = (pages <= 56) ? 54 : 57;
     } else if (thirdChar === '5') {
-      reelWidthCm = 90;
-      reelCutOffCm = 43;
-      paperGsm = 57;
+      defReelWidth = 90;
+      defReelCut = 43;
+      defPaperGsm = 57;
     } else {
-      paperGsm = (sku && sku.gsm) || cat.paperGsm || r.paperGsm || 57;
-      reelWidthCm = (sku && sku.reelSize) || cat.reelWidth || r.reelWidthCm || 90;
-      reelCutOffCm = (sku && sku.cut) || cat.reelCut || r.reelCutOffCm || 43;
+      defPaperGsm = (sku && sku.gsm) || (cat && cat.paperGsm) || 57;
+      defReelWidth = (sku && sku.reelSize) || (cat && cat.reelWidth) || 90;
+      defReelCut = (sku && sku.cut) || (cat && cat.reelCut) || 43;
     }
+
+    const paperGsm = (r && r.paperGsm) || defPaperGsm;
+    const reelWidthCm = (r && r.reelWidthCm) || defReelWidth;
+    const reelCutOffCm = (r && r.reelCutOffCm) || defReelCut;
 
     let pageDivider = (thirdChar === '5') ? 12 : 16;
     // TAB PO REQUEST REPORT FORMULA:
     // Paper: ((reelWidthCm * reelCutOffCm * paperGsm) / 20000 / 493.75) * (pages / pageDivider)
     const bookWtPaper = Number((((reelWidthCm * reelCutOffCm * paperGsm) / 20000 / 493.75) * (pages / pageDivider)).toFixed(5));
     
-    // TAB PO REQUEST REPORT FORMULA: Book Weight Board
-    // 3rd digit === '3': (77 x 98 x 190) / 20000 / 487.5 / 8
-    // 3rd digit === '5' & pages <= 175: (45.5 x 91 x 190) / 20000 / 487.5 / 3
-    // 3rd digit === '5' & pages > 175:  (45.5 x 91 x 200) / 20000 / 487.5 / 3
-    let bookWtBoard = 0;
-    if (thirdChar === '3') {
-      bookWtBoard = Number((((77 * 98 * 190) / 20000 / 487.5) / 8).toFixed(5));
-    } else if (thirdChar === '5') {
-      const bGsm = (pages <= 175) ? 190 : 200;
-      bookWtBoard = Number((((45.5 * 91 * bGsm) / 20000 / 487.5) / 3).toFixed(5));
-    } else {
-      bookWtBoard = Number(((((sheetWidthCm * sheetLengthCm * boardGsm) / 20000 / 487.5) / boardUps)).toFixed(5));
-    }
 
     // Commercial & Mill Details Auto-fetched / auto-calculated
     const paperRate = parseFloat(r && r.paperRate !== undefined && r.paperRate !== null ? r.paperRate : 77.00) || 77.00;
@@ -30249,10 +30247,12 @@ function openEditPoRequestModal(codeOrIndex) {
   const totalOrd = (sku && sku.initialOrderQty !== undefined && sku.initialOrderQty !== null) 
     ? sku.initialOrderQty 
     : ((sku && sku.orderQty !== undefined) ? sku.orderQty : (item.orderQuantity || 0));
-  // OPTION A: Produced mirror = Daily Production Log ka total
-  const effProd = (sku && sku.production !== undefined && sku.production !== null)
-    ? (parseFloat(sku.production) || 0)
-    : (item.producedQuantity || 0);
+  // Produced = max(Record me entered value, Daily Production Log):
+  // user ne 46000 dala to edit me bhi 46000 dikhe (log 0 ho tab bhi), log zyada ho to log fresh.
+  const effProd = Math.max(
+    (sku && sku.production !== undefined && sku.production !== null) ? (parseFloat(sku.production) || 0) : 0,
+    parseFloat(item.producedQuantity) || 0
+  );
 
   document.getElementById('edit_poreq_orderQty').value = totalOrd;
   document.getElementById('edit_poreq_producedQty').value = effProd;
@@ -30286,6 +30286,33 @@ function openEditPoRequestModal(codeOrIndex) {
   }
   if (document.getElementById('edit_poreq_boardLength')) {
     document.getElementById('edit_poreq_boardLength').value = item.sheetLengthCm || defSheetLength;
+  }
+
+  // Paper Specs fill (auto): stored value — warna code-digit formula default
+  let defPaperGsm = 57;
+  let defReelWidth = 90;
+  let defReelCut = 43;
+  if (editThirdChar === '3') {
+    defReelWidth = 97;
+    defReelCut = 37;
+    defPaperGsm = (editEffPages <= 56) ? 54 : 57;
+  } else if (editThirdChar === '5') {
+    defReelWidth = 90;
+    defReelCut = 43;
+    defPaperGsm = 57;
+  } else {
+    defPaperGsm = (sku && sku.gsm) || (cat && cat.paperGsm) || 57;
+    defReelWidth = (sku && sku.reelSize) || (cat && cat.reelWidth) || 90;
+    defReelCut = (sku && sku.cut) || (cat && cat.reelCut) || 43;
+  }
+  if (document.getElementById('edit_poreq_paperGsm')) {
+    document.getElementById('edit_poreq_paperGsm').value = item.paperGsm || defPaperGsm;
+  }
+  if (document.getElementById('edit_poreq_reelWidth')) {
+    document.getElementById('edit_poreq_reelWidth').value = item.reelWidthCm || defReelWidth;
+  }
+  if (document.getElementById('edit_poreq_reelCut')) {
+    document.getElementById('edit_poreq_reelCut').value = item.reelCutOffCm || defReelCut;
   }
   document.getElementById('edit_poreq_paperRate').value = item.paperRate || 77.00;
   document.getElementById('edit_poreq_paperTax').value = (item.paperTaxPct !== undefined && item.paperTaxPct !== null) ? item.paperTaxPct : 0;
@@ -30367,6 +30394,43 @@ function savePoRequestEdit(e) {
 
   item.currentPaperCost = parseFloat((item.paperRate * (1 + item.paperTaxPct / 100)).toFixed(2));
   item.currentBoardCost = parseFloat((item.boardRate * (1 + item.boardTaxPct / 100)).toFixed(2));
+
+  // Paper Specs store (edit modal ke auto+editable fields — user ne jo dala wahi)
+  if (document.getElementById('edit_poreq_paperGsm')) {
+    item.paperGsm = Number(document.getElementById('edit_poreq_paperGsm').value) || item.paperGsm || 57;
+  }
+  if (document.getElementById('edit_poreq_reelWidth')) {
+    item.reelWidthCm = parseFloat(document.getElementById('edit_poreq_reelWidth').value) || item.reelWidthCm || 90;
+  }
+  if (document.getElementById('edit_poreq_reelCut')) {
+    item.reelCutOffCm = parseFloat(document.getElementById('edit_poreq_reelCut').value) || item.reelCutOffCm || 43;
+  }
+
+  // Derived recalc — EDITED specs/rates se (exports me yahi values jayengi):
+  // Book Wt Paper = ((reel*cut*gsm)/20000/493.75)*(pages/div), div: '3'→16, '5'→12, baaki 90/43→12 warna 16
+  // Per Book Paper = bookWt * currentPaperCost * 1.0025 (entry formula)
+  const edThird = String(code || '').trim().charAt(2);
+  const edPages = item.noOfPages || 52;
+  const edReelW = item.reelWidthCm || 90;
+  const edCut = item.reelCutOffCm || 43;
+  const edGsm = item.paperGsm || 57;
+  let edDiv = 16;
+  if (edThird === '3') edDiv = 16;
+  else if (edThird === '5') edDiv = 12;
+  else edDiv = (edReelW === 90 || edCut === 43) ? 12 : 16;
+  item.bookWeightPaper = parseFloat((((edReelW * edCut * edGsm) / 20000 / 493.75) * (edPages / edDiv)).toFixed(5));
+  item.perBookPaperCost = parseFloat((item.bookWeightPaper * item.currentPaperCost * 1.0025).toFixed(2));
+
+  // Book Wt Board = ((w*l*gsm)/20000/487.5)/ups, ups: '5'→3, '3'→8, baaki bSpecs
+  // Per Book Board = base + 3% (entry formula)
+  const edBSpecs = getRespectiveBoardSpecs(code);
+  const edUps = (edThird === '5') ? 3 : (edThird === '3' ? 8 : (edBSpecs.boardUps || 8));
+  const edBW = item.sheetWidthCm || edBSpecs.sheetWidthCm;
+  const edBL = item.sheetLengthCm || edBSpecs.sheetLengthCm;
+  const edBG = item.boardGsm || edBSpecs.boardGsm;
+  item.bookWeightBoard = parseFloat((((edBW * edBL * edBG) / 20000 / 487.5) / edUps).toFixed(5));
+  const edBaseBoard = item.bookWeightBoard * item.currentBoardCost;
+  item.perBookBoardCost = parseFloat((edBaseBoard + (edBaseBoard * 0.03)).toFixed(2));
 
   // Sync to SKU master if present
   const sku = (state.skus || []).find(s => s.barcode === code);
