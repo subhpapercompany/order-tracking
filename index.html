@@ -27442,8 +27442,14 @@ function openEditSkuModal(barcode) {
     if (sizeGrp) sizeGrp.style.display = isCamlinSku ? 'none' : 'block';
   }
   if (document.getElementById('edit_sku_ruling')) {
-    document.getElementById('edit_sku_ruling').value = sku.ruling || (typeof getRulingFromProductCode === 'function' ? getRulingFromProductCode(sku.barcode, sku.description || '') : 'Single Line');
-    const rulingGrp = document.getElementById('edit_sku_ruling').closest('.form-group');
+    const _rSel = document.getElementById('edit_sku_ruling');
+    const _rRaw = String(sku.ruling || (typeof getRulingFromProductCode === 'function' ? getRulingFromProductCode(sku.barcode, sku.description || '') : 'Single Line'));
+    // sku.ruling UPPERCASE ('SINGLE LINE') hoti hai par options Title Case ('Single Line') hain —
+    // case-insensitive match zaruri hai: warna value '' + required + Camlin me hidden group =
+    // browser submit silently block karta hai ("An invalid form control ... not focusable") = user ko kuch nahi dikhta
+    const _rHit = Array.from(_rSel.options).find(o => o.value.toLowerCase() === _rRaw.toLowerCase());
+    _rSel.value = _rHit ? _rHit.value : 'Single Line';
+    const rulingGrp = _rSel.closest('.form-group');
     if (rulingGrp) rulingGrp.style.display = isCamlinSku ? 'none' : 'block';
   }
   const isCamlin = String(sku.vendor || '').toUpperCase().includes('CAMLIN');
