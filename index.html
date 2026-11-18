@@ -9066,7 +9066,7 @@ body.print-flash-mode .no-print {
                     </select>
                   </div>
                   <div>
-                    <span style="font-size:11.5px; color:#475569;">Available Body Stock:</span>
+                    <span style="font-size:11.5px; color:#475569;">Available Body WIP:</span>
                     <div id="ep_availBodyStock" style="font-weight:700; color:#0f766e; font-size:13px; padding-top:4px;">0 Kg</div>
                   </div>
                   <div>
@@ -9076,11 +9076,11 @@ body.print-flash-mode .no-print {
                     </select>
                   </div>
                   <div>
-                    <span style="font-size:11.5px; color:#475569;">Available Index Stock:</span>
+                    <span style="font-size:11.5px; color:#475569;">Available Index WIP:</span>
                     <div id="ep_availIndexStock" style="font-weight:700; color:#0f766e; font-size:13px; padding-top:4px;">0 Kg</div>
                   </div>
                   <div style="font-size:11px; color:#64748b; line-height:1.3;">
-                    <em>💡 Dono dropdown me sabhi paper listed hain. Default SKU paper size par set hai — current stock unavailable ho to doosri size choose karein.</em>
+                    <em>💡 Production me sirf WIP paper use hota hai — dono dropdown me sirf WIP specs listed hain (Reels wali rows nahi). Default SKU paper size par set hai — WIP unavailable ho to doosri size choose karein.</em>
                   </div>
                 </div>
               </div>
@@ -16128,7 +16128,6 @@ function calculateMrpRequirements(vendor = 'all') {
   };
   (state.papersSummary || []).forEach(p => _pushPaperSpec(p && p.reelSize, p && p.vendor));
   (state.papersLedger || []).forEach(l => _pushPaperSpec(l && l.reelSize, l && l.vendor));
-  (state.masterGroups || []).filter(g => (g && g.type) === 'Paper').forEach(g => _pushPaperSpec(g && g.name, g && g.vendor));
   if (state.materialStock && state.materialStock.paper) {
     Object.keys(state.materialStock.paper).forEach(k => _pushPaperSpec(k, ''));
   }
@@ -16144,7 +16143,6 @@ function calculateMrpRequirements(vendor = 'all') {
   };
   (state.boardSummary || []).forEach(b => _pushBoardSpec(b && b.size, b && b.vendor));
   (state.boardLedger || []).forEach(b => _pushBoardSpec(b && (b.size || b.boardSize), b && b.vendor));
-  (state.masterGroups || []).filter(g => (g && g.type) === 'Board').forEach(g => _pushBoardSpec(g && g.name, g && g.vendor));
   if (state.materialStock && state.materialStock.board) {
     Object.keys(state.materialStock.board).forEach(k => _pushBoardSpec(k, ''));
   }
@@ -22363,7 +22361,7 @@ function populateProdIndexSpecsDropdown(sku) {
     bodySpecs.forEach(sp => {
       const opt = document.createElement('option');
       opt.value = sp;
-      opt.textContent = `${sp}  (Stock: ${getAvailablePaperStock(sp, rKey).toLocaleString()} Kg)`;
+      opt.textContent = `${sp}  (WIP: ${getAvailablePaperStock(sp, rKey).toLocaleString()} Kg)`;
       if (sp === bodyDefault) opt.selected = true;
       bodySelect.appendChild(opt);
     });
@@ -22409,7 +22407,7 @@ function populateProdIndexSpecsDropdown(sku) {
     }
     const opt = document.createElement('option');
     opt.value = sp;
-    opt.textContent = `${sp}  (Stock: ${stockKg.toLocaleString()} Kg)`;
+    opt.textContent = `${sp}  (WIP: ${stockKg.toLocaleString()} Kg)`;
     if (sp === defaultSpec) opt.selected = true;
     specSelect.appendChild(opt);
   });
@@ -22433,11 +22431,17 @@ function updateAvailIndexStockDisplay(spec) {
   stockEl.style.color = stockKg > 0 ? '#0f766e' : '#b91c1c';
 }
 
-/** Sabhi paper specs ki master list — summary + stock + ledger + Masters Groups + SKUs (dedup).
- *  Nayi paper spec kahin bhi add ho (Masters / Inward / Opening / Ledger) — sab dropdowns me apne aap. */
+/** Sabhi WIP paper specs ki master list — summary + stock + ledger + Groups + SKUs (dedup).
+ *  Nayi paper spec kahin bhi add ho (Masters / Inward / Opening / Ledger) — sab dropdowns me apne aap.
+ *  "Reels : ..." rows sirf reel-purchase tracking hain — production sirf WIP use karta hai, skip. */
 function allPaperSpecsForDropdown() {
   const out = [];
-  const push = v => { const s = String(v == null ? '' : v).trim(); if (s && out.indexOf(s) < 0) out.push(s); };
+  const push = v => {
+    const s = String(v == null ? '' : v).trim();
+    if (!s || out.indexOf(s) >= 0) return;
+    if (/^reels?\s*:/i.test(s)) return;   // Reels tracking rows — production WIP nahi
+    out.push(s);
+  };
   (state.papersSummary || []).forEach(p => push(p && p.reelSize));
   if (state.materialStock && state.materialStock.paper) Object.keys(state.materialStock.paper).forEach(push);
   (state.papersLedger || []).forEach(l => push(l && l.reelSize));
