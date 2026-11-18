@@ -9060,6 +9060,16 @@ body.print-flash-mode .no-print {
                 </div>
                 <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; align-items:end;">
                   <div>
+                    <label style="font-size:11.5px; color:#475569; font-weight:600;">Body Paper Size / Specification</label>
+                    <select id="ep_bodySpec" onchange="calcProdLogPreview()" style="width:100%; padding:6px 10px; border-radius:6px; border:1px solid #cbd5e1; font-weight:600; background:#ffffff;">
+                      <!-- Populated dynamically: sabhi paper + stock levels -->
+                    </select>
+                  </div>
+                  <div>
+                    <span style="font-size:11.5px; color:#475569;">Available Body Stock:</span>
+                    <div id="ep_availBodyStock" style="font-weight:700; color:#0f766e; font-size:13px; padding-top:4px;">0 Kg</div>
+                  </div>
+                  <div>
                     <label style="font-size:11.5px; color:#475569; font-weight:600;">Index Paper Size / Specification</label>
                     <select id="ep_indexSpec" onchange="calcProdLogPreview()" style="width:100%; padding:6px 10px; border-radius:6px; border:1px solid #cbd5e1; font-weight:600; background:#ffffff;">
                       <!-- Populated dynamically with stock levels -->
@@ -9070,7 +9080,7 @@ body.print-flash-mode .no-print {
                     <div id="ep_availIndexStock" style="font-weight:700; color:#0f766e; font-size:13px; padding-top:4px;">0 Kg</div>
                   </div>
                   <div style="font-size:11px; color:#64748b; line-height:1.3;">
-                    <em>💡 Default matches SKU paper size. Select alternative size if current stock is unavailable.</em>
+                    <em>💡 Dono dropdown me sabhi paper listed hain. Default SKU paper size par set hai — current stock unavailable ho to doosri size choose karein.</em>
                   </div>
                 </div>
               </div>
@@ -13390,6 +13400,13 @@ async function initApp() {
   } else {
     switchSheet(state.activeSheet || 'dashboard');
   }
+
+  // Spec dropdowns boot par master list se — naye paper/board sabhi related jagah
+  fillPaperSpecSelect(document.getElementById('eb_indexSpec'));
+  fillPaperSpecSelect(document.getElementById('edit_sku_indexSpec'));
+  fillBoardSizeSelect(document.getElementById('eboard_size'));
+  if (typeof populatePaperSpecDropdown === 'function') populatePaperSpecDropdown();
+
   renderAllViews();
   updateExportButtonLabel();
   updateSaveStatus();
@@ -14195,19 +14212,23 @@ function recalculateAllFormulas() {
     // Category / Size defines which paper and index will be consumed:
     // A4 -> Cut size 43 wala paper & index by default
     // A5 -> Cut size 37 wala paper & index by default
+    // IMPORTANT: paperSpec sirf TAB derive hota hai jab pehle se na ho (jaise indexSpec) —
+    // production entry ka chosen Body Paper spec recalc ke baad bhi zinda rehta hai.
     if (isITCSku) {
       if (isA4Sku) {
-        s.paperSpec = '89.8x43x56'; // ITC A4: Cut size 43
+        if (!s.paperSpec) s.paperSpec = '89.8x43x56'; // ITC A4: Cut size 43
         if (!s.indexSpec) s.indexSpec = '89.8x43x56'; // ITC A4: Cut size 43 index
       } else {
-        s.paperSpec = '96.7x37x56'; // ITC A5: Cut size 37
+        if (!s.paperSpec) s.paperSpec = '96.7x37x56'; // ITC A5: Cut size 37
         if (!s.indexSpec) s.indexSpec = '96.7x37x56'; // ITC A5: Cut size 37 index
       }
     } else {
       // Camlin
-      if (s.reelSize === 90 || s.cut === 43 || isA4Sku) s.paperSpec = '90x43x57';
-      else if (s.pages === 56) s.paperSpec = '97x37x54';
-      else s.paperSpec = '97x37x57';
+      if (!s.paperSpec) {
+        if (s.reelSize === 90 || s.cut === 43 || isA4Sku) s.paperSpec = '90x43x57';
+        else if (s.pages === 56) s.paperSpec = '97x37x54';
+        else s.paperSpec = '97x37x57';
+      }
       if (!s.indexSpec) s.indexSpec = s.paperSpec;
     }
 
@@ -15551,6 +15572,14 @@ function switchEntryTab(tabId, clickedEl) {
       populateConsumableDropdown();
     } else if (tabId === 'hr-leave-entry') {
       renderLeaveSlipScreen('entry');
+    } else if (tabId === 'order') {
+      // Index Size dropdown — naye paper specs turant
+      fillPaperSpecSelect(document.getElementById('eb_indexSpec'));
+    } else if (tabId === 'papers') {
+      if (typeof populatePaperSpecDropdown === 'function') populatePaperSpecDropdown();
+    } else if (tabId === 'board') {
+      // Board Size dropdown — naye board specs turant
+      fillBoardSizeSelect(document.getElementById('eboard_size'));
     }
   }
     const todaySec = document.getElementById('todayTransactionsSection');
@@ -16099,6 +16128,7 @@ function calculateMrpRequirements(vendor = 'all') {
   };
   (state.papersSummary || []).forEach(p => _pushPaperSpec(p && p.reelSize, p && p.vendor));
   (state.papersLedger || []).forEach(l => _pushPaperSpec(l && l.reelSize, l && l.vendor));
+  (state.masterGroups || []).filter(g => (g && g.type) === 'Paper').forEach(g => _pushPaperSpec(g && g.name, g && g.vendor));
   if (state.materialStock && state.materialStock.paper) {
     Object.keys(state.materialStock.paper).forEach(k => _pushPaperSpec(k, ''));
   }
@@ -16114,6 +16144,7 @@ function calculateMrpRequirements(vendor = 'all') {
   };
   (state.boardSummary || []).forEach(b => _pushBoardSpec(b && b.size, b && b.vendor));
   (state.boardLedger || []).forEach(b => _pushBoardSpec(b && (b.size || b.boardSize), b && b.vendor));
+  (state.masterGroups || []).filter(g => (g && g.type) === 'Board').forEach(g => _pushBoardSpec(g && g.name, g && g.vendor));
   if (state.materialStock && state.materialStock.board) {
     Object.keys(state.materialStock.board).forEach(k => _pushBoardSpec(k, ''));
   }
@@ -22315,10 +22346,33 @@ function onProdIndexToggle() {
 }
 
 function populateProdIndexSpecsDropdown(sku) {
+  const bodySelect = document.getElementById('ep_bodySpec');
   const specSelect = document.getElementById('ep_indexSpec');
   if (!specSelect) return;
-  specSelect.innerHTML = '';
 
+  // ---- MASTER PAPER LIST: sabhi papers (summary + stock + ledger), zero-stock bhi ----
+  const allSpecs = allPaperSpecsForDropdown();
+
+  // ---- Body Paper dropdown — hamesha active (body har production me use hota hai) ----
+  if (bodySelect) {
+    bodySelect.innerHTML = '';
+    const bodySpecs = allSpecs.slice();
+    const bodyDefault = sku.paperSpec || '';
+    if (bodyDefault && bodySpecs.indexOf(bodyDefault) < 0) bodySpecs.unshift(bodyDefault);
+    const rKey = prodRulingKey(sku);
+    bodySpecs.forEach(sp => {
+      const opt = document.createElement('option');
+      opt.value = sp;
+      opt.textContent = `${sp}  (Stock: ${getAvailablePaperStock(sp, rKey).toLocaleString()} Kg)`;
+      if (sp === bodyDefault) opt.selected = true;
+      bodySelect.appendChild(opt);
+    });
+    bodySelect.disabled = false;
+    updateAvailBodyStockDisplay(bodySelect.value, sku);
+  }
+
+  // ---- Index dropdown ----
+  specSelect.innerHTML = '';
   const hasIndex = document.getElementById('ep_hasIndex') ? document.getElementById('ep_hasIndex').checked : false;
   if (!hasIndex) {
     const opt = document.createElement('option');
@@ -22344,25 +22398,9 @@ function populateProdIndexSpecsDropdown(sku) {
     }
   }
 
-  // Prioritize list based on Category / Size
-  let specs = [];
-  if (isITCSku) {
-    specs = isA4Sku ? 
-      ['89.8x43x56', '90x43x57', '96.7x37x56', '97x37x57', '97x37x54'] : 
-      ['96.7x37x56', '97x37x57', '89.8x43x56', '90x43x57', '97x37x54'];
-  } else {
-    specs = isA4Sku ? 
-      ['90x43x57', '89.8x43x56', '97x37x57', '96.7x37x56', '97x37x54'] : 
-      ['97x37x57', '97x37x54', '96.7x37x56', '90x43x57', '89.8x43x56'];
-  }
-
+  // Sabhi paper list me default ko pehle rakho (vendor filter nahi — sabhi papers chahiye)
+  let specs = allSpecs.slice();
   if (!specs.includes(defaultSpec)) specs.unshift(defaultSpec);
-
-  // Active vendor ke hisaab se paper specs filter (defaultSpec hamesha rahe)
-  const actVIdx = state.activeVendor || 'all';
-  if (actVIdx !== 'all') {
-    specs = specs.filter(sp => sp === defaultSpec || isPaperMatchingVendor(sp, '', actVIdx));
-  }
 
   specs.forEach(sp => {
     let stockKg = 0;
@@ -22395,16 +22433,79 @@ function updateAvailIndexStockDisplay(spec) {
   stockEl.style.color = stockKg > 0 ? '#0f766e' : '#b91c1c';
 }
 
+/** Sabhi paper specs ki master list — summary + stock + ledger + Masters Groups + SKUs (dedup).
+ *  Nayi paper spec kahin bhi add ho (Masters / Inward / Opening / Ledger) — sab dropdowns me apne aap. */
+function allPaperSpecsForDropdown() {
+  const out = [];
+  const push = v => { const s = String(v == null ? '' : v).trim(); if (s && out.indexOf(s) < 0) out.push(s); };
+  (state.papersSummary || []).forEach(p => push(p && p.reelSize));
+  if (state.materialStock && state.materialStock.paper) Object.keys(state.materialStock.paper).forEach(push);
+  (state.papersLedger || []).forEach(l => push(l && l.reelSize));
+  (state.masterGroups || []).filter(g => (g && g.type) === 'Paper').forEach(g => push(g && g.name));
+  (state.skus || []).forEach(s => push(s && s.paperSpec));
+  return out;
+}
+
+/** Available Body Stock — validation (getAvailablePaperStock) wahi formula jo save par check hota hai. */
+function updateAvailBodyStockDisplay(spec, sku) {
+  const stockEl = document.getElementById('ep_availBodyStock');
+  if (!stockEl) return;
+  if (!spec || !sku) {
+    stockEl.textContent = '—';
+    stockEl.style.color = '#64748b';
+    return;
+  }
+  const stockKg = getAvailablePaperStock(spec, prodRulingKey(sku));
+  stockEl.textContent = `${stockKg.toLocaleString()} Kg`;
+  stockEl.style.color = stockKg > 0 ? '#0f766e' : '#b91c1c';
+}
+
+/** Paper spec select ko master list se bharo — purane labels preserve, naye specs apne aap. */
+function fillPaperSpecSelect(selectEl, preferred) {
+  if (!selectEl || typeof allPaperSpecsForDropdown !== 'function') return;
+  const prev = preferred || selectEl.value;
+  const labelMap = {};
+  Array.from(selectEl.options).forEach(o => { if (o.value) labelMap[o.value] = o.textContent; });
+  const keepBlank = selectEl.options.length > 0 && selectEl.options[0].value === '';
+  const specs = allPaperSpecsForDropdown();
+  if (prev && specs.indexOf(prev) < 0) specs.unshift(prev);
+  let html = keepBlank ? selectEl.options[0].outerHTML : '';
+  specs.forEach(sp => {
+    const label = labelMap[sp] || sp;
+    html += `<option value="${escapeHtml(sp)}">${escapeHtml(label)}</option>`;
+  });
+  selectEl.innerHTML = html;
+  if (prev && Array.from(selectEl.options).some(o => o.value === prev)) selectEl.value = prev;
+}
+
+/** Board size select ko master board list se bharo (summary + ledger + stock + groups + SKUs). */
+function fillBoardSizeSelect(selectEl, preferred) {
+  if (!selectEl || typeof collectBoardWipSizes !== 'function') return;
+  const prev = preferred || selectEl.value;
+  const labelMap = {};
+  Array.from(selectEl.options).forEach(o => { if (o.value) labelMap[o.value] = o.textContent; });
+  const keepBlank = selectEl.options.length > 0 && selectEl.options[0].value === '';
+  const sizes = collectBoardWipSizes();
+  if (prev && !sizes.some(x => normalizeBoardSizeKey(x) === normalizeBoardSizeKey(prev))) sizes.unshift(prev);
+  let html = keepBlank ? selectEl.options[0].outerHTML : '';
+  sizes.forEach(sz => {
+    const label = labelMap[sz] || (typeof formatBoardSizeLabel === 'function' ? formatBoardSizeLabel(sz) : sz);
+    html += `<option value="${escapeHtml(sz)}">${escapeHtml(label)}</option>`;
+  });
+  selectEl.innerHTML = html;
+  if (prev && Array.from(selectEl.options).some(o => o.value === prev)) selectEl.value = prev;
+}
+
 // ==========================================================================
 // MANUFACTURING MATERIAL COST — production entry ka material costing
 // Paper + Index + Board + CFC (har item ka rate uski entry/master se)
 // ==========================================================================
-function getMfgRates(sku, indexSpec) {
+function getMfgRates(sku, indexSpec, bodySpec) {
   const paperRate = (spec) => {
     const p = (state.papersSummary || []).find(x => x.reelSize === spec);
     return p && Number(p.rate) > 0 ? Number(p.rate) : 77;
   };
-  const paperRateVal = paperRate(sku.paperSpec);
+  const paperRateVal = paperRate(bodySpec || sku.paperSpec);
   const indexRateVal = indexSpec ? paperRate(indexSpec) : 0;
 
   let boardRateVal = 7.5;
@@ -22424,8 +22525,8 @@ function getMfgRates(sku, indexSpec) {
 }
 
 // batch quantities se cost breakdown — preview aur submit dono me same
-function calcMfgCost(sku, indexSpec, hasIndex, batchPaper, batchIndex, batchBoard, batchCfc) {
-  const r = getMfgRates(sku, indexSpec);
+function calcMfgCost(sku, indexSpec, hasIndex, batchPaper, batchIndex, batchBoard, batchCfc, bodySpec) {
+  const r = getMfgRates(sku, indexSpec, bodySpec);
   const paper = Number((batchPaper * r.paperRate).toFixed(2));
   const index = hasIndex && batchIndex > 0 ? Number((batchIndex * r.indexRate).toFixed(2)) : 0;
   const board = Number((batchBoard * r.boardRate).toFixed(2));
@@ -22448,6 +22549,11 @@ function calcProdLogPreview() {
   const selectedIndexSpec = (indexSpecSelect && indexSpecSelect.value) ? indexSpecSelect.value : (sku.indexSpec || sku.paperSpec || '90x43x57');
 
   updateAvailIndexStockDisplay(selectedIndexSpec);
+
+  // Body Paper selection — default SKU paperSpec (save isi ko honor karta hai)
+  const bodySpecSelect = document.getElementById('ep_bodySpec');
+  const selectedBodySpec = (bodySpecSelect && bodySpecSelect.value) ? bodySpecSelect.value : (sku.paperSpec || '');
+  updateAvailBodyStockDisplay(selectedBodySpec, sku);
 
   const newProd = (sku.production || 0) + addQty - rejQtyPv;   // Rejection FG se minus
   const newDue = (sku.orderQty || 0) - (sku.oldStock || 0) - newProd;
@@ -22502,7 +22608,7 @@ function calcProdLogPreview() {
   if (document.getElementById('ep_cfcConsBatch')) document.getElementById('ep_cfcConsBatch').value = `${batchCfc.toLocaleString()} Boxes`;
   updateAvailCfcStockDisplay(cfcName);
 
-  let formulaText = `Output: +${addQty.toLocaleString()} Pcs | Paper (${sku.paperSpec || 'Paper'}): ${batchPaper.toLocaleString()} Kg`;
+  let formulaText = `Output: +${addQty.toLocaleString()} Pcs | Paper (${selectedBodySpec || sku.paperSpec || 'Paper'}): ${batchPaper.toLocaleString()} Kg`;
   if (hasIndex) {
     formulaText += ` | Index (${selectedIndexSpec}): ${batchIndex.toLocaleString()} Kg`;
   }
@@ -22516,7 +22622,7 @@ function calcProdLogPreview() {
   const costEl = document.getElementById('ep_costNote');
   if (costEl) {
     if (addQty > 0) {
-      const cost = calcMfgCost(sku, selectedIndexSpec, hasIndex, batchPaper, batchIndex, batchBoard, batchCfc);
+      const cost = calcMfgCost(sku, selectedIndexSpec, hasIndex, batchPaper, batchIndex, batchBoard, batchCfc, selectedBodySpec);
       const perPc = cost.total / addQty;
       costEl.style.display = 'block';
       costEl.textContent = `💰 Material Cost: Paper ₹${cost.paper.toLocaleString('en-IN')} + Index ₹${cost.index.toLocaleString('en-IN')} + Board ₹${cost.board.toLocaleString('en-IN')} + CFC ₹${cost.cfc.toLocaleString('en-IN')} = ₹${cost.total.toLocaleString('en-IN')} (₹${perPc.toFixed(2)}/Pc)`;
@@ -23864,6 +23970,16 @@ function resetOrderBookingFormForNextEntry() {
  * Real-time Available Paper WIP Stock Engine
  * (Prevents double deduction and guarantees 100% mathematical accuracy)
  */
+/** SKU ruling → stock bucket key. Validation aur body-stock display dono isi ko use karein. */
+function prodRulingKey(sku) {
+  const rRaw = String((sku && sku.ruling) || getRulingFromProductCode(sku && sku.barcode, sku && sku.description)).toUpperCase();
+  if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) return 'Double Rule';
+  if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) return 'Unruled';
+  if (rRaw.includes('FOUR') || rRaw.includes('4L')) return 'Four Line';
+  if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) return 'Med. Square';
+  return 'Single Line';
+}
+
 function getAvailablePaperStock(spec, rulingKey) {
   // Use the SAME formula as the MRP "Paper in Stock" display so validation
   // always agrees with what the user sees:
@@ -23947,6 +24063,8 @@ function handleProductionLogSubmit(e) {
   const hasIndex = hasIndexBox ? hasIndexBox.checked : false;
   const indexSpecSelect = document.getElementById('ep_indexSpec');
   const selectedIndexSpec = (indexSpecSelect && indexSpecSelect.value) ? indexSpecSelect.value : (sku.indexSpec || sku.paperSpec || '90x43x57');
+  const bodySpecSelect = document.getElementById('ep_bodySpec');
+  const selectedBodySpec = (bodySpecSelect && bodySpecSelect.value) ? bodySpecSelect.value : (sku.paperSpec || '');
 
   const date = document.getElementById('ep_date') ? document.getElementById('ep_date').value : '';
   const machine = document.getElementById('ep_machine') ? document.getElementById('ep_machine').value : '';
@@ -23980,14 +24098,8 @@ function handleProductionLogSubmit(e) {
   const batchIndex = Number((addQty * wtBreakdown.bookWtIndex * 1.0025).toFixed(2));
   const batchBoard = Math.ceil(addQty / boardDivisor);
 
-  // Ruling key
-  const rRaw = String(sku.ruling || getRulingFromProductCode(sku.barcode, sku.description)).toUpperCase();
-  let rKey = 'Single Line';
-  if (rRaw.includes('DOUBLE') || rRaw.includes('2L') || rRaw.includes('TWO LINE') || rRaw.includes('2 LINE')) rKey = 'Double Rule';
-  else if (rRaw.includes('UNRULED') || /\bUR\b/.test(rRaw) || rRaw.includes('PLAIN')) rKey = 'Unruled';
-  else if (rRaw.includes('FOUR') || rRaw.includes('4L')) rKey = 'Four Line';
-  else if (rRaw.includes('SQUARE') || rRaw.includes('MED') || rRaw.includes('MS')) rKey = 'Med. Square';
-  else rKey = 'Single Line';
+  // Ruling key (validation aur body-stock display dono same helper se)
+  const rKey = prodRulingKey(sku);
 
   // Carton / CFC Requirements — sirf NET (produced - rejection) qty par.
   // Paper/Index/Board ki tarah gross addQty par NAHI: reject hue pack nahi hote.
@@ -23999,12 +24111,12 @@ function handleProductionLogSubmit(e) {
   // -------------------------------------------------------------------------
   // STRICT NEGATIVE STOCK PREVENTIONS: ALERT & REJECT ENTRY IF NEGATIVE
   // -------------------------------------------------------------------------
-  // 1. Check Paper WIP Stock
-  const availPaper = getAvailablePaperStock(sku.paperSpec, rKey);
+  // 1. Check Paper WIP Stock (selected body spec par — default SKU paperSpec)
+  const availPaper = getAvailablePaperStock(selectedBodySpec, rKey);
   if (batchPaper > availPaper) {
     alert(`⛔ INSUFFICIENT PAPER STOCK - ENTRY REJECTED!\n\n` +
           `Aapki production entry accept nahi hogi kyunki Paper WIP Stock Negative ho jayega!\n\n` +
-          `Item: Paper ${sku.paperSpec} (${rKey})\n` +
+          `Item: Paper ${selectedBodySpec} (${rKey})\n` +
           `Current Available Stock: ${availPaper.toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\n` +
           `Required for Production (${addQty.toLocaleString()} Pcs): ${batchPaper.toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\n` +
           `Shortage / Deficit: ${(batchPaper - availPaper).toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\n\n` +
@@ -24072,6 +24184,7 @@ function handleProductionLogSubmit(e) {
   sku.production = (sku.production || 0) + (addQty - rejQty);
   sku.hasIndex = hasIndex;
   sku.indexSpec = selectedIndexSpec;
+  if (selectedBodySpec) sku.paperSpec = selectedBodySpec;   // body selection recalc mapping me honor
   sku.bookWtPaper = wtBreakdown.bookWtPaper;
   sku.bookWtIndex = wtBreakdown.bookWtIndex;
   sku.bookWt = wtBreakdown.totalBookWt;
@@ -24163,7 +24276,7 @@ function handleProductionLogSubmit(e) {
                      (batchCfc > 0 ? ` | CFC: ${batchCfc.toLocaleString()} Boxes (${cfcItemName})` : '');
 
   // MANUFACTURING COST — is production entry me kitna material amount involve hua
-  const mfgCost = calcMfgCost(sku, selectedIndexSpec, hasIndex, batchPaper, batchIndex, batchBoard, batchCfc);
+  const mfgCost = calcMfgCost(sku, selectedIndexSpec, hasIndex, batchPaper, batchIndex, batchBoard, batchCfc, selectedBodySpec);
   const costDesc = ` | 💰 Cost: ₹${mfgCost.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Paper ₹${mfgCost.paper.toLocaleString('en-IN')} + Index ₹${mfgCost.index.toLocaleString('en-IN')} + Board ₹${mfgCost.board.toLocaleString('en-IN')} + CFC ₹${mfgCost.cfc.toLocaleString('en-IN')})`;
 
   addTodayTransaction({
@@ -24196,7 +24309,7 @@ function resetProductionFormForNextEntry() {
     'ep_bookWtPaper', 'ep_bookWtIndex', 'ep_bookWtTotal', 'ep_paperConsBatch', 'ep_indexConsBatch',
     'ep_boardConsBatch', 'ep_cfcConsBatch', 'ep_caseQty', 'ep_cfcItemName'];
   clearIds.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  ['ep_availIndexStock', 'ep_availCfcStock'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+  ['ep_availBodyStock', 'ep_availIndexStock', 'ep_availCfcStock'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
 
   const epRej = document.getElementById('ep_rejection');
   if (epRej) epRej.value = '0';                       // Rejection hamesha 0 par reset
@@ -24674,6 +24787,17 @@ function populatePaperSpecDropdown() {
       added.add(c0);
     }
   });
+  // Material Stock me maujood naye specs bhi (opening/inward se pehle hi list me)
+  if (state.materialStock && state.materialStock.paper) {
+    Object.keys(state.materialStock.paper).forEach(sk => {
+      const s0 = String(sk).trim();
+      const c0 = s0.replace(/\s+/g, '').toLowerCase();
+      if (s0 && !added.has(c0)) {
+        html += `<option value="${escapeHtml(s0)}">${escapeHtml(s0)}</option>`;
+        added.add(c0);
+      }
+    });
+  }
   // (vendor ke liye koi group nahi ho to sirf blank — Camlin specs galat nahi dikhenge)
   sel.innerHTML = html;
   // Pehle se selected value preserve karo (agar abhi bhi list me ho)
@@ -27315,7 +27439,9 @@ function openEditSkuModal(barcode) {
   }
   const idxSpecEl = document.getElementById('edit_sku_indexSpec');
   if (idxSpecEl) {
-    idxSpecEl.value = sku.indexSpec || sku.paperSpec || (sku.reelSize === 90 ? '90x43x57' : '97x37x57');
+    const defIdx = sku.indexSpec || sku.paperSpec || (sku.reelSize === 90 ? '90x43x57' : '97x37x57');
+    fillPaperSpecSelect(idxSpecEl, defIdx);   // master list — naye paper specs bhi dikhein
+    idxSpecEl.value = defIdx;
   }
   if (document.getElementById('edit_sku_inner')) document.getElementById('edit_sku_inner').value = sku.inner !== undefined ? sku.inner : '';
   if (document.getElementById('edit_sku_caseQty')) document.getElementById('edit_sku_caseQty').value = sku.caseQty !== undefined ? sku.caseQty : '';
@@ -27403,6 +27529,8 @@ function saveSkuEdit(e) {
     return;
   }
 
+  // Size/Vendor identity change → paperSpec recalc se dobara derive ho (warna purana reh jata)
+  const _oldIdent = [sku.vendor, sku.size, sku.reelSize, sku.cut, sku.pages, sku.ups].join('|');
   sku.vendor = document.getElementById('edit_sku_vendor').value;
   sku.description = document.getElementById('edit_sku_desc').value;
   if (document.getElementById('edit_sku_mrp')) sku.mrp = parseFloat(document.getElementById('edit_sku_mrp').value) || 40;
@@ -27429,6 +27557,9 @@ function saveSkuEdit(e) {
     const om = document.getElementById('edit_sku_orderMonth').value;
     if (om) sku.month = om;
   }
+
+  const _newIdent = [sku.vendor, sku.size, sku.reelSize, sku.cut, sku.pages, sku.ups].join('|');
+  if (_oldIdent !== _newIdent) sku.paperSpec = '';   // identity badli → recalc naya default derive karega
 
   recalculateAllFormulas();
   saveState();
@@ -36824,6 +36955,8 @@ function openPaperWipAuditModal(spec, rKey, fromDate, toDate) {
   const modal = document.getElementById('modalPaperWipAudit');
   if (!modal) return;
 
+  // Sabhi pwa_spec_select copies master list se — naye paper specs modal me bhi
+  document.querySelectorAll('select[id="pwa_spec_select"]').forEach(sel => fillPaperSpecSelect(sel, spec));
   const specSelect = document.getElementById('pwa_spec_select');
   const rulingSelect = document.getElementById('pwa_ruling_select');
   if (specSelect) specSelect.value = spec;
@@ -37172,6 +37305,8 @@ function collectBoardWipSizes() {
   (state.boardSummary || []).forEach(b => push(b.size));
   (state.boardLedger || []).forEach(l => push(l.size));
   (state.skus || []).forEach(s => push(s.boardSpec));
+  if (state.materialStock && state.materialStock.board) Object.keys(state.materialStock.board).forEach(push);
+  (state.masterGroups || []).filter(g => (g && g.type) === 'Board').forEach(g => push(g && g.name));
   return list;
 }
 
