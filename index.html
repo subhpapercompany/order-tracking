@@ -9731,11 +9731,11 @@ body.print-flash-mode .no-print {
                 </select>
               </div>
 
-              <!-- 4. Produced Quantity (read-only mirror of Production Log) -->
+              <!-- 4. Produced Quantity (auto Production Log se — editable bhi) -->
               <div class="form-group">
-                <label style="font-weight:700;">Produced Qty <span style="font-weight:600;color:#0f766e;">(auto — Production Log se)</span></label>
-                <input type="number" id="poreq_producedQty" min="0" readonly title="Auto from Daily Production Log — yahan entry nahi hoti" style="padding:9px 12px; background:#f1f5f9; color:#475569; cursor:not-allowed;">
-                <small style="color:#64748b; font-size:11.5px;">Production sirf <b>Daily Production Log</b> se add hoti hai — ye field sirf dikhane ke liye hai.</small>
+                <label style="font-weight:700;">Produced Qty <span style="font-weight:600;color:#0f766e;">(auto — Production Log se, edit bhi kar sakte hain)</span></label>
+                <input type="number" id="poreq_producedQty" min="0" oninput="onPoReqProducedInput()" title="Auto Daily Production Log se bharta hai — zarurat ho to khud edit kar sakte hain" style="padding:9px 12px; background:#ffffff; color:#0f172a;">
+                <small style="color:#64748b; font-size:11.5px;">Auto <b>Daily Production Log</b> se bhara jata hai — zarurat ho to aap yahan edit kar sakte hain.</small>
               </div>
 
               <!-- Spacer -->
@@ -11664,7 +11664,7 @@ body.print-flash-mode .no-print {
         <div class="form-group"><label>Inner Quantity</label><input type="number" id="edit_poreq_inner"></div>
         <div class="form-group"><label>Case Quantity</label><input type="number" id="edit_poreq_case"></div>
         <div class="form-group"><label>Order Quantity</label><input type="number" id="edit_poreq_orderQty" required oninput="calcEditPoReqDue()"></div>
-        <div class="form-group"><label>Produced Qty <span style="color:#0f766e;">(auto — Production Log se)</span></label><input type="number" id="edit_poreq_producedQty" readonly oninput="calcEditPoReqDue()" style="background:#f1f5f9; color:#475569; cursor:not-allowed;" title="Auto from Daily Production Log — yahan entry nahi hoti"></div>
+        <div class="form-group"><label>Produced Qty <span style="color:#0f766e;">(auto — Production Log se, edit bhi kar sakte hain)</span></label><input type="number" id="edit_poreq_producedQty" min="0" oninput="calcEditPoReqDue()" style="background:#ffffff; color:#0f172a;" title="Auto Daily Production Log se bharta hai — zarurat ho to edit kar sakte hain"></div>
         <div id="edit_poreq_calc_msg" style="grid-column: span 3; background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:7px 12px; font-size:12px; color:#14532d; font-weight:600; display:flex; align-items:center; gap:8px;"></div>
         <div class="form-group"><label>Board GSM</label><input type="number" id="edit_poreq_boardGsm" step="1"></div>
         <div class="form-group"><label>Sheet Width (cm)</label><input type="number" id="edit_poreq_boardWidth" step="0.1"></div>
@@ -28888,12 +28888,12 @@ function onPoReqCodeChange(code) {
             <strong>Order Due Calculation for Product ${code}:</strong>
             <div style="font-size:11.5px; color:#166534; margin-top:2px;">
               Total Order: <strong>${origOrder.toLocaleString()}</strong> | 
-              Less : Produced Qty: <strong>${prevProducedSoFar.toLocaleString()}</strong> | 
-              <span style="color:#b91c1c; font-weight:700;">Rest Order Due: <strong>${restOrderDue.toLocaleString()}</strong></span>
+              Less : Produced Qty: <strong id="poreq_banner_produced">${prevProducedSoFar.toLocaleString()}</strong> | 
+              <span style="color:#b91c1c; font-weight:700;">Rest Order Due: <strong id="poreq_banner_rest">${restOrderDue.toLocaleString()}</strong></span>
             </div>
           </div>
         </div>
-        <div style="background:#ffffff; border:1px solid #86efac; padding:4px 10px; border-radius:6px; font-weight:700; font-size:11.5px; color:#15803d;">
+        <div id="poreq_banner_pill" style="background:#ffffff; border:1px solid #86efac; padding:4px 10px; border-radius:6px; font-weight:700; font-size:11.5px; color:#15803d;">
           ${prevProducedSoFar > 0 ? `✓ Due Auto-Fetched: ${restOrderDue.toLocaleString()} Pcs` : `Fresh Booking: ${origOrder.toLocaleString()} Pcs`}
         </div>
       `;
@@ -28977,6 +28977,24 @@ function onPoReqCodeChange(code) {
   }
 }
 
+/** Produced Qty editable hai — user type kare to banner ke Produced/Rest Due numbers live update. */
+function onPoReqProducedInput() {
+  const code = ((document.getElementById('poreq_code') || {}).value || '').trim();
+  const sku = (state.skus || []).find(s => s.barcode === code);
+  if (!sku) return;
+  const origOrder = parseFloat((sku.initialOrderQty !== undefined && sku.initialOrderQty !== null)
+    ? sku.initialOrderQty
+    : ((sku.orderQty !== undefined && sku.orderQty !== null) ? sku.orderQty : 0));
+  const produced = parseFloat((document.getElementById('poreq_producedQty') || {}).value) || 0;
+  const rest = Math.max(0, origOrder - produced);
+  const p1 = document.getElementById('poreq_banner_produced');
+  const p2 = document.getElementById('poreq_banner_rest');
+  const p3 = document.getElementById('poreq_banner_pill');
+  if (p1) p1.textContent = produced.toLocaleString();
+  if (p2) p2.textContent = rest.toLocaleString();
+  if (p3) p3.textContent = produced > 0 ? `✓ Rest Due: ${rest.toLocaleString()} Pcs` : `Fresh Booking: ${origOrder.toLocaleString()} Pcs`;
+}
+
 function handlePoRequestSubmit(e) {
   e.preventDefault();
   const pCode = document.getElementById('poreq_code').value.trim();
@@ -29042,12 +29060,13 @@ function handlePoRequestSubmit(e) {
   state.poRequests.unshift(item);
 
   // OPTION A: Production ka single source of truth = Daily Production Log ONLY.
-  // PO Request kabhi sku.production ko overwrite NAHI karta. Yahan rakha
-  // producedQuantity sirf production-log ka mirror (read-only auto-fill) hai.
+  // PO Request kabhi sku.production ko overwrite NAHI karta. Produced Qty field
+  // auto-log se bhari hai par editable — record me USER ki (possibly edited)
+  // value hi rehti hai (item.producedQty = form value, upar item me set ho chuka).
   const cumProdForCode = (skuMatch && parseFloat(skuMatch.production)) || 0;
 
   if (skuMatch) {
-    item.producedQuantity = cumProdForCode; // read-only mirror — typed value ignore
+    // item.producedQuantity = prodQtyEntered (editable form value) — yahan overwrite NAHI
     skuMatch.dueProduction = Math.max(0, (skuMatch.initialOrderQty || skuMatch.orderQty) - cumProdForCode);
   }
 
@@ -29056,15 +29075,15 @@ function handlePoRequestSubmit(e) {
     vendor: item.vendor,
     barcode: item.productCode,
     description: `${item.productSize} ${item.cover} ${item.noOfPages}Pg (${item.ruling})`,
-    qty: `${item.orderQuantity.toLocaleString()} Pcs | Produced so far: ${item.producedQuantity.toLocaleString()} (Production Log)`,
-    impact: `Cumulative Prod: ${cumProdForCode.toLocaleString()} | Due: ${Math.max(0, origOrderTotal - cumProdForCode).toLocaleString()}`,
+    qty: `${item.orderQuantity.toLocaleString()} Pcs | Produced: ${item.producedQuantity.toLocaleString()} Pcs`,
+    impact: `Produced Qty: ${item.producedQuantity.toLocaleString()} | Due: ${Math.max(0, origOrderTotal - item.producedQuantity).toLocaleString()}`,
     ref: `Req Date: ${item.requestDate}`,
     details: item
   });
 
   saveState();
   renderAllViews();
-  showToast(`PO Request for Product ${item.productCode} (${item.vendor}) saved! Produced so far (Production Log): ${cumProdForCode.toLocaleString()} | Due: ${Math.max(0, origOrderTotal - cumProdForCode).toLocaleString()}`);
+  showToast(`PO Request for Product ${item.productCode} (${item.vendor}) saved! Produced Qty: ${item.producedQuantity.toLocaleString()} | Due: ${Math.max(0, origOrderTotal - item.producedQuantity).toLocaleString()}`);
 
   // Clear form inputs cleanly
   const keepReqDate = item.requestDate;
@@ -30358,7 +30377,8 @@ function savePoRequestEdit(e) {
     sku.orderQty = item.orderQuantity;
     // OPTION A: sku.production ko PO Request se kabhi mat badlo —
     // production sirf Daily Production Log se aata hai.
-    item.producedQuantity = parseFloat(sku.production) || 0;
+    // Produced Qty field editable hai — user ki edited value (edit form se, upar
+    // line ~30330 me read hui) record me rehti hai, yahan log se overwrite NAHI.
     sku.dueProduction = Math.max(0, (sku.initialOrderQty || sku.orderQty) - (parseFloat(sku.production) || 0));
     sku.inner = item.innerQuantity;
     sku.caseQty = item.caseQuantity;
