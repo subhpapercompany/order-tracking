@@ -22329,7 +22329,7 @@ function populateProdIndexSpecsDropdown(sku) {
       buckets.forEach(rk => {
         const opt = document.createElement('option');
         opt.value = `${sp}|${rk}`;
-        opt.textContent = `${sp} : ${rk} (WIP: ${getAvailablePaperStock(sp, rk).toLocaleString()} Kg)`;
+        opt.textContent = `${paperSpecLabel(sp)} : ${rk} (WIP: ${getAvailablePaperStock(sp, rk).toLocaleString()} Kg)`;
         if (sp === bodyDefault && rk === rKey) opt.selected = true;
         bodySelect.appendChild(opt);
       });
@@ -22374,13 +22374,11 @@ function populateProdIndexSpecsDropdown(sku) {
   if (!specs.includes(defaultSpec)) specs.unshift(defaultSpec);
 
   specs.forEach(sp => {
-    let stockKg = 0;
-    if (state.materialStock && state.materialStock.paper && state.materialStock.paper[sp]) {
-      stockKg = state.materialStock.paper[sp]['Index'] || 0;
-    }
+    // Save validation wala hi source (ledger + materialStock + consumption) — 58 GSM ledger rows bhi dikhein
+    const stockKg = getAvailablePaperStock(sp, 'Index');
     const opt = document.createElement('option');
     opt.value = sp;
-    opt.textContent = `${sp} : Index (WIP: ${stockKg.toLocaleString()} Kg)`;
+    opt.textContent = `${paperSpecLabel(sp)} : Index (WIP: ${stockKg.toLocaleString()} Kg)`;
     if (sp === defaultSpec) opt.selected = true;
     specSelect.appendChild(opt);
   });
@@ -22396,25 +22394,17 @@ function updateAvailIndexStockDisplay(spec) {
     stockEl.style.color = '#64748b';
     return;
   }
-  let stockKg = 0;
-  if (state.materialStock && state.materialStock.paper && state.materialStock.paper[spec]) {
-    stockKg = state.materialStock.paper[spec]['Index'] || 0;
-  }
+  const stockKg = getAvailablePaperStock(spec, 'Index');   // save validation wala formula
   stockEl.textContent = `${stockKg.toLocaleString()} Kg`;
   stockEl.style.color = stockKg > 0 ? '#0f766e' : '#b91c1c';
 }
 
 /** Sabhi WIP paper specs ki master list — summary + stock + ledger + Groups + SKUs (dedup).
  *  Nayi paper spec kahin bhi add ho (Masters / Inward / Opening / Ledger) — sab dropdowns me apne aap.
- *  "Reels : ..." rows sirf reel-purchase tracking hain — production sirf WIP use karta hai, skip. */
+ *  "Reels : 90X43X58" jaise naam bhi WIP specs hain (58 GSM) — display me paperSpecLabel se saaf. */
 function allPaperSpecsForDropdown() {
   const out = [];
-  const push = v => {
-    const s = String(v == null ? '' : v).trim();
-    if (!s || out.indexOf(s) >= 0) return;
-    if (/^reels?\s*:/i.test(s)) return;   // Reels tracking rows — production WIP nahi
-    out.push(s);
-  };
+  const push = v => { const s = String(v == null ? '' : v).trim(); if (s && out.indexOf(s) < 0) out.push(s); };
   (state.papersSummary || []).forEach(p => push(p && p.reelSize));
   if (state.materialStock && state.materialStock.paper) Object.keys(state.materialStock.paper).forEach(push);
   (state.papersLedger || []).forEach(l => push(l && l.reelSize));
@@ -22449,7 +22439,7 @@ function fillPaperSpecSelect(selectEl, preferred) {
   if (prev && specs.indexOf(prev) < 0) specs.unshift(prev);
   let html = keepBlank ? selectEl.options[0].outerHTML : '';
   specs.forEach(sp => {
-    const label = labelMap[sp] || sp;
+    const label = labelMap[sp] || paperSpecLabel(sp);
     html += `<option value="${escapeHtml(sp)}">${escapeHtml(label)}</option>`;
   });
   selectEl.innerHTML = html;
@@ -22589,10 +22579,10 @@ function calcProdLogPreview() {
   if (document.getElementById('ep_cfcConsBatch')) document.getElementById('ep_cfcConsBatch').value = `${batchCfc.toLocaleString()} Boxes`;
   updateAvailCfcStockDisplay(cfcName);
 
-  const bodyLabel = selectedBodySpec ? `${selectedBodySpec} : ${selectedBodyRuling}` : 'Paper';
+  const bodyLabel = selectedBodySpec ? `${paperSpecLabel(selectedBodySpec)} : ${selectedBodyRuling}` : 'Paper';
   let formulaText = `Output: +${addQty.toLocaleString()} Pcs | Paper (${bodyLabel}): ${batchPaper.toLocaleString()} Kg`;
   if (hasIndex) {
-    formulaText += ` | Index (${selectedIndexSpec}): ${batchIndex.toLocaleString()} Kg`;
+    formulaText += ` | Index (${paperSpecLabel(selectedIndexSpec)}): ${batchIndex.toLocaleString()} Kg`;
   }
   formulaText += ` | Board: ${batchBoard.toLocaleString()} Sheets (Div: ${boardDivisor})`;
   formulaText += ` | Carton: ${batchCfc.toLocaleString()} Boxes (${cfcName})` + (rejQtyPv > 0 ? ` — ${cfcQty.toLocaleString()} net Pcs par` : '');
@@ -24036,6 +24026,12 @@ function parseBodySpecValue(v) {
   return i < 0 ? { spec: s, ruling: '' } : { spec: s.slice(0, i), ruling: s.slice(i + 1) };
 }
 
+/** Display ke liye spec name saaf: "Reels : 90X43X58" -> "90x43x58".
+ *  Internal value/filed FULL naam rehte hain (stock lookup exact match) — sirf label me saaf. */
+function paperSpecLabel(spec) {
+  return String(spec == null ? '' : spec).trim().replace(/^reels?\s*:\s*/i, '').toLowerCase();
+}
+
 /** Body WIP ruling buckets — standard rulings + materialStock me koi extra key (Index chhod ke). */
 function bodyRulingBuckets() {
   const std = ['Reel Form', 'Single Line', 'Double Rule', 'Unruled', 'Four Line', 'Med. Square'];
@@ -24133,7 +24129,7 @@ function handleProductionLogSubmit(e) {
   if (batchPaper > availPaper) {
     alert(`⛔ INSUFFICIENT PAPER STOCK - ENTRY REJECTED!\n\n` +
           `Aapki production entry accept nahi hogi kyunki Paper WIP Stock Negative ho jayega!\n\n` +
-          `Item: Paper ${selectedBodySpec} (${rKey})\n` +
+          `Item: Paper ${paperSpecLabel(selectedBodySpec)} (${rKey})\n` +
           `Current Available Stock: ${availPaper.toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\n` +
           `Required for Production (${addQty.toLocaleString()} Pcs): ${batchPaper.toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\n` +
           `Shortage / Deficit: ${(batchPaper - availPaper).toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\n\n` +
@@ -24147,7 +24143,7 @@ function handleProductionLogSubmit(e) {
     if (batchIndex > availIndex) {
       alert(`⛔ INSUFFICIENT INDEX PAPER STOCK - ENTRY REJECTED!\n\n` +
             `Aapki production entry accept nahi hogi kyunki Index Paper Stock Negative ho jayega!\n\n` +
-            `Item: Index Paper ${selectedIndexSpec}\n` +
+            `Item: Index Paper ${paperSpecLabel(selectedIndexSpec)}\n` +
             `Current Available Stock: ${availIndex.toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\n` +
             `Required for Production: ${batchIndex.toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\n` +
             `Shortage / Deficit: ${(batchIndex - availIndex).toLocaleString(undefined, {minimumFractionDigits: 2})} Kg\n\n` +
@@ -24288,8 +24284,8 @@ function handleProductionLogSubmit(e) {
   }
 
   // Record into Today's Transactions
-  const impactDesc = `Paper: ${batchPaper.toLocaleString()} Kg (${sku.paperSpec}${sku.paperRuling ? ' : ' + sku.paperRuling : ''})` + 
-                     (hasIndex ? ` | Index: ${batchIndex.toLocaleString()} Kg (${selectedIndexSpec})` : '') + 
+  const impactDesc = `Paper: ${batchPaper.toLocaleString()} Kg (${paperSpecLabel(sku.paperSpec)}${sku.paperRuling ? ' : ' + sku.paperRuling : ''})` + 
+                     (hasIndex ? ` | Index: ${batchIndex.toLocaleString()} Kg (${paperSpecLabel(selectedIndexSpec)})` : '') + 
                      ` | Board: ${batchBoard.toLocaleString()} Sheets` +
                      (batchCfc > 0 ? ` | CFC: ${batchCfc.toLocaleString()} Boxes (${cfcItemName})` : '');
 
