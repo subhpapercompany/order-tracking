@@ -36684,7 +36684,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-13-3';
+const APP_VERSION = '2026-11-19-1';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
@@ -37156,10 +37156,12 @@ function renderPaperWipAuditDetails(spec, rKey) {
     qtyOut: baseOpeningKg < 0 ? Math.abs(baseOpeningKg) : 0
   });
 
-  // Reel Slitting Inward
+  // Reel Slitting Inward — SIRF asli slitting rows (processedKg ya wipType wali).
+  // BUG FIX: mill-inward rows (mother reel purchase, wipType khaali) pehle 'ALL'
+  // ruling me WIP-In ban jati thi — reel ki inward bhi WIP me + dikhti thi (double count).
   (state.papersLedger || []).forEach(pl => {
     if (pl.reelSize === spec && (rKey === 'ALL' || pl.wipType === rKey)) {
-      const inward = Number(pl.processedKg || pl.inwardKg || 0);
+      const inward = Number(pl.processedKg || 0) || (pl.wipType ? Number(pl.inwardKg || 0) : 0);
       if (inward > 0) {
         rawRows.push({
           date: pl.date || '2026-10-01',
@@ -37295,6 +37297,47 @@ function renderPaperWipAuditDetails(spec, rKey) {
   if (bannerRuling) bannerRuling.textContent = `${spec} ${rKey}`;
   if (bannerConsumed) bannerConsumed.textContent = `${Math.round(periodConsumed).toLocaleString()} Kg`;
   if (bannerDeficit) bannerDeficit.textContent = `${Math.round(periodClosing).toLocaleString()} Kg`;
+
+  // MOTHER REEL STRIP — user rule: "item add = +, slit par reel KAM (−), WIP BADH (+)".
+  // Upar ke cards sirf WIP ke hain; ye strip usi slit ki REEL-side entry dikhata hai.
+  try {
+    const compactSpecR = String(spec || '').replace(/\s+/g, '').toLowerCase();
+    const pSumR = (state.papersSummary || []).find(p => String(p.reelSize || '').replace(/\s+/g, '').toLowerCase() === compactSpecR);
+    let reelOpenR = Number(pSumR && pSumR.openingReelsKg) || 0;
+    let reelInR = 0, reelIssuedR = 0;
+    (state.papersLedger || []).forEach(pl => {
+      if (String(pl.reelSize || '').replace(/\s+/g, '').toLowerCase() !== compactSpecR) return;
+      if (pl.notes === 'Opening Stock Entry') return;
+      const d = pl.date || '';
+      const inQ = Number(pl.inwardKg) || 0;
+      const outQ = Number(pl.processedKg) || 0;
+      if (d < fromDate) { reelOpenR += inQ - outQ; return; }   // period se pehle ka = opening
+      if (d > toDate) return;
+      reelInR += inQ;                                          // + Mill Inward (reel aayi)
+      reelIssuedR += outQ;                                     // − Issued for Slitting (reel gayi WIP me)
+    });
+    const reelCloseR = reelOpenR + reelInR - reelIssuedR;
+    const anchorCard = document.getElementById('pwa_card_opening');
+    if (anchorCard && anchorCard.parentNode && anchorCard.parentNode.parentNode) {
+      const kpiGrid = anchorCard.parentNode;
+      let stripR = document.getElementById('pwa_reel_strip');
+      if (!stripR) {
+        stripR = document.createElement('div');
+        stripR.id = 'pwa_reel_strip';
+        kpiGrid.parentNode.insertBefore(stripR, kpiGrid.nextSibling);
+      }
+      stripR.setAttribute('style', 'background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:16px;');
+      stripR.innerHTML =
+        '<div style="font-size:11.5px; font-weight:800; color:#1e40af; text-transform:uppercase; margin-bottom:6px;">🧻 Mother Reel (' + spec + ') — slit hone par reel KAM hota hai (−), WIP upar + me badhta hai</div>' +
+        '<div style="display:flex; gap:18px; flex-wrap:wrap; font-size:13.5px; color:#334155; align-items:center;">' +
+        '<span>Opening: <b style="color:#0f172a;">' + Math.round(reelOpenR).toLocaleString() + ' Kg</b></span>' +
+        '<span style="color:#15803d; font-weight:700;">+ Mill Inward: <b>' + Math.round(reelInR).toLocaleString() + ' Kg</b></span>' +
+        '<span style="color:#dc2626; font-weight:700;">− Issued for Slitting: <b>' + Math.round(reelIssuedR).toLocaleString() + ' Kg</b></span>' +
+        '<span style="color:#1e40af; font-weight:800;">= Reel Closing: <b>' + Math.round(reelCloseR).toLocaleString() + ' Kg</b></span>' +
+        '<span style="font-size:11.5px; color:#64748b; font-weight:600;">(Issued for Slitting = upar card 2 ka WIP-In, kyunke reel WIP me gayi)</span>' +
+        '</div>';
+    }
+  } catch (e) { console.warn('Mother Reel strip error:', e); }
 
   // Render Table
   const tbody = document.getElementById('pwa_table_body');
