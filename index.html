@@ -3710,7 +3710,7 @@ body.print-flash-mode .no-print {
       <button class="btn btn-outline" id="btnMobileAppInstall" onclick="triggerMobileAppInstall()" style="border-color:#10b981; color:#047857; background:#ecfdf5; font-weight:700;" title="Mobile me App Icon install karein">
         <span>📱</span> App Icon
       </button>
-      <a href="mobile_access.html" target="_blank" class="btn btn-outline" id="btnMobileConnectHub" style="border-color:#38bdf8; color:#0284c7; background:#f0f9ff; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:6px;" title="Office Wi-Fi, 4G Mobile Data & QR Code Hub">
+      <a href="mobile_access.html" target="_blank" onclick="openMobileQrModal(); return false;" class="btn btn-outline" id="btnMobileConnectHub" style="border-color:#38bdf8; color:#0284c7; background:#f0f9ff; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:6px; cursor:pointer;" title="Office Wi-Fi, 4G Mobile Data & QR Code Hub (ab app ke andar)">
         <span>📶</span> Mobile / QR Hub
       </a>
       <div id="gDriveHeaderBadge" style="display:none; align-items:center; gap:6px; background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; white-space:nowrap; cursor:pointer;" onclick="openGoogleDriveSyncModal()" title="Google Drive Cloud Status (Click to configure)">
@@ -11346,6 +11346,25 @@ body.print-flash-mode .no-print {
 <!-- ======================================================== -->
 <!-- MODAL: QUIT SOFTWARE CONFIRMATION                        -->
 <!-- ======================================================== -->
+<!-- ======================================================== -->
+<!-- MOBILE / QR HUB — QR code AB APP KE ANDAR hi (iframe me)  -->
+<!-- ======================================================== -->
+<div id="mobileQrModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.78); backdrop-filter:blur(4px); z-index:10006; align-items:center; justify-content:center; padding:14px;">
+  <div style="background:#ffffff; border-radius:14px; width:100%; max-width:1000px; height:min(88vh, 820px); box-shadow:0 25px 50px -12px rgba(0,0,0,0.45); overflow:hidden; border:1px solid #cbd5e1; display:flex; flex-direction:column; animation: modalFadeIn 0.2s ease-out;">
+    <div style="background:linear-gradient(135deg, #091e42 0%, #1e3a8a 100%); color:#ffffff; padding:13px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:19px;">📶</span>
+        <h3 style="font-size:15.5px; font-weight:700; margin:0; color:#ffffff;">Mobile / QR Hub — Wi-Fi • 4G/5G • Hotspot</h3>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <a href="mobile_access.html" target="_blank" style="color:#93c5fd; font-size:12px; font-weight:700; text-decoration:none;">↗ Naye tab me kholein</a>
+        <button type="button" onclick="closeModal('mobileQrModal')" style="background:transparent; border:none; color:#ffffff; font-size:20px; cursor:pointer; padding:2px 6px;" title="Close (Esc)">✕</button>
+      </div>
+    </div>
+    <iframe id="mobileQrFrame" src="about:blank" title="Mobile Access QR Hub" style="flex:1; width:100%; border:none; background:#0b1220;"></iframe>
+  </div>
+</div>
+
 <div id="quitConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.75); backdrop-filter:blur(4px); z-index:10005; align-items:center; justify-content:center; padding:16px;">
   <div style="background:#ffffff; border-radius:14px; width:100%; max-width:400px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); overflow:hidden; border:1px solid #cbd5e1; animation: modalFadeIn 0.2s ease-out; text-align:center;">
     <div style="background:linear-gradient(135deg, #091e42 0%, #1e3a8a 100%); color:#ffffff; padding:16px 20px; display:flex; justify-content:space-between; align-items:center;">
@@ -21875,7 +21894,21 @@ function closeModal(id) {
   const modal = document.getElementById(id);
   if (modal) {
     modal.style.display = 'none';
+    // QR modal band toh iframe ki 20s auto-refresh polling bhi band
+    if (id === 'mobileQrModal') {
+      const frame = document.getElementById('mobileQrFrame');
+      if (frame) frame.src = 'about:blank';
+    }
   }
+}
+
+// Mobile / QR Hub — QR code app ke ANDAR hi modal me (alag page khulne ki zarurat nahi)
+function openMobileQrModal() {
+  const modal = document.getElementById('mobileQrModal');
+  const frame = document.getElementById('mobileQrFrame');
+  if (!modal) return;
+  if (frame) frame.src = 'mobile_access.html';   // har baar fresh load (QR links updated rahen)
+  modal.style.display = 'flex';
 }
 
 function executeQuitSoftware() {
@@ -36651,7 +36684,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-13-2';
+const APP_VERSION = '2026-11-13-3';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
@@ -36693,6 +36726,10 @@ function showAppUpdateToast() {
 window.addEventListener('load', () => {
   setTimeout(checkForAppUpdate, 4000);                       // page load ke thodi der baad
   setInterval(checkForAppUpdate, 10 * 60 * 1000);            // har 10 minute
+  // Tab switch/restore hote hi TURANT check — "jab software khola tab naya code"
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) setTimeout(checkForAppUpdate, 1500);
+  });
 });
 
 // ==============================================================================

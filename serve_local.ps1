@@ -242,6 +242,19 @@ function Handle-Client($client) {
   if ($path -eq "/api/save" -and $method -eq "POST") {
     try {
       if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir -Force | Out-Null }
+      # SAFETY: har write se PEHLE purana copy rakho — accidental wipe/revert se bachav.
+      #   .prev.json  = turant pichhla version (rollback ke liye)
+      #   .snap_YYYYMMDD = ek din ka ek snapshot (7 din tak)
+      try {
+        if (Test-Path $dbFile) {
+          Copy-Item $dbFile (Join-Path $dataDir "Order_Tracking_Database.prev.json") -Force
+          $snap = Join-Path $dataDir ("Order_Tracking_Database.snap_" + (Get-Date -Format 'yyyyMMdd') + ".json")
+          if (-not (Test-Path $snap)) { Copy-Item $dbFile $snap -Force }
+          Get-ChildItem $dataDir -Filter "Order_Tracking_Database.snap_*.json" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending | Select-Object -Skip 7 |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+        }
+      } catch { }
       [IO.File]::WriteAllText($dbFile, $body, (New-Object Text.UTF8Encoding($false)))
       Send-Json $stream @{ status = "success"; message = "Database saved directly to server disk!" } 200
     } catch {
