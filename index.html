@@ -19924,11 +19924,39 @@ function buildInventoryLedgerRows(itemKey) {
     rate = Number((((s.orderQty && s.amount) ? s.amount / s.orderQty : (s.mrp ? s.mrp * 0.55 : 25))).toFixed(2));
     base = s.oldStock || 0;
 
-    if ((s.production || 0) > 0) {
-      rows.push({ date: s.lastProdDate || '2026-10-15', type: 'Production Completed', ref: barcode, qtyIn: Number(s.production), qtyOut: 0, notes: 'Factory me bana hua stock' });
+    // DATE-WISE FG movement — pehle sirf 2 consolidated rows banti thi
+    // (s.production ek row, s.despatched ek row). Ab har Production/Despatch
+    // ENTRY apni apni date ke saath row banegi (todayTransactions se).
+    // Totals safe: agar kisi SKU ki koi dated entry nahi (purana data), to
+    // cumulative hi consolidated row ban jata hai (pehle jaisa).
+    const fgTxs = (state.todayTransactions || []).filter(t =>
+      String(t.barcode) === String(barcode) && (t.type === 'Production' || t.type === 'Despatch'));
+    let fgProdSum = 0, fgDespSum = 0, fgFirstProdDate = '', fgFirstDespDate = '';
+    fgTxs.forEach(t => {
+      const q = Number((t.details || {}).addQty || (t.details || {}).qty) || 0;
+      if (q <= 0) return;
+      const d = String(t.date || '');
+      if (t.type === 'Production') {
+        fgProdSum += q;
+        if (!fgFirstProdDate || d < fgFirstProdDate) fgFirstProdDate = d;
+        rows.push({ date: d || '2026-10-15', type: 'Production Completed', ref: barcode, qtyIn: q, qtyOut: 0, notes: ('Factory me bana hua stock' + (t.time ? ` — entry ${t.time}` : '')) });
+      } else {
+        fgDespSum += q;
+        if (!fgFirstDespDate || d < fgFirstDespDate) fgFirstDespDate = d;
+        rows.push({ date: d || '2026-10-18', type: 'Despatched', ref: barcode, qtyIn: 0, qtyOut: q, notes: ('CFA / Party ko bheja' + (t.time ? ` — entry ${t.time}` : '')) });
+      }
+    });
+    const fgProdBal = (Number(s.production) || 0) - fgProdSum;
+    if (fgProdBal > 0) {
+      rows.push({ date: s.lastProdDate || fgFirstProdDate || '2026-10-15', type: 'Production Completed', ref: barcode, qtyIn: fgProdBal, qtyOut: 0, notes: 'Factory me bana hua stock (koi dated entry nahi — cumulative)' });
+    } else if (fgProdBal < 0) {
+      rows.push({ date: s.lastProdDate || '2026-10-15', type: 'Production adjustment', ref: barcode, qtyIn: 0, qtyOut: -fgProdBal, notes: 'Dated entries cumulative se zyada — balance adjust' });
     }
-    if ((s.despatched || 0) > 0) {
-      rows.push({ date: s.lastDespDate || '2026-10-18', type: 'Despatched', ref: barcode, qtyIn: 0, qtyOut: Number(s.despatched), notes: 'CFA / Party ko bheja' });
+    const fgDespBal = (Number(s.despatched) || 0) - fgDespSum;
+    if (fgDespBal > 0) {
+      rows.push({ date: s.lastDespDate || fgFirstDespDate || '2026-10-18', type: 'Despatched', ref: barcode, qtyIn: 0, qtyOut: fgDespBal, notes: 'CFA / Party ko bheja (koi dated entry nahi — cumulative)' });
+    } else if (fgDespBal < 0) {
+      rows.push({ date: s.lastDespDate || '2026-10-18', type: 'Despatch adjustment', ref: barcode, qtyIn: -fgDespBal, qtyOut: 0, notes: 'Dated entries cumulative se zyada — balance adjust' });
     }
 
   } else if (itemKey.indexOf('CONSUMABLE:') === 0) {
@@ -36790,7 +36818,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-20-1';
+const APP_VERSION = '2026-11-20-2';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
