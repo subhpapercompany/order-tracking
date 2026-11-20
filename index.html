@@ -4416,6 +4416,7 @@ body.print-flash-mode .no-print {
             <thead>
               <tr>
                 <th>Vendor</th>
+                <th>Date</th>
                 <th>Barcode</th>
                 <th>Description</th>
                 <th>Pages</th>
@@ -4432,6 +4433,40 @@ body.print-flash-mode .no-print {
             <tbody id="manufacturingSheetBody">
               <!-- Rendered via JS -->
             </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ENTRY-LEVEL PRODUCTION LOG (date-wise) — upar matrix SIRF cumulative
+           dikhata hai; yahan HAR Daily Production entry ek row me Date column
+           (barcode se pehle) ke saath — entry dhoohna aur edit/delete aasan. -->
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <div class="panel-title">Production Entry Log — Date-wise (sabhi entries)</div>
+            <div class="formula-indicator">Har Daily Production entry ek row: Date • Barcode • Qty • Material</div>
+          </div>
+          <button class="btn btn-primary" onclick="quickLogProduction()">+ Log Daily Production</button>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Barcode</th>
+                <th>Description</th>
+                <th class="num">Qty (Pcs)</th>
+                <th class="num" style="background:#1e3a8a; color:#fde047;">Paper (Kg)</th>
+                <th class="num" style="background:#0f766e; color:#ccfbf1;">Index (Kg)</th>
+                <th class="num">Board Sheets</th>
+                <th>Entry Time</th>
+                <th style="width: 75px; text-align: center;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="productionLogBody">
+              <!-- Rendered via JS -->
+            </tbody>
+            <tfoot id="productionLogFoot"></tfoot>
           </table>
         </div>
       </div>
@@ -17467,12 +17502,25 @@ function renderManufacturingSheet() {
   const activeV = state.activeVendor || 'all';
   const filtered = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV));
 
+  // Date column (barcode se pehle): har SKU ki LATEST production entry date
+  const lastProdDateByBc = {};
+  (state.todayTransactions || []).forEach(t => {
+    if (String(t.type || '') !== 'Production' || !t.barcode || !t.date) return;
+    const k = String(t.barcode);
+    if (!lastProdDateByBc[k] || String(t.date) > lastProdDateByBc[k]) lastProdDateByBc[k] = String(t.date);
+  });
+  const fmtDmy = d => { if (!d) return ''; const p = String(d).split('-'); return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : String(d); };
+
   filtered.forEach(s => {
     const tr = document.createElement('tr');
     const pct = Math.round(((s.production || 0) / (s.orderQty || 1)) * 100);
     const totCons = Number(((s.paperConsumptionKg || 0) + (s.indexConsumptionKg || 0)).toFixed(2));
+    const lastProd = lastProdDateByBc[String(s.barcode)] || '';
     tr.innerHTML = `
       <td>${getVendorBadgeHtml(s.vendor)}</td>
+      <td>${lastProd
+        ? `<strong style="color:#1e3a8a; white-space:nowrap;">${fmtDmy(lastProd)}</strong>`
+        : '<span style="color:#cbd5e1; font-weight:700;">—</span>'}</td>
       <td><strong>${s.barcode}</strong></td>
       <td>${s.description}</td>
       <td>${s.pages || 52}</td>
@@ -17498,7 +17546,64 @@ function renderManufacturingSheet() {
   });
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:32px 16px; color:#64748b;">📭 No production records under active workspace <strong>(${activeV})</strong>.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center; padding:32px 16px; color:#64748b;">📭 No production records under active workspace <strong>(${activeV})</strong>.</td></tr>`;
+  }
+
+  // Entry-level Production Log (date-wise) bhi refresh — user ko har entry
+  // date ke saath chahiye (matrix sirf cumulative dikhata hai)
+  if (typeof renderProductionEntryLog === 'function') renderProductionEntryLog();
+}
+
+// Production Entry Log — har Daily Production entry ek row (Date column
+// barcode se pehle). Matrix cumulative dikhata hai; ye ENTRY-LEVEL list hai.
+function renderProductionEntryLog() {
+  const tbody = document.getElementById('productionLogBody');
+  const tfoot = document.getElementById('productionLogFoot');
+  if (!tbody) return;
+  const fmtDmy = d => { if (!d) return '—'; const p = String(d).split('-'); return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : String(d); };
+
+  const rows = (state.todayTransactions || [])
+    .filter(t => String(t.type || '') === 'Production')
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.id || '').localeCompare(String(a.id || '')));
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:26px 16px; color:#64748b;">📭 Abhi koi production entry nahi — <strong>"+ Log Daily Production"</strong> se entry karein.</td></tr>`;
+    if (tfoot) tfoot.innerHTML = '';
+    return;
+  }
+
+  let tq = 0, tp = 0, ti = 0, tb = 0;
+  tbody.innerHTML = rows.map(t => {
+    const d = t.details || {};
+    const q = Number(d.addQty) || 0, pp = Number(d.batchPaper) || 0, ix = Number(d.batchIndex) || 0, bd = Number(d.batchBoard) || 0;
+    tq += q; tp += pp; ti += ix; tb += bd;
+    return `<tr>
+      <td><strong style="color:#1e3a8a; white-space:nowrap;">${fmtDmy(t.date)}</strong></td>
+      <td><strong>${t.barcode || '-'}</strong></td>
+      <td>${t.description || '-'}</td>
+      <td class="num" style="font-weight:800; color:#15803d;">+${q.toLocaleString()}</td>
+      <td class="num" style="font-weight:700; color:#b45309;">${pp.toLocaleString()} Kg</td>
+      <td class="num" style="font-weight:700; color:#0f766e;">${ix.toLocaleString()} Kg</td>
+      <td class="num">${bd.toLocaleString()}</td>
+      <td style="color:#64748b; font-size:11.5px; white-space:nowrap;">${t.time || ''}</td>
+      <td style="text-align:center; white-space:nowrap;">
+        <div style="display:inline-flex; gap:4px; align-items:center; justify-content:center;">
+          <button type="button" class="btn-icon" onclick="openTxEntryEdit('${t.id}')" title="Edit Entry" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">✏️</button>
+          <button type="button" class="btn-icon" onclick="deleteTodayTransaction('${t.id}')" title="Delete Record" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  if (tfoot) {
+    tfoot.innerHTML = `<tr style="background:#f1f5f9; font-weight:800; border-top:2px solid #cbd5e1;">
+      <td colspan="3" style="text-align:right; font-weight:800; color:#0f172a;">TOTAL — ${rows.length} entries:</td>
+      <td class="num" style="font-weight:900; color:#15803d;">+${tq.toLocaleString()}</td>
+      <td class="num" style="font-weight:900; color:#b45309;">${tp.toLocaleString()} Kg</td>
+      <td class="num" style="font-weight:900; color:#0f766e;">${ti.toLocaleString()} Kg</td>
+      <td class="num" style="font-weight:900; color:#0f172a;">${tb.toLocaleString()}</td>
+      <td colspan="2"></td>
+    </tr>`;
   }
 }
 
@@ -23475,6 +23580,7 @@ function deleteTodayTransaction(id) {
   state.todayTransactions = (state.todayTransactions || []).filter(t => t.id !== id);
   saveState();
   renderTodayTransactions();
+  try { renderManufacturingSheet(); } catch (_) {}   // Production Entry Log + matrix Date col bhi refresh
   showToast("Transaction removed from today's log.");
 }
 
@@ -36684,7 +36790,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-19-1';
+const APP_VERSION = '2026-11-20-1';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
