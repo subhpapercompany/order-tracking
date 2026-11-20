@@ -25967,6 +25967,16 @@ function masterPrintCurrentReport() {
 // Global browser print event listeners to handle Ctrl+P natively
 window.addEventListener('beforeprint', () => {
   const sheet = state.activeSheet || 'dashboard';
+  // HUNDI (Bill of Exchange): dedicated Print button ke alawa Ctrl+P (browser
+  // print dialog) par bhi same output — inputs hide, spans me values sync.
+  // NOTE: class applyDynamicPrintPageStyle se PEHLE lagani hai (usme
+  // print-hundi-mode check karke @page { margin:0 } A4 set hota hai).
+  const hundiArea = document.getElementById('hundiPrintArea');
+  const isHundiPrint = (sheet === 'hundi' && hundiArea && hundiArea.offsetParent !== null);
+  if (isHundiPrint) {
+    syncHundiInputsForPrint();
+    document.body.classList.add('print-hundi-mode');
+  }
   preparePrintLetterhead(sheet);
   applyDynamicPrintPageStyle(sheet);
   document.querySelectorAll('.sheet-screen').forEach(s => s.classList.remove('active-print-screen'));
@@ -25979,6 +25989,7 @@ window.addEventListener('beforeprint', () => {
 window.addEventListener('afterprint', () => {
   clearDynamicPrintPageStyle();
   document.querySelectorAll('.sheet-screen').forEach(s => s.classList.remove('active-print-screen'));
+  document.body.classList.remove('print-hundi-mode');
 });
 
 /* ==========================================================================
@@ -36875,7 +36886,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-20-4';
+const APP_VERSION = '2026-11-20-5';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
