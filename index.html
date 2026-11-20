@@ -9937,8 +9937,8 @@ body.print-flash-mode .no-print {
 
               <!-- Row 2: Produced Qty & KCL Rate -->
               <div class="form-group">
-                <label style="font-size: 13.5px; font-weight: 600; color: #0f172a; margin-bottom: 6px;">Produced Quantity <span style="font-weight:600; color:#0f766e; font-size:12px;">(auto - Production Log se)</span></label>
-                <input type="number" id="porel_producedQty" min="0" readonly title="Auto from Daily Production Log - yahan entry nahi hoti, production sirf Production entry se badhta hai" style="padding: 11px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px; background:#f1f5f9; color:#475569; cursor:not-allowed;">
+                <label style="font-size: 13.5px; font-weight: 600; color: #0f172a; margin-bottom: 6px;">Produced Quantity <span style="font-weight:600; color:#0f766e; font-size:12px;">(auto - PO Request se, edit bhi kar sakte hain)</span></label>
+                <input type="number" id="porel_producedQty" min="0" oninput="calcPoRelLivePreview()" title="PO Request ke Produced Value se auto-fill hota hai — zarurat ho to khud edit kar sakte hain. Production Log sirf tab badhta hai jab Daily Production entry ho." style="padding: 11px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px; background:#ffffff; color:#0f172a; font-weight:600;">
               </div>
 
               <!-- Row 2 -->
@@ -11791,7 +11791,7 @@ body.print-flash-mode .no-print {
         <div class="form-group"><label>Order Month</label><input type="month" id="edit_porel_month" required></div>
         <div class="form-group"><label>Product Code</label><input type="text" id="edit_porel_code" required></div>
         <div class="form-group"><label>Order Quantity</label><input type="number" id="edit_porel_orderQty" required></div>
-        <div class="form-group"><label>Produced Qnty <span style="color:#0f766e;">(auto - Production Log se)</span></label><input type="number" id="edit_porel_producedQty" readonly title="Auto from Daily Production Log - yahan entry nahi hoti" style="background:#f1f5f9; color:#475569; cursor:not-allowed;"></div>
+        <div class="form-group"><label>Produced Qnty <span style="color:#0f766e;">(PO Request value — edit bhi kar sakte hain)</span></label><input type="number" id="edit_porel_producedQty" min="0" title="PO Request ke Produced Value se auto-fill — khud edit kar sakte hain. Production Log kabhi nahi badalta." style="background:#ffffff; color:#0f172a; font-weight:600;"></div>
         <div class="form-group">
           <label>KCL Approved Rate (₹)</label>
           <input type="number" id="edit_porel_kclRate" step="0.01" required oninput="checkEditPoRelRateMismatch()">
@@ -26804,11 +26804,12 @@ function masterExportCurrentSheetToExcel() {
       return isMatchingVendor(itemVendor, activeV);
     });
     dataRows = filteredReleases.map(r => {
+      const relProd = poRelProducedQty(r);
       tOrd += (r.orderQuantity || 0);
-      tProd += (r.producedQnty || 0);
+      tProd += relProd;
       tVal += ((r.orderQuantity || 0) * (r.kclApprovedRate || 0));
       return [
-        r.orderMonth || '', r.productCode || '', r.orderQuantity || 0, r.producedQnty || 0,
+        r.orderMonth || '', r.productCode || '', r.orderQuantity || 0, relProd,
         r.kclApprovedRate || 0, r.destination || '', r.poNumber || '', r.poDate || ''
       ];
     });
@@ -27374,7 +27375,7 @@ function exportActiveTableToCSV() {
       return isMatchingVendor(itemVendor, activeV);
     });
     rows = filteredReleases.map(r => [
-      `"${r.orderMonth || ''}"`, `"${r.productCode || ''}"`, r.orderQuantity || 0, r.producedQnty || 0, r.kclApprovedRate || 0, `"${r.destination || ''}"`, `"${r.poNumber || ''}"`, `"${r.poDate || ''}"`
+      `"${r.orderMonth || ''}"`, `"${r.productCode || ''}"`, r.orderQuantity || 0, poRelProducedQty(r), r.kclApprovedRate || 0, `"${r.destination || ''}"`, `"${r.poNumber || ''}"`, `"${r.poDate || ''}"`
     ]);
   } else if (sheet === 'potracking') {
     headers = ["Order Month", "Product Code", "Ruling Type", "Total Order", "PO Taken", "Due for PO", "Despatched", "Due for Despatch", "POs Involved", "Destination", "PO Qty Due for Despatch", "Remarks"];
@@ -27523,7 +27524,7 @@ function copyActiveTableToClipboard() {
       return isMatchingVendor(itemVendor, activeV);
     });
     rows = filteredReleases.map(r => [
-      r.orderMonth || '', r.productCode || '', r.orderQuantity || 0, r.producedQnty || 0, r.kclApprovedRate || 0, r.destination || '', r.poNumber || '', r.poDate || ''
+      r.orderMonth || '', r.productCode || '', r.orderQuantity || 0, poRelProducedQty(r), r.kclApprovedRate || 0, r.destination || '', r.poNumber || '', r.poDate || ''
     ]);
   } else if (sheet === 'potracking') {
     headers = ["Order Month", "Product Code", "Ruling Type", "Total Order", "PO Taken", "Due for PO", "Despatched", "Due for Despatch", "POs Involved", "Destination", "PO Qty Due for Despatch", "Remarks"];
@@ -29470,13 +29471,24 @@ function handlePoReleaseSubmit(e) {
   const poReqExpectedRate = calculatePoRequestKclApprovedRate(pCode);
   const isMismatch = (poReqExpectedRate > 0 && Math.abs(enteredRate - poReqExpectedRate) > 0.009);
 
+  // Produced Qnty: PO Request ka Produced Value (form me wahi auto-fill hota hai)
+  // aur editable hai. Agar user ne auto-fill se alag value dali ho to report me
+  // wahi prefer hogi (producedQntyEdited flag) — warna PO Request ka live value.
+  const reqForProd = (state.poRequests || []).find(x => x.productCode === pCode);
+  const reqProdVal = reqForProd ? Number(reqForProd.producedQuantity) || 0 : 0;
+  const autoProdVal = reqProdVal > 0 ? reqProdVal : (skuMatch ? Number(skuMatch.production) || 0 : 0);
+  const enteredProdVal = Number(document.getElementById('porel_producedQty').value) || 0;
+  const prodEdited = (enteredProdVal > 0 && enteredProdVal !== autoProdVal);
+
   const item = {
     vendor: vendor,
     orderMonth: document.getElementById('porel_month').value,
     productCode: pCode,
     orderQuantity: Number(document.getElementById('porel_orderQty').value) || 0,
-    // Produced = sirf Daily Production Log se (read-only mirror) - PO Release entry production nahi badalti
-    producedQnty: skuMatch ? (Number(skuMatch.production) || 0) : (Number(document.getElementById('porel_producedQty').value) || 0),
+    // Produced = PO Request ka Produced Value (auto-fill + editable). Production
+    // master (sku.production) PO Release se kabhi nahi badalta.
+    producedQnty: enteredProdVal || autoProdVal,
+    producedQntyEdited: prodEdited,
     kclApprovedRate: enteredRate,
     poReqApprovedRate: poReqExpectedRate,
     rateMismatch: isMismatch,
@@ -30147,6 +30159,28 @@ function renderPoRequestSheet() {
 // ==========================================================================
 // 2. PO RELEASE REPORTING SHEET (9 COLUMNS - FULLY AUTO-FETCHED)
 // ==========================================================================
+/**
+ * PO Release ki Produced Qnty — SOURCE = PO Request ka Produced Value.
+ * Rule (user): "jo value PO Request me produced value dalti hai wahi report me
+ * dikhegi, aur editable bhi hogi."
+ *   1. Agar user ne PO Release me khud override kiya ho (producedQntyEdited flag)
+ *      → uski value (edit modal se).
+ *   2. Warna PO Request ka producedQuantity (live — PO Request badle to report me bhi).
+ *   3. Fallback: production (agar us barcode ka koi PO Request hi nahi hai).
+ * Pehle ye HAMESHA sku.production leta tha — isi liye report me production value
+ * dikhti thi jabki PO Request me alag value dali gayi thi.
+ */
+function poRelProducedQty(r) {
+  if (!r) return 0;
+  if (r.producedQntyEdited) return Number(r.producedQnty) || 0;
+  const req = (state.poRequests || []).find(x => x.productCode === r.productCode);
+  const reqProd = req ? Number(req.producedQuantity) || 0 : 0;
+  if (reqProd > 0) return reqProd;
+  const sku = (state.skus || []).find(s => s.barcode === r.productCode);
+  if (sku && sku.production !== undefined && sku.production !== null) return Number(sku.production) || 0;
+  return Number(r.producedQnty) || 0;
+}
+
 function renderPoReleaseSheet() {
   const tbody = document.getElementById('poReleaseBody');
   if (!tbody) return;
@@ -30174,7 +30208,7 @@ function renderPoReleaseSheet() {
     // Auto-fetch related values from SKU master & PO Request
     const orderMonth = r.orderMonth || (sku && sku.month) || '2026-09';
     const orderQty = parseFloat(sku && sku.orderQty !== undefined ? sku.orderQty : r.orderQuantity) || 0;
-    const prodQty = parseFloat(sku && sku.production !== undefined ? sku.production : r.producedQnty) || 0;
+    const prodQty = poRelProducedQty(r);   // PO Request value (editable), production se nahi
     const kclApprovedRate = parseFloat(r.kclApprovedRate !== undefined && r.kclApprovedRate !== null ? r.kclApprovedRate : (poReqExpectedRate || cat.kclApprovedRate || 21.50)) || 21.50;
     const destination = r.destination || 'Kolkata';
     const poNumber = r.poNumber || ('PO-KCL-26-' + String(idx + 1).padStart(3, '0'));
@@ -30702,7 +30736,8 @@ function openEditPoReleaseModal(index) {
   document.getElementById('edit_porel_month').value = item.orderMonth || sku.month || '2026-09';
   document.getElementById('edit_porel_code').value = item.productCode || '';
   document.getElementById('edit_porel_orderQty').value = sku.orderQty !== undefined ? sku.orderQty : (item.orderQuantity || 0);
-  document.getElementById('edit_porel_producedQty').value = sku.production !== undefined ? sku.production : (item.producedQnty || 0);
+  // Produced = PO Request ka value (ya user ka override), production se nahi — editable
+  document.getElementById('edit_porel_producedQty').value = poRelProducedQty(item);
 
   const initialRate = (item.kclApprovedRate !== undefined && item.kclApprovedRate !== null) 
     ? item.kclApprovedRate 
@@ -30806,9 +30841,15 @@ function savePoReleaseEdit(e) {
   item.orderMonth = document.getElementById('edit_porel_month').value;
   item.productCode = pCode;
   item.orderQuantity = Number(document.getElementById('edit_porel_orderQty').value) || 0;
-  // Produced = sirf Daily Production Log se (mirror) - edit karne se production nahi badalta
+  // Produced = jo value user ne edit modal me dali (PO Request se auto-fill).
+  // Auto-fill se alag ho to report me wahi prefer hogi (flag), warna PO Request live.
   const skuForRel = (state.skus || []).find(s => s.barcode === pCode);
-  item.producedQnty = skuForRel ? (Number(skuForRel.production) || 0) : (Number(document.getElementById('edit_porel_producedQty').value) || 0);
+  const reqForRel = (state.poRequests || []).find(x => x.productCode === pCode);
+  const reqRelVal = reqForRel ? Number(reqForRel.producedQuantity) || 0 : 0;
+  const autoRelVal = reqRelVal > 0 ? reqRelVal : (skuForRel ? Number(skuForRel.production) || 0 : 0);
+  const enteredRelProd = Number(document.getElementById('edit_porel_producedQty').value) || 0;
+  item.producedQnty = enteredRelProd || autoRelVal;
+  item.producedQntyEdited = (enteredRelProd > 0 && enteredRelProd !== autoRelVal);
   item.kclApprovedRate = enteredRate;
   item.poReqApprovedRate = poReqExpectedRate;
   item.rateMismatch = isMismatch;
@@ -36834,7 +36875,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-20-3';
+const APP_VERSION = '2026-11-20-4';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
