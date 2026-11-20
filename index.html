@@ -9947,7 +9947,7 @@ body.print-flash-mode .no-print {
                   <label style="font-size: 13.5px; font-weight: 600; color: #0f172a; margin: 0;">KCL Approved Rate</label>
                   <span id="porel_rate_badge" style="font-size: 11px; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 2px 7px; border-radius: 4px;">From PO Request</span>
                 </div>
-                <input type="number" id="porel_kclRate" step="0.01" required oninput="calcPoRelLivePreview()" style="padding: 11px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px; width: 100%; transition: all 0.2s;">
+                <input type="number" id="porel_kclRate" step="0.01" required oninput="calcPoRelLivePreview(true)" style="padding: 11px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px; width: 100%; transition: all 0.2s;">
                 <div id="porel_rate_mismatch_alert" style="display: none; margin-top: 6px; font-size: 12px; font-weight: 700; color: #b91c1c; background: #fee2e2; border: 1px solid #fca5a5; padding: 6px 10px; border-radius: 6px;"></div>
               </div>
 
@@ -29350,6 +29350,8 @@ function onPoRelCodeChange(code) {
   // PO release entry me KCL Approved rate wahi hoga jo PO Request ka tha, but editable rahega
   const expectedRate = calculatePoRequestKclApprovedRate(code);
   const rateInput = document.getElementById('porel_kclRate');
+  // Code change = auto-fill authoritative hai — user ka purana manual edit reset
+  if (rateInput) rateInput.dataset.userEdited = '0';
   if (rateInput) {
     if (expectedRate > 0) {
       rateInput.value = expectedRate.toFixed(2);
@@ -29362,16 +29364,30 @@ function onPoRelCodeChange(code) {
   calcPoRelLivePreview();
 }
 
-function calcPoRelLivePreview() {
+function calcPoRelLivePreview(userEdited) {
   const code = (document.getElementById('porel_code') ? document.getElementById('porel_code').value : '').trim();
   const qty = parseFloat(document.getElementById('porel_orderQty') ? document.getElementById('porel_orderQty').value : 0) || 0;
   const prod = parseFloat(document.getElementById('porel_producedQty') ? document.getElementById('porel_producedQty').value : 0) || 0;
   const rateInput = document.getElementById('porel_kclRate');
+
+  // PO Request ka approved rate (barcode-wise) — fill aur compare dono isi se
+  const poReqExpectedRate = calculatePoRequestKclApprovedRate(code);
+
+  // AUTO-SYNC: agar user ne rate field KHUD nahi badla (sirf code select/auto-fill
+  // se aaya) aur value PO Request ke approved rate se alag hai (jaise PO data load
+  // hone se pehle formula se 13.45 bhar gaya ho), to wapas PO Request par lao.
+  // User ka manual edit (dataset.userEdited='1') KABHI overwrite nahi hoga.
+  if (rateInput) {
+    if (userEdited) rateInput.dataset.userEdited = '1';
+    if (!userEdited && rateInput.dataset.userEdited !== '1' && poReqExpectedRate > 0) {
+      const curRate = parseFloat(rateInput.value) || 0;
+      if (Math.abs(curRate - poReqExpectedRate) > 0.009) rateInput.value = poReqExpectedRate.toFixed(2);
+    }
+  }
+
   const enteredRate = parseFloat(rateInput ? rateInput.value : 0) || 0;
   const total = Math.round(qty * enteredRate);
 
-  // Compare entered rate with PO Request approved rate
-  const poReqExpectedRate = calculatePoRequestKclApprovedRate(code);
   const isMismatch = (poReqExpectedRate > 0 && Math.abs(enteredRate - poReqExpectedRate) > 0.009);
 
   const rateBadge = document.getElementById('porel_rate_badge');
@@ -36818,7 +36834,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-20-2';
+const APP_VERSION = '2026-11-20-3';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
