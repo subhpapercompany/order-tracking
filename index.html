@@ -8804,7 +8804,7 @@ body.print-flash-mode .no-print {
           <form id="formOrderBooking" onsubmit="handleOrderBookingSubmit(event)">
             <!-- Vendor Info & ITC Notice Banner -->
             <div id="eb_itc_notice" style="display:none; background:#fff7ed; border:1px solid #fdba74; border-radius:8px; padding:10px 14px; margin-bottom:14px; color:#9a3412; font-size:12px; line-height:1.5;">
-              <strong>🟧 ITC Order Mode:</strong> ITC ke liye product code se automatic ruling/size fix nahi hota. Kripya neeche diye gaye <strong>Category / Size</strong>, <strong>Book Type (Ruling)</strong>, <strong>Pages</strong>, <strong>MRP</strong> aur <strong>Index (Yes/No)</strong> ko apne hisaab se select/enter karein.
+              <strong>🟧 ITC Order Mode:</strong> ITC ke liye product code se automatic ruling/size fix nahi hota. Kripya neeche diye gaye <strong>Category / Size</strong>, <strong>Book Type (Ruling)</strong>, <strong>Pages</strong> aur <strong>Index (Yes/No)</strong> ko apne hisaab se select/enter karein. <strong>MRP optional hai</strong> — kuch ITC items me MRP nahi hota, aisi situation me ye field khaali chhodein.
             </div>
 
             <div class="form-grid-3">
@@ -8954,10 +8954,10 @@ body.print-flash-mode .no-print {
                 <input type="number" id="eb_pages" min="16" step="2" required oninput="calcFormulaPreview()" placeholder="e.g. 52, 56, 100, 140, 172">
               </div>
 
-              <!-- MRP -->
+              <!-- MRP (OPTIONAL — ITC ke kuch items me MRP nahi hota) -->
               <div class="form-group">
-                <label>MRP (₹) *</label>
-                <input type="number" id="eb_mrp" min="1" step="0.5" required placeholder="e.g. 30, 40, 50, 75">
+                <label title="ITC ke kuch items me MRP nahi hota — aisi situation me ye field khaali chhodna zaroori nahi.">MRP (₹) <span style="color:#94a3b8; font-weight:600; font-size:11px;">(Optional)</span></label>
+                <input type="number" id="eb_mrp" min="1" step="0.5" placeholder="Agar item me MRP ho — e.g. 30, 40, 50, 75">
               </div>
 
               <!-- Order Quantity -->
@@ -17480,7 +17480,7 @@ function renderOrderSheet() {
       <td>${getVendorBadgeHtml(s.vendor)}</td>
       <td><strong>${s.barcode}</strong></td>
       <td>${s.description}</td>
-      <td class="num" style="font-weight:700; color:#b45309;">₹ ${(s.mrp !== undefined && s.mrp !== null ? s.mrp : 40).toFixed(2)}</td>
+      <td class="num" style="font-weight:700; color:#b45309;" title="${s.mrp > 0 ? 'MRP' : 'MRP nahi hai (order entry me optional tha)'}">${s.mrp > 0 ? '₹ ' + Number(s.mrp).toFixed(2) : '—'}</td>
       <td>${s.size || 'A4 Longbook'}</td>
       <td class="num">${s.paperPages ? `${s.paperPages}p+${s.indexPages}p` : `${s.pages || 52}p`}</td>
       <td>${s.binding || 'BACK PRESSED'}</td>
@@ -22268,11 +22268,13 @@ function onBarcodeLookup(val) {
     if (item.gsm) document.getElementById('eb_gsm').value = item.gsm;
     if (item.bookWt) document.getElementById('eb_bookWt').value = item.bookWt;
     if (document.getElementById('eb_mrp')) {
-      if (item.mrp !== undefined && item.mrp !== null) {
+      if (item.mrp > 0) {
         document.getElementById('eb_mrp').value = item.mrp;
+      } else if (item.mrp !== undefined && item.mrp !== null) {
+        document.getElementById('eb_mrp').value = '';   // MRP nahi hai (0) — khaali rakho
       } else {
         const mMatch = (item.description || '').match(/MRP\s*(\d+)/i);
-        document.getElementById('eb_mrp').value = mMatch ? mMatch[1] : 40;
+        document.getElementById('eb_mrp').value = mMatch ? mMatch[1] : '';   // unknown = khaali (MRP optional)
       }
     }
     if (item.size && document.getElementById('eb_size')) {
@@ -24034,7 +24036,9 @@ function handleOrderBookingSubmit(e) {
   const paperCons = Number(document.getElementById('eb_paperConsumption').value || 0);
   const boardCons = Number(document.getElementById('eb_boardConsumption').value || 0);
   const month = document.getElementById('eb_month').value;
-  const mrp = parseFloat(document.getElementById('eb_mrp') ? document.getElementById('eb_mrp').value : 40) || 40;
+  // MRP OPTIONAL (ITC ke kuch items me MRP nahi hota) — khaali = 0 = "MRP nahi hai"
+  const mrpRaw = document.getElementById('eb_mrp') ? String(document.getElementById('eb_mrp').value).trim() : '';
+  const mrp = mrpRaw === '' ? 0 : (parseFloat(mrpRaw) || 0);
 
   // Ruling and Size user inputs (Essential for ITC & Custom Orders)
   const rulingInput = document.getElementById('eb_ruling') ? document.getElementById('eb_ruling').value : '';
@@ -26221,7 +26225,7 @@ function exportOrderSheetExcel() {
       s.vendor || 'Camlin',
       s.barcode || '',
       s.description || '',
-      (s.mrp !== undefined && s.mrp !== null ? s.mrp : 40).toFixed(2),
+      (s.mrp > 0 ? Number(s.mrp).toFixed(2) : '-'),
       s.size || 'A4 Longbook',
       s.paperPages ? `${s.paperPages}p+${s.indexPages}p` : `${s.pages || 52}p`,
       s.binding || 'BACK PRESSED',
@@ -27712,7 +27716,7 @@ function openEditSkuModal(barcode) {
 
   document.getElementById('edit_sku_vendor').value = sku.vendor || 'Camlin';
   document.getElementById('edit_sku_desc').value = sku.description || '';
-  if (document.getElementById('edit_sku_mrp')) document.getElementById('edit_sku_mrp').value = sku.mrp || 40;
+  if (document.getElementById('edit_sku_mrp')) document.getElementById('edit_sku_mrp').value = sku.mrp > 0 ? sku.mrp : '';
   document.getElementById('edit_sku_orderQty').value = sku.orderQty || 0;
   document.getElementById('edit_sku_oldStock').value = sku.oldStock || 0;
   document.getElementById('edit_sku_production').value = sku.production || 0;
@@ -27842,7 +27846,7 @@ function saveSkuEdit(e) {
   const _oldRuling = String(sku.ruling || '');
   sku.vendor = document.getElementById('edit_sku_vendor').value;
   sku.description = document.getElementById('edit_sku_desc').value;
-  if (document.getElementById('edit_sku_mrp')) sku.mrp = parseFloat(document.getElementById('edit_sku_mrp').value) || 40;
+  if (document.getElementById('edit_sku_mrp')) sku.mrp = parseFloat(document.getElementById('edit_sku_mrp').value) || 0;   // blank = MRP nahi hai (optional)
   sku.ruling = getRulingFromProductCode(sku.barcode, sku.description);
   const isCamlinVendor = String(sku.vendor || '').toUpperCase().includes('CAMLIN');
   const hasIdxBox = document.getElementById('edit_sku_hasIndex');
@@ -36988,7 +36992,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-21-3';
+const APP_VERSION = '2026-11-21-4';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
@@ -41127,8 +41131,8 @@ function deleteHundiRegisterEntry(id) {
         </div>
 
         <div class="form-group">
-          <label>MRP (₹) *</label>
-          <input type="number" id="edit_sku_mrp" min="1" step="0.5" required>
+          <label title="ITC ke kuch items me MRP nahi hota — khaali chhod sakte hain.">MRP (₹) <span style="color:#94a3b8; font-weight:600; font-size:11px;">(Optional)</span></label>
+          <input type="number" id="edit_sku_mrp" min="1" step="0.5" placeholder="Agar item me MRP ho">
         </div>
       </div>
 
