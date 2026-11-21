@@ -4750,13 +4750,13 @@ body.print-flash-mode .no-print {
                 <th class="num">Sheet Wt (Kg)</th>
                 <th class="num">Rate / Sheet (₹)</th>
                 <th class="num" style="background:#fef3c7; color:#92400e;" title="Base balance — tracking shuru hone se pehle ka total stock (Subh + Printers). Current godown-wise columns me already adjust ho chuka hai.">Opening (Base)</th>
-                <th class="num" style="background:#0f172a; color:#38bdf8;">Subh (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#fde047;">Fortune (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#fde047;">Rich (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#fde047;">Vishruta (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#fde047;">Salasar (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#cbd5e1;">Other (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#86efac;">Total Stock (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#38bdf8;" title="Hamare apne Subh raw godown me is size ki current sheets = Opening Godown + Inward - Printer bhej - Production consumed. Opening (Base) ka hissa isme already shamil hai.">Subh (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#fde047;" title="Fortune Graphics ke godown (printer) me abhi is size ki sheets = Opening printer (party-tagged) + bhej - Printed recd - Production consumed.">Fortune (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#fde047;" title="Rich ke godown (printer) me abhi is size ki sheets = Opening printer (party-tagged) + bhej - Printed recd - Production consumed.">Rich (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#fde047;" title="Vishruta ke godown (printer) me abhi is size ki sheets = Opening printer (party-tagged) + bhej - Printed recd - Production consumed.">Vishruta (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#fde047;" title="Salasar ke godown (printer) me abhi is size ki sheets = Opening printer (party-tagged) + bhej - Printed recd - Production consumed.">Salasar (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#cbd5e1;" title="Jin parties ka party-tag set nahi hai (ya nayi/unknown party) unka printer godown balance.">Other (Sheets)</th>
+                <th class="num" style="background:#0f172a; color:#86efac;" title="Subh + sabhi party columns ka total current stock. Opening (Base) alag se add nahi hota (already adjust).">Total Stock (Sheets)</th>
                 <th class="num">Total Stock (Kg)</th>
                 <th class="num">Total Valuation (₹)</th>
                 <th style="width: 75px; text-align: center;">Action</th>
@@ -17920,12 +17920,17 @@ function renderBoardSheet() {
     const bal = sizePartyBal(b);
     GODOWN_KEYS.forEach(k => { godownTot[k] += bal[k]; });
 
+    const cellTip = (k) => {
+      if (k === 'Subh') return 'Subh (hamara raw godown) ka current balance = Opening Godown + Inward - Printer bhej - Production consumed';
+      if (k === 'Other') return 'Other/untagged parties ke printer godown ka current balance (party tag nahi mila)';
+      return `Party "${k}" ke godown (printer) ka current balance = Opening printer (party-tagged) + Bhej - Printed recd - Production consumed`;
+    };
     const cell = (k) => {
       const v = bal[k];
       const neg = v < 0;
       const isSubh = k === 'Subh';
       const isOther = k === 'Other';
-      return `<td class="num" style="font-weight:700; color:${neg ? '#dc2626' : (isSubh ? '#1e3a8a' : (isOther ? '#475569' : '#b45309'))}; background:${neg ? '#fee2e2' : (isSubh ? '#eff6ff' : (isOther ? '#f8fafc' : '#fef3c7'))};">${v.toLocaleString()}</td>`;
+      return `<td class="num" style="font-weight:700; color:${neg ? '#dc2626' : (isSubh ? '#1e3a8a' : (isOther ? '#475569' : '#b45309'))}; background:${neg ? '#fee2e2' : (isSubh ? '#eff6ff' : (isOther ? '#f8fafc' : '#fef3c7'))};" title="${cellTip(k)}">${v.toLocaleString()}</td>`;
     };
 
     const tr = document.createElement('tr');
@@ -17933,7 +17938,7 @@ function renderBoardSheet() {
       <td><strong><span class="badge-status badge-info">${b.size}</span></strong></td>
       <td class="num">${b.sheetWt} Kg</td>
       <td class="num">₹ ${b.rate}</td>
-      <td class="num" style="font-weight:700; color:#92400e; background:#fef3c7;" title="Opening Godown (Subh) + Opening at Printers (party-wise)">${(((b.openingGodownSheets || 0) + (b.openingPrinterSheets || 0))).toLocaleString()}</td>
+      <td class="num" style="font-weight:700; color:#92400e; background:#fef3c7;" title="Opening (Base) = tracking shuru hone se pehle ka stock = Opening Godown (Subh) + Opening at Printers (party-wise). Ye sirf reference hai — current godown columns me already adjust ho chuka hai, isliye Total Stock me dobara add nahi hota.">${(((b.openingGodownSheets || 0) + (b.openingPrinterSheets || 0))).toLocaleString()}</td>
       ${GODOWN_KEYS.map(cell).join('')}
       <td class="num" style="font-weight:800; color:${(b.totalSheets || 0) < 0 ? '#dc2626' : '#059669'};">${(b.totalSheets || 0).toLocaleString()}</td>
       <td class="num">${(((b.ourGodownKg || 0) + (b.printerKg || 0))).toLocaleString()} Kg</td>
@@ -36965,7 +36970,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-21-1';
+const APP_VERSION = '2026-11-21-2';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
