@@ -14039,6 +14039,23 @@ function getRulingFromProductCode(code, desc = '') {
 }
 
 /**
+ * Barcode se pages derive karo (last 3 digits).
+ * SPECIAL CASE (Camlin A5): 3rd digit '3' + last3 '140' → book ACTUALLY 120 pages hai.
+ * (Kuch A5 codes me '140' likha hota hai par product 120 page ka hai — conversion
+ *  rate lookup 140 par miss karta tha, isliye special rule lagaya gaya.)
+ */
+function pagesFromProductCode(code, fallbackPages) {
+  const s = String(code || '').trim();
+  const last3 = s.length >= 3 ? s.slice(-3) : '';
+  const p = parseInt(last3, 10);
+  if (!isNaN(p) && p > 0) {
+    if (s.charAt(2) === '3' && last3 === '140') return 120;   // SPECIAL CASE → 120 pages
+    return p;
+  }
+  return Number(fallbackPages) || 52;
+}
+
+/**
  * Helper: Derive Board Specifications for Respective Product Code
  * A4 (3rd digit '5'): 45.5 x 91 sheet, 3 ups — pages <=175: 190 GSM, >175: 200 GSM
  * A5 (3rd digit '3'): 77 x 98 x 190 GSM ALWAYS (page rule applies to A4 only), 8 ups
@@ -26545,9 +26562,7 @@ function masterExportCurrentSheetToExcel() {
       const sku = (state.skus || []).find(s => s.barcode === code) || PRODUCT_CATALOGUE[code] || {};
       const cat = PRODUCT_CATALOGUE[code] || {};
       const thirdChar = code.charAt(2);
-      const last3 = code.length >= 3 ? code.slice(-3) : '';
-      const parsedPages = parseInt(last3, 10);
-      const pages = (!isNaN(parsedPages) && parsedPages > 0) ? parsedPages : ((sku && sku.pages) || cat.pages || r.noOfPages || 52);
+      const pages = pagesFromProductCode(code, (sku && sku.pages) || cat.pages || r.noOfPages || 52);
 
       const totalOrderQty = parseFloat((sku && (sku.initialOrderQty !== undefined ? sku.initialOrderQty : sku.orderQty)) || r.totalOrderQuantity || r.orderQuantity || 0);
       // Produced = max(Production Log, record me entered value) — screen report se same
@@ -29203,9 +29218,7 @@ function onPoReqCodeChange(code) {
     const bSpecs = getRespectiveBoardSpecs(code, sku.description, sku.size);
     const pCodeStr = String(code || '').trim();
     const pThird = pCodeStr.charAt(2);
-    const pLast3 = pCodeStr.length >= 3 ? pCodeStr.slice(-3) : '';
-    const pParsedPages = parseInt(pLast3, 10);
-    const pPages = (!isNaN(pParsedPages) && pParsedPages > 0) ? pParsedPages : ((sku && sku.pages) || 52);
+    const pPages = pagesFromProductCode(pCodeStr, (sku && sku.pages) || 52);   // special case: A5+140 → 120
 
     let defBoardGsm = bSpecs.boardGsm;
     let defSheetWidth = bSpecs.sheetWidthCm;
@@ -29841,9 +29854,7 @@ function calculatePoRequestKclApprovedRate(code) {
   const cat = (typeof PRODUCT_CATALOGUE !== 'undefined' ? PRODUCT_CATALOGUE[codeStr] : {}) || {};
   const r = savedReq || {};
 
-  const last3Digits = codeStr.length >= 3 ? codeStr.slice(-3) : '';
-  const parsedCodePages = parseInt(last3Digits, 10);
-  const pages = (!isNaN(parsedCodePages) && parsedCodePages > 0) ? parsedCodePages : ((sku && sku.pages) || cat.pages || r.noOfPages || 52);
+  const pages = pagesFromProductCode(codeStr, (sku && sku.pages) || cat.pages || r.noOfPages || 52);   // special case: A5+140 → 120
 
   const ruling = (r && r.ruling) || (sku && sku.ruling) || cat.ruling || (typeof getRulingFromProductCode === 'function' ? getRulingFromProductCode(codeStr, (sku && sku.description) || cat.description) : 'Single Line');
 
@@ -30044,10 +30055,9 @@ function renderPoRequestSheet() {
     const cover = 'SOFT';
 
     // TAB PO REQUEST REPORT FORMULA: Last 3 digits of product code indicate pages
+    // SPECIAL CASE: A5 (3rd digit '3') + last3 '140' → actually 120 pages
     const codeStr = String(code || '').trim();
-    const last3Digits = codeStr.length >= 3 ? codeStr.slice(-3) : '';
-    const parsedCodePages = parseInt(last3Digits, 10);
-    const pages = (!isNaN(parsedCodePages) && parsedCodePages > 0) ? parsedCodePages : ((sku && sku.pages) || cat.pages || r.noOfPages || 52);
+    const pages = pagesFromProductCode(codeStr, (sku && sku.pages) || cat.pages || r.noOfPages || 52);
 
     const ruling = (r && r.ruling) || (sku && sku.ruling) || cat.ruling || getRulingFromProductCode(code, (sku && sku.description) || cat.description);
     
@@ -30594,9 +30604,7 @@ function openEditPoRequestModal(codeOrIndex) {
 
   const editCodeStr = String(code || '').trim();
   const editThirdChar = editCodeStr.charAt(2);
-  const editLast3 = editCodeStr.length >= 3 ? editCodeStr.slice(-3) : '';
-  const editParsedPages = parseInt(editLast3, 10);
-  const editEffPages = (!isNaN(editParsedPages) && editParsedPages > 0) ? editParsedPages : (item.noOfPages || sku.pages || cat.pages || 52);
+  const editEffPages = pagesFromProductCode(editCodeStr, item.noOfPages || sku.pages || cat.pages || 52);   // special case: A5+140 → 120
 
   let defBoardGsm = bSpecs.boardGsm;
   let defSheetWidth = bSpecs.sheetWidthCm;
@@ -36992,7 +37000,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-21-4';
+const APP_VERSION = '2026-11-23-1';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
