@@ -4302,6 +4302,10 @@ body.print-flash-mode .no-print {
               <option value="stock-available">Closing Stock Available (&gt; 0)</option>
             </select>
 
+            <select id="dashboardMonthFilter" onchange="renderDashboardTable()" title="Order Month wise filter — All Months ya koi ek month chuno" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; font-weight: 600; background: #ffffff;">
+              <option value="all">📅 All Order Months</option>
+            </select>
+
             <div class="search-box">
               <span class="search-icon">🔍</span>
               <input type="text" id="dashboardSearch" onkeyup="filterDashboardTable()">
@@ -4360,6 +4364,9 @@ body.print-flash-mode .no-print {
             <div class="formula-indicator">Multi-Vendor Purchase Order Master | Book Wt = (Reel &times; Cut &times; GSM)/20000/500 &times; (Pages / 16 if 3rd digit is 3, Pages / 12 if 3rd digit is 5)</div>
           </div>
           <div class="toolbar-group no-print" style="display:flex; gap:8px; align-items:center;">
+            <select id="orderSheetMonthFilter" onchange="renderOrderSheet()" title="Order Month wise filter — All Months ya koi ek month chuno" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; font-weight: 600; background: #ffffff;">
+              <option value="all">📅 All Order Months</option>
+            </select>
             <button type="button" class="btn btn-outline" onclick="printOrderSheetReport()" title="Print Total Order Sheet in A4 Portrait" style="font-size:12px; font-weight:700; color:#1e3a8a; border-color:#93c5fd; background:#eff6ff;">
               <span>🖨️</span> Print Order Sheet (A4)
             </button>
@@ -5948,10 +5955,8 @@ body.print-flash-mode .no-print {
               <option value="Bangalore">Bangalore</option>
               <option value="Others">Others</option>
             </select>
-            <select id="poRelFilterMonth" onchange="renderPoReleaseSheet()" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; font-weight: 600;">
+            <select id="poRelFilterMonth" onchange="renderPoReleaseSheet()" title="Order Month wise filter — options data se auto-fill hoti hain" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; font-weight: 600;">
               <option value="all">All Months</option>
-              <option value="2026-09" selected>September 2026</option>
-              <option value="2026-10">October 2026</option>
             </select>
             <button class="btn btn-primary" onclick="switchMode('entry'); switchEntryTab('porelease');" title="Add New PO Release">
               <span>➕</span> Release New PO
@@ -6029,6 +6034,9 @@ body.print-flash-mode .no-print {
               <option value="FOUR LINE">Four Line</option>
               <option value="UNRULED">Unruled</option>
               <option value="MED. SQUARE">Med. Square</option>
+            </select>
+            <select id="poTrackFilterMonth" onchange="renderPoTrackingSheet()" title="Order Month wise filter — All Months ya koi ek month chuno" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; font-weight: 600; background: #ffffff;">
+              <option value="all">📅 All Order Months</option>
             </select>
 
           </div>
@@ -17321,11 +17329,53 @@ function getSkuOrderMonth(sku) {
   return formatOrderMonth(getSkuOrderMonthISO(sku));
 }
 
+/**
+ * Sabhi distinct order months (YYYY-MM, newest first) — data ke sources:
+ * SKUs, PO Requests (orderMonth ya requestDate), PO Releases, PO Trackings,
+ * order-booking audit log. Month filters (All + har month) ISI se bharate hain —
+ * hard-coded Sep/Oct options ab stale the (data me Oct/Nov/Jan hone ke bawajood
+ * sirf Sep hi dikhta tha / empty table).
+ */
+function collectAllOrderMonths() {
+  const set = {};
+  const add = v => { const iso = normalizeOrderMonthISO(v); if (iso) set[iso] = 1; };
+  (state.skus || []).forEach(s => add(s.month || s.orderMonth));
+  (state.poRequests || []).forEach(r => add(r.orderMonth || String(r.requestDate || '').slice(0, 7)));
+  (state.poReleases || []).forEach(r => add(r.orderMonth));
+  (state.poTrackings || []).forEach(r => add(r.orderMonth));
+  (state.todayTransactions || []).forEach(t => {
+    const m = String(t.ref || '').match(/Month:\s*(\d{4})-(\d{2})/i);
+    if (m) add(m[1] + '-' + m[2]);
+  });
+  // Current month hamesha list me (reporting kabhi "aaj" ke bina nahi rehti)
+  const now = new Date();
+  add(now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0'));
+  return Object.keys(set).sort().reverse();   // newest first
+}
+
+/**
+ * <select> ko "All Months" + har order month (November-2026 style) se bharo.
+ * Pichhli selection preserve; agar wo option ab data me nahi hai to 'all'.
+ */
+function populateMonthFilterSelect(selectId, allLabel) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const prev = sel.value;
+  const months = collectAllOrderMonths();
+  let html = `<option value="all">${allLabel || 'All Months'}</option>`;
+  months.forEach(m => { html += `<option value="${m}">${formatOrderMonth(m)}</option>`; });
+  sel.innerHTML = html;
+  sel.value = (prev && (prev === 'all' || months.indexOf(prev) >= 0)) ? prev : 'all';
+}
+
 function renderDashboardTable() {
   const filterText = document.getElementById('dashboardSearch') ? document.getElementById('dashboardSearch').value.toLowerCase().trim() : '';
   const filterStatus = document.getElementById('dashboardStatusFilter') ? document.getElementById('dashboardStatusFilter').value : 'all';
   const filterVendor = document.getElementById('dashboardVendorFilter') ? document.getElementById('dashboardVendorFilter').value : 'all';
   const activeV = (filterVendor && filterVendor !== 'all') ? filterVendor : (state.activeVendor || 'all');
+  // Order Month filter (All + har month) — options data se dynamically
+  populateMonthFilterSelect('dashboardMonthFilter', '📅 All Order Months');
+  const filterMonth = document.getElementById('dashboardMonthFilter') ? document.getElementById('dashboardMonthFilter').value : 'all';
 
   const tbody = document.getElementById('dashboardTableBody');
   tbody.innerHTML = '';
@@ -17337,13 +17387,16 @@ function renderDashboardTable() {
 
     const searchMatch = !filterText || sku.barcode.toLowerCase().includes(filterText) || sku.description.toLowerCase().includes(filterText) || (sku.vendor && sku.vendor.toLowerCase().includes(filterText));
 
+    // Order-month breakup: sirf selected month ki rows (+ totals)
+    const monthMatch = (filterMonth === 'all') || (getSkuOrderMonthISO(sku) === filterMonth);
+
     let statusMatch = true;
     if (filterStatus === 'pending-prod') statusMatch = (sku.dueProduction > 0);
     else if (filterStatus === 'completed-prod') statusMatch = (sku.dueProduction <= 0);
     else if (filterStatus === 'pending-desp') statusMatch = (sku.dueDespatched > 0);
     else if (filterStatus === 'stock-available') statusMatch = (sku.closingStock > 0);
 
-    if (!vendorMatch || !searchMatch || !statusMatch) return;
+    if (!vendorMatch || !searchMatch || !statusMatch || !monthMatch) return;
 
     // ZERO-ACTIVITY row: Item Master se sync hue raw-material codes (jaise
     // "Shah (97x37x58)") ya bina order ke add kiye gaye items — na order/old
@@ -17482,7 +17535,11 @@ function renderOrderSheet() {
   const tbody = document.getElementById('orderSheetBody');
   tbody.innerHTML = '';
   const activeV = state.activeVendor || 'all';
-  const filtered = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV));
+  // Order Month filter (All + har month) — options data se dynamically
+  populateMonthFilterSelect('orderSheetMonthFilter', '📅 All Order Months');
+  const mFilter = document.getElementById('orderSheetMonthFilter') ? document.getElementById('orderSheetMonthFilter').value : 'all';
+  const filtered = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV) &&
+    (mFilter === 'all' || getSkuOrderMonthISO(s) === mFilter));
 
   let totOrder = 0, totPaper = 0, totBoard = 0;
 
@@ -26230,7 +26287,10 @@ function downloadOrderSheetPDF() {
 function exportOrderSheetExcel() {
   const activeV = state.activeVendor || 'all';
   const vTag = activeV === 'all' ? 'CONSOLIDATED' : activeV.toUpperCase();
-  const filteredSkus = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV));
+  // Screen ke Order Month filter ko export me bhi respect karo (breakup consistent)
+  const mFilter = document.getElementById('orderSheetMonthFilter') ? document.getElementById('orderSheetMonthFilter').value : 'all';
+  const filteredSkus = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV) &&
+    (mFilter === 'all' || getSkuOrderMonthISO(s) === mFilter));
 
   let totOrder = 0, totPaper = 0, totBoard = 0;
   const rows = filteredSkus.map(s => {
@@ -30313,6 +30373,8 @@ function renderPoReleaseSheet() {
   if (!tbody) return;
   tbody.innerHTML = '';
 
+  // Month options data se (All + har order month) — pehle sirf Sep/Oct hardcode the
+  populateMonthFilterSelect('poRelFilterMonth', 'All Months');
   const q = (document.getElementById('poRelSearch') ? document.getElementById('poRelSearch').value.toLowerCase().trim() : '');
   const mFilter = document.getElementById('poRelFilterMonth') ? document.getElementById('poRelFilterMonth').value : 'all';
   const dFilter = document.getElementById('poRelFilterDest') ? document.getElementById('poRelFilterDest').value : 'all';
@@ -30324,7 +30386,7 @@ function renderPoReleaseSheet() {
     const itemVendor = r.vendor || (sku && sku.vendor) || (cat && cat.vendor);
     return isMatchingVendor(itemVendor, activeV);
   });
-  let totOrd = 0, totProd = 0, totVal = 0;
+  let totOrd = 0, totProd = 0, totVal = 0, shownCount = 0;
 
   list.forEach((r, idx) => {
     const code = r.productCode || '';
@@ -30333,7 +30395,8 @@ function renderPoReleaseSheet() {
     const poReqExpectedRate = calculatePoRequestKclApprovedRate(code);
 
     // Auto-fetch related values from SKU master & PO Request
-    const orderMonth = r.orderMonth || (sku && sku.month) || '2026-09';
+    // Month source: record ka apna orderMonth → warna SKU ka resolved order month
+    const orderMonth = normalizeOrderMonthISO(r.orderMonth) || (sku ? getSkuOrderMonthISO(sku) : '') || '';
     const orderQty = parseFloat(sku && sku.orderQty !== undefined ? sku.orderQty : r.orderQuantity) || 0;
     const prodQty = poRelProducedQty(r);   // PO Request value (editable), production se nahi
     const kclApprovedRate = parseFloat(r.kclApprovedRate !== undefined && r.kclApprovedRate !== null ? r.kclApprovedRate : (poReqExpectedRate || cat.kclApprovedRate || 21.50)) || 21.50;
@@ -30344,16 +30407,12 @@ function renderPoReleaseSheet() {
     // Amount mismatch check: compare release rate vs PO Request approved rate
     const isRateMismatch = (poReqExpectedRate > 0 && Math.abs(kclApprovedRate - poReqExpectedRate) > 0.009);
 
-    totOrd += orderQty;
-    totProd += prodQty;
-    totVal += (orderQty * kclApprovedRate);
-
     const matchSearch = !q || 
       (code.toLowerCase().includes(q)) ||
       (poNumber.toLowerCase().includes(q)) ||
       (destination.toLowerCase().includes(q));
 
-    const matchMonth = (mFilter === 'all') || (orderMonth === mFilter);
+    const matchMonth = (mFilter === 'all') || (normalizeOrderMonthISO(orderMonth) === mFilter);
 
     let matchDest = true;
     if (dFilter !== 'all') {
@@ -30366,6 +30425,11 @@ function renderPoReleaseSheet() {
     }
 
     if (matchSearch && matchMonth && matchDest) {
+      // Totals sirf FILTERED rows ke (month/search/destination wise breakup)
+      totOrd += orderQty;
+      totProd += prodQty;
+      totVal += (orderQty * kclApprovedRate);
+
       const tr = document.createElement('tr');
       const rateCellHtml = isRateMismatch 
         ? `<td class="num" style="font-weight:800; color:#b91c1c; background:#fee2e2; border:1px solid #fca5a5;" title="Mismatch! PO Request rate: ₹ ${poReqExpectedRate.toFixed(2)} vs PO Release rate: ₹ ${kclApprovedRate.toFixed(2)}">
@@ -30376,7 +30440,7 @@ function renderPoReleaseSheet() {
 
       tr.innerHTML = `
         <td style="text-align: center;"><input type="checkbox" class="porel-chk" value="${idx}" onchange="updateSelectedPoRelCount()"></td>
-        <td>${orderMonth}</td>
+        <td>${orderMonth ? formatOrderMonth(orderMonth) : '-'}</td>
         <td><strong style="color:#1e3a8a;">${code}</strong></td>
         <td class="num" style="background:#f0fdf4;"><strong>${orderQty.toLocaleString()}</strong></td>
         <td class="num" style="color:#1e40af; font-weight:700; background:#eff6ff;">${prodQty.toLocaleString()}</td>
@@ -30392,18 +30456,21 @@ function renderPoReleaseSheet() {
         </td>
       `;
       tbody.appendChild(tr);
+      shownCount++;
     }
   });
 
   if (list.length === 0) {
     const vText = activeV === 'all' ? 'any vendor' : `workspace '${activeV}'`;
     tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:38px 20px; color:#64748b; font-size:13.5px;">📭 <strong>No PO Releases found for ${vText}.</strong> Go to <strong>Entry Mode &rarr; 10. PO Release Entry</strong> to record and release an official purchase order!</td></tr>`;
+  } else if (shownCount === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:38px 20px; color:#64748b; font-size:13.5px;">🔍 <strong>Koi row active filter se match nahi hui</strong> — Month (${mFilter === 'all' ? 'All' : formatOrderMonth(mFilter)}) / Search / Destination filter hatao.</td></tr>`;
   }
-  if (document.getElementById('kpiPoRelCount')) document.getElementById('kpiPoRelCount').textContent = list.length;
+  if (document.getElementById('kpiPoRelCount')) document.getElementById('kpiPoRelCount').textContent = shownCount;
   if (document.getElementById('kpiPoRelTotalOrder')) document.getElementById('kpiPoRelTotalOrder').textContent = totOrd.toLocaleString();
   if (document.getElementById('kpiPoRelTotalProduced')) document.getElementById('kpiPoRelTotalProduced').textContent = totProd.toLocaleString();
   if (document.getElementById('kpiPoRelTotalValue')) document.getElementById('kpiPoRelTotalValue').textContent = '₹ ' + (totVal / 100000).toFixed(2) + ' L';
-  if (document.getElementById('badgePoRelCount')) document.getElementById('badgePoRelCount').textContent = list.length;
+  if (document.getElementById('badgePoRelCount')) document.getElementById('badgePoRelCount').textContent = shownCount;
 }
 
 
@@ -30415,8 +30482,11 @@ function renderPoTrackingSheet() {
   if (!tbody) return;
   tbody.innerHTML = '';
 
+  // Month options data se (All + har order month)
+  populateMonthFilterSelect('poTrackFilterMonth', '📅 All Order Months');
   const q = (document.getElementById('poTrackSearch') ? document.getElementById('poTrackSearch').value.toLowerCase().trim() : '');
   const rFilter = document.getElementById('poTrackFilterRuling') ? document.getElementById('poTrackFilterRuling').value : 'all';
+  const mFilter = document.getElementById('poTrackFilterMonth') ? document.getElementById('poTrackFilterMonth').value : 'all';
   const activeV = state.activeVendor || 'all';
 
   // Build live tracking list dynamically combining state.skus & state.poReleases
@@ -30449,7 +30519,8 @@ function renderPoTrackingSheet() {
     }
 
     list.push({
-      orderMonth: sku.month || (matchingPos[0] && matchingPos[0].orderMonth) || '2026-09',
+      // Resolved order month (sku.month → audit → PO records → fallback) — Dashboard/Order Sheet jaisa hi
+      orderMonth: getSkuOrderMonthISO(sku) || '',
       vendor: sku.vendor,
       productCode: sku.barcode,
       rulingType: ruling,
@@ -30479,14 +30550,9 @@ function renderPoTrackingSheet() {
     }
   });
 
-  let totOrd = 0, totTaken = 0, totDesp = 0, totDueDesp = 0;
+  let totOrd = 0, totTaken = 0, totDesp = 0, totDueDesp = 0, shownCount = 0;
 
   list.forEach((t, idx) => {
-    totOrd += (t.totalOrder || 0);
-    totTaken += (t.poTaken || 0);
-    totDesp += (t.despatched || 0);
-    totDueDesp += (t.poQtyDueDespatch || 0);
-
     const matchSearch = !q || 
       (t.productCode && t.productCode.toLowerCase().includes(q)) ||
       (t.posInvolved && t.posInvolved.toLowerCase().includes(q)) ||
@@ -30495,10 +30561,20 @@ function renderPoTrackingSheet() {
 
     const matchRuling = (rFilter === 'all') || (t.rulingType === rFilter) || (rFilter === 'MED. SQUARE' && String(t.rulingType).includes('SQUARE'));
 
-    if (matchSearch && matchRuling) {
+    // Order Month wise breakup — sirf selected month ki rows + unke totals/KPIs
+    const matchMonth = (mFilter === 'all') || (normalizeOrderMonthISO(t.orderMonth) === mFilter);
+
+    if (matchSearch && matchRuling && matchMonth) {
+      // Totals/KPIs sirf FILTERED rows ke (month filter = month-wise totals)
+      totOrd += (t.totalOrder || 0);
+      totTaken += (t.poTaken || 0);
+      totDesp += (t.despatched || 0);
+      totDueDesp += (t.poQtyDueDespatch || 0);
+      shownCount++;
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${t.orderMonth || '-'}</td>
+        <td>${t.orderMonth ? formatOrderMonth(t.orderMonth) : '-'}</td>
         <td><strong style="color:#1e3a8a;">${t.productCode || '-'}</strong></td>
         <td>${t.rulingType || 'SINGLE LINE'}</td>
         <td class="num"><strong>${(t.totalOrder || 0).toLocaleString()}</strong></td>
@@ -30521,12 +30597,14 @@ function renderPoTrackingSheet() {
   if (list.length === 0) {
     const vText = activeV === 'all' ? 'any vendor' : `workspace '${activeV}'`;
     tbody.innerHTML = `<tr><td colspan="13" style="text-align:center; padding:38px 20px; color:#64748b; font-size:13.5px;">📭 <strong>No PO Tracking data for ${vText}.</strong> Book an order in <strong>1. New Order Booking</strong> or release a PO to see live lifecycle tracking!</td></tr>`;
+  } else if (shownCount === 0) {
+    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center; padding:38px 20px; color:#64748b; font-size:13.5px;">🔍 <strong>Koi row active filter se match nahi hui</strong> — Month (${mFilter === 'all' ? 'All' : formatOrderMonth(mFilter)}) / Ruling / Search filter hatao.</td></tr>`;
   }
   if (document.getElementById('kpiPoTrackTotalOrder')) document.getElementById('kpiPoTrackTotalOrder').textContent = totOrd.toLocaleString();
   if (document.getElementById('kpiPoTrackPoTaken')) document.getElementById('kpiPoTrackPoTaken').textContent = totTaken.toLocaleString();
   if (document.getElementById('kpiPoTrackDespatched')) document.getElementById('kpiPoTrackDespatched').textContent = totDesp.toLocaleString();
   if (document.getElementById('kpiPoTrackDueDespatch')) document.getElementById('kpiPoTrackDueDespatch').textContent = totDueDesp.toLocaleString();
-  if (document.getElementById('badgePoTrackCount')) document.getElementById('badgePoTrackCount').textContent = list.length;
+  if (document.getElementById('badgePoTrackCount')) document.getElementById('badgePoTrackCount').textContent = shownCount;
 }
 
 
@@ -37000,7 +37078,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-23-1';
+const APP_VERSION = '2026-11-24-1';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
