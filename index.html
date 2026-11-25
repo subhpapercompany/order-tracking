@@ -13020,6 +13020,11 @@ function loadStateFromDatabaseObject(parsed) {
   if (parsed.hr && typeof parsed.hr === 'object') state.hr = parsed.hr;
   else if (!state.hr) state.hr = JSON.parse(JSON.stringify(DEFAULT_HR_DATA));
 
+  // Order History seed (Oct/Nov purana data) — flag reset + idempotent apply.
+  // Har load par chalta hai: stale tab ke overwrite se bhi auto-recover.
+  state._orderHistorySeeded = false;
+  seedOrderHistoryOnce();
+
   recalculateAllFormulas();
   setActiveVendor(state.activeVendor || 'all', false);
   const urlHash = window.location.hash.replace('#', '');
@@ -17055,10 +17060,13 @@ function isBoardMatchingVendor(boardSize, vendor, activeVendor) {
 }
 
 function renderKPIs() {
+  seedOrderHistoryOnce();   // defensive: load hook ke bhi pehle KPIs sahi aayein
   const activeV = state.activeVendor || 'all';
   const filteredSkus = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV));
 
-  const totOrder = filteredSkus.reduce((a, b) => a + (b.orderQty || 0), 0);
+  // Total Order = saari month-wise entries ka sum (history + live month)
+  const totOrder = filteredSkus.reduce((a, b) =>
+    a + getSkuOrderEntries(b).reduce((x, e) => x + e.qty, 0), 0);
   const totProd = filteredSkus.reduce((a, b) => a + (b.production || 0), 0);
   const totDesp = filteredSkus.reduce((a, b) => a + (b.despatched || 0), 0);
   const totStock = filteredSkus.reduce((a, b) => a + (b.closingStock || 0), 0);
@@ -17329,6 +17337,142 @@ function getSkuOrderMonth(sku) {
   return formatOrderMonth(getSkuOrderMonthISO(sku));
 }
 
+// ─── ORDER HISTORY (Oct/Nov purana order data restore) ───────────────────────
+// Har SKU ki orderHistory = [{month:'2026-10', qty:25000}, ...] — Order Sheet
+// (PO) aur Dashboard ab entries ke hisaab se rows dikhata hai (one row per
+// sku × entry). Ye seed GitHub Pages par bhi chale isliye index.html me hi
+// embed hai (data/ wahan gitignored hai → fetch fail hota).
+// Purana data: prev/snapshots me 21 qty>0 skus mile the (sum 441,960) —
+// Oct 60,000 (3 entries), Nov 1,19,168 (9 entries), No-Month 2,62,792 (9).
+// Jan-2027 orders LIVE aate hain (sku.orderQty) — seed me nahi.
+const ORDER_HISTORY_SEED = [
+  // October2026 — 60,000
+  ['1132103092', '2026-10', 25000],
+  ['1132203092', '2026-10', 20000],
+  ['1152203140', '2026-10', 15000],
+  // November 2026 — 1,19,168 (4 regular + 5 IPO)
+  ['1132201092', '2026-11', 46000],
+  ['1132203140', '2026-11', 30000],
+  ['1132201140', '2026-11', 18000],
+  ['1152201176', '2026-11', 20000],
+  ['02535886H', '2026-11', 4200],
+  ['02535905H', '2026-11', 100],
+  ['02535909H', '2026-11', 168],
+  ['02535924H', '2026-11', 500],
+  ['02535932H', '2026-11', 200],
+  // No Month (month kahin record nahi — user ne confirm kiya "—" hi rakho) — 2,62,792
+  ['1132201056', '', 50000],
+  ['1152201100', '', 44880],
+  ['1132205056', '', 36432],
+  ['1152203100', '', 36480],
+  ['1132203056', '', 30000],
+  ['1132101092', '', 20000],
+  ['1152203052', '', 15000],
+  ['1152201052', '', 15000],
+  ['1152205100', '', 15000]
+];
+
+// Seed idempotent + self-holing: flag payload whitelist me NAHI jaata
+// (getFullEnterpriseStatePayload me skus nested persist hote hain, flag nahi)
+// → har load par dobara chalta hai, per-entry dedupe (month+qty) ke saath.
+// Stale tab purana state overwrite kare to bhi seed khud ko heal kar leta hai.
+function seedOrderHistoryOnce() {
+  try {
+    if (state._orderHistorySeeded) return;
+    const idx = {};
+    (state.skus || []).forEach(s => { idx[String(s.barcode)] = s; });
+    (ORDER_HISTORY_SEED || []).forEach(row => {
+      const sku = idx[String(row[0])];
+      if (!sku) return;                       // sku delete ho chuka → skip
+      if (!Array.isArray(sku.orderHistory)) sku.orderHistory = [];
+      const m = String(row[1] || ''), q = Number(row[2] || 0);
+      if (!(q > 0)) return;
+      const dup = sku.orderHistory.some(e => String(e.month || '') === m && Number(e.qty || 0) === q);
+      if (!dup) sku.orderHistory.push({ month: m, qty: q });
+    });
+    // Live-month upsert: current month ki entry hamesha sku.orderQty par set —
+    // same-month booking = replace semantics isliye latest qty sahi rehti hai.
+    (state.skus || []).forEach(s => {
+      const q = Number(s.orderQty || 0);
+      if (!(q > 0)) return;
+      const m = getSkuOrderMonthISO(s);
+      if (!m) return;                         // no live month → seed entries hi rehti hain
+      if (!Array.isArray(s.orderHistory)) s.orderHistory = [];
+      const hit = s.orderHistory.find(e => String(e.month || '') === m);
+      if (hit) hit.qty = q;
+      else s.orderHistory.push({ month: m, qty: q });
+    });
+    state._orderHistorySeeded = true;
+  } catch (err) {
+    console.error('seedOrderHistoryOnce failed:', err);
+  }
+}
+
+// SKU ki saari order entries (history se; history nahi to fallback ek entry).
+function getSkuOrderEntries(sku) {
+  if (!sku) return [];
+  const hist = Array.isArray(sku.orderHistory) ? sku.orderHistory : [];
+  const out = [];
+  hist.forEach(e => {
+    const q = Number(e && e.qty || 0);
+    if (q > 0) out.push({ month: String(e.month || ''), qty: q });
+  });
+  if (out.length === 0) {
+    // Fallback: qty>0 → live month; qty=0 (koi order nahi) → No-Month ''
+    // (zero rows sirf All filter me dikhein, month-wise counts sahi rahein)
+    const q = Number(sku.orderQty || 0);
+    out.push({ month: q > 0 ? getSkuOrderMonthISO(sku) : '', qty: q });
+  }
+  return out;
+}
+
+// Booking/edit hook: month+qty ki entry upsert karo (same month → replace).
+function upsertOrderHistoryEntry(sku, month, qty) {
+  if (!sku) return;
+  const m = String(month || ''), q = Number(qty || 0);
+  if (!(q > 0)) return;
+  if (!Array.isArray(sku.orderHistory)) sku.orderHistory = [];
+  const hit = sku.orderHistory.find(e => String(e.month || '') === m);
+  if (hit) hit.qty = q;
+  else sku.orderHistory.push({ month: m, qty: q });
+}
+
+// Delete/edit hook: entry me delta adjust (≤0 par entry hata do).
+function adjustSkuOrderHistoryQty(sku, month, delta) {
+  if (!sku || !delta) return;
+  const m = String(month || '');
+  if (!Array.isArray(sku.orderHistory)) sku.orderHistory = [];
+  const i = sku.orderHistory.findIndex(e => String(e.month || '') === m);
+  if (i < 0) {
+    if (delta > 0) sku.orderHistory.push({ month: m, qty: delta });
+    return;
+  }
+  const nq = Number(sku.orderHistory[i].qty || 0) + Number(delta);
+  if (nq > 0) sku.orderHistory[i].qty = nq;
+  else sku.orderHistory.splice(i, 1);
+}
+
+// Order-booking tx ka ref: "Month: 2027-01" → '2027-01'
+function orderMonthFromTxRef(ref) {
+  const m = String(ref || '').match(/Month:\s*(\d{4})-(\d{2})/i);
+  return m ? (m[1] + '-' + m[2]) : '';
+}
+
+// SKU edit reconcile: purana month/qty → naya month/qty (history ko sync rakho).
+function reconcileEditedOrderHistory(sku, oldMonth, newMonth, oldQty, newQty) {
+  if (!sku) return;
+  const om = String(oldMonth || ''), nm = String(newMonth || '');
+  const oq = Number(oldQty || 0), nq = Number(newQty || 0);
+  if (om === nm) {
+    const diff = nq - oq;
+    if (diff !== 0) adjustSkuOrderHistoryQty(sku, nm, diff);
+    return;
+  }
+  // month badla: purani entry adjust (khatam ho to hatao), nayi month par set
+  if (oq > 0) adjustSkuOrderHistoryQty(sku, om, -oq);
+  if (nq > 0) upsertOrderHistoryEntry(sku, nm, nq);
+}
+
 /**
  * Sabhi distinct order months (YYYY-MM, newest first) — data ke sources:
  * SKUs, PO Requests (orderMonth ya requestDate), PO Releases, PO Trackings,
@@ -17339,7 +17483,11 @@ function getSkuOrderMonth(sku) {
 function collectAllOrderMonths() {
   const set = {};
   const add = v => { const iso = normalizeOrderMonthISO(v); if (iso) set[iso] = 1; };
-  (state.skus || []).forEach(s => add(s.month || s.orderMonth));
+  (state.skus || []).forEach(s => {
+    add(s.month || s.orderMonth);
+    // Order history ke months bhi (No-Month '' yahan skip — sirf All me dikhenge)
+    (Array.isArray(s.orderHistory) ? s.orderHistory : []).forEach(e => add(e && e.month));
+  });
   (state.poRequests || []).forEach(r => add(r.orderMonth || String(r.requestDate || '').slice(0, 7)));
   (state.poReleases || []).forEach(r => add(r.orderMonth));
   (state.poTrackings || []).forEach(r => add(r.orderMonth));
@@ -17387,8 +17535,13 @@ function renderDashboardTable() {
 
     const searchMatch = !filterText || sku.barcode.toLowerCase().includes(filterText) || sku.description.toLowerCase().includes(filterText) || (sku.vendor && sku.vendor.toLowerCase().includes(filterText));
 
-    // Order-month breakup: sirf selected month ki rows (+ totals)
-    const monthMatch = (filterMonth === 'all') || (getSkuOrderMonthISO(sku) === filterMonth);
+    // Order-month breakup: sirf selected month ki entries (+ totals).
+    // All filter = saari entries (history + live) ka sum; specific month = us month ki entries.
+    const skuEntries = getSkuOrderEntries(sku);
+    const shownEntries = (filterMonth === 'all') ? skuEntries
+      : skuEntries.filter(e => e.month === filterMonth);
+    const monthMatch = shownEntries.length > 0;
+    const shownOrderQty = shownEntries.reduce((a, e) => a + e.qty, 0);
 
     let statusMatch = true;
     if (filterStatus === 'pending-prod') statusMatch = (sku.dueProduction > 0);
@@ -17408,13 +17561,13 @@ function renderDashboardTable() {
       (sku.production || 0) > 0 || (sku.despatched || 0) > 0 ||
       (sku.closingStock || 0) > 0 || (sku.dueProduction || 0) > 0 ||
       (sku.dueDespatched || 0) > 0 || (sku.paperConsumptionKg || 0) > 0 ||
-      (sku.totalPaperConsumptionKg || 0) > 0;
+      (sku.totalPaperConsumptionKg || 0) > 0 || shownEntries.some(e => e.qty > 0);
     if (!hasAnyActivity && !filterText) return;
 
     const duePaper = sku.duePaperRequiredKg !== undefined ? sku.duePaperRequiredKg : Math.max(0, (sku.dueProduction || 0) * (sku.bookWt || 0) * 1.0025);
     const dueBoard = sku.dueBoardSheets !== undefined ? sku.dueBoardSheets : Math.ceil(Math.max(0, sku.dueProduction || 0) / (sku.ups || 8));
 
-    sumOrder += (sku.orderQty || 0);
+    sumOrder += shownOrderQty;
     sumOld += (sku.oldStock || 0);
     sumProd += (sku.production || 0);
     sumDueProd += (sku.dueProduction || 0);
@@ -17442,11 +17595,11 @@ function renderDashboardTable() {
     const hasMaterialShortage = (duePaper > 0 && skuPaperShortage < 0) || (dueBoard > 0 && skuBoardShortage < 0);
 
     tr.innerHTML = `
-      <td>${getSkuOrderMonth(sku)}</td>
+      <td>${filterMonth !== 'all' ? formatOrderMonth(filterMonth) : getSkuOrderMonth(sku)}</td>
       <td>${getVendorBadgeHtml(sku.vendor)}</td>
       <td><strong>${sku.barcode}</strong></td>
       <td>${sku.description}</td>
-      <td class="num">${(sku.orderQty || 0).toLocaleString()}</td>
+      <td class="num">${shownOrderQty.toLocaleString()}</td>
       <td class="num">${(sku.oldStock || 0).toLocaleString()}</td>
       <td class="num"><strong>${(sku.production || 0).toLocaleString()}</strong></td>
       <td class="num">${dueProdBadge}</td>
@@ -17538,19 +17691,32 @@ function renderOrderSheet() {
   // Order Month filter (All + har month) — options data se dynamically
   populateMonthFilterSelect('orderSheetMonthFilter', '📅 All Order Months');
   const mFilter = document.getElementById('orderSheetMonthFilter') ? document.getElementById('orderSheetMonthFilter').value : 'all';
-  const filtered = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV) &&
-    (mFilter === 'all' || getSkuOrderMonthISO(s) === mFilter));
+  const filtered = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV));
 
+  // Rows = one per (sku × order entry); month filter entries par lagta hai.
   let totOrder = 0, totPaper = 0, totBoard = 0;
-
+  const rows = [];
   filtered.forEach(s => {
-    totOrder += (s.orderQty || 0);
-    totPaper += (s.plannedPaperConsumptionKg || 0);
-    totBoard += (s.plannedBoardSheets || 0);
+    const entries = getSkuOrderEntries(s);
+    const totalEntriesQty = entries.reduce((a, e) => a + e.qty, 0);
+    const shown = entries.filter(e => mFilter === 'all' || e.month === mFilter);
+    if (shown.length === 0) return;
+    // paper/board pro-rata: entry.qty / total entries qty → All totals bilkul same
+    shown.forEach(en => {
+      const share = totalEntriesQty > 0 ? (en.qty / totalEntriesQty) : (1 / entries.length);
+      const rowPaper = (s.plannedPaperConsumptionKg || 0) * share;
+      const rowBoard = (s.plannedBoardSheets || 0) * share;
+      totOrder += en.qty;
+      totPaper += rowPaper;
+      totBoard += rowBoard;
+      rows.push({ sku: s, entry: en, paper: rowPaper, board: rowBoard });
+    });
+  });
 
+  rows.forEach(({ sku: s, entry: en, paper: rowPaper, board: rowBoard }) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${getSkuOrderMonth(s)}</td>
+      <td>${formatOrderMonth(en.month)}</td>
       <td>${getVendorBadgeHtml(s.vendor)}</td>
       <td><strong>${s.barcode}</strong></td>
       <td>${s.description}</td>
@@ -17560,11 +17726,11 @@ function renderOrderSheet() {
       <td>${s.binding || 'BACK PRESSED'}</td>
       <td style="font-weight:700; color:#0f766e;">${s.ruling || 'Single Line'}</td>
       <td class="num" style="font-weight:600; color:#0e7490;">${s.inner ? s.inner : '-'}</td>
-      <td class="num" style="font-weight:600; color:#0e7490;">${s.caseQty ? `${s.caseQty.toLocaleString()}${s.orderQty && s.caseQty ? ` (${Math.round(s.orderQty/s.caseQty)} cs)` : ''}` : '-'}</td>
-      <td class="num"><strong>${(s.orderQty || 0).toLocaleString()}</strong></td>
+      <td class="num" style="font-weight:600; color:#0e7490;">${s.caseQty ? `${s.caseQty.toLocaleString()}${en.qty && s.caseQty ? ` (${Math.round(en.qty/s.caseQty)} cs)` : ''}` : '-'}</td>
+      <td class="num"><strong>${en.qty.toLocaleString()}</strong></td>
       <td class="num" style="font-weight:700; color:#1e40af;">${s.bookWt || 0}</td>
-      <td class="num" style="color:#854d0e; font-weight:700; background:#fefce8;">${(s.plannedPaperConsumptionKg || 0).toLocaleString()} Kg</td>
-      <td class="num" style="font-weight:700; background:#fefce8;">${(s.plannedBoardSheets || 0).toLocaleString()}</td>
+      <td class="num" style="color:#854d0e; font-weight:700; background:#fefce8;">${Math.round(rowPaper).toLocaleString()} Kg</td>
+      <td class="num" style="font-weight:700; background:#fefce8;">${Math.round(rowBoard).toLocaleString()}</td>
       <td style="text-align: center; white-space: nowrap;">
         <div style="display:inline-flex; gap:4px; align-items:center; justify-content:center;">
           <button type="button" class="btn-icon" onclick="openEditSkuModal('${s.barcode}')" title="Edit Record" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">✏️</button>
@@ -17575,12 +17741,12 @@ function renderOrderSheet() {
     tbody.appendChild(tr);
   });
 
-  if (filtered.length === 0) {
+  if (rows.length === 0) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td colspan="16" style="text-align:center; padding: 32px 16px; background:#fffbeb; border:2px dashed #fde68a;">
         <div style="font-size:16px; font-weight:700; color:#b45309; margin-bottom:6px;">
-          🔍 No Orders match current filter: "${activeV}"
+          🔍 No Orders match current filter: "${activeV}"${mFilter !== 'all' ? ' / ' + formatOrderMonth(mFilter) : ''}
         </div>
         <div style="font-size:13px; color:#92400e; margin-bottom:14px;">
           Total ${(state.skus || []).length} SKUs are recorded in Kokuyo Camlin. Click below to show all records.
@@ -17593,7 +17759,7 @@ function renderOrderSheet() {
     tbody.appendChild(tr);
   }
 
-  if (filtered.length > 0) {
+  if (rows.length > 0) {
     const trFoot = document.createElement('tr');
     trFoot.style.background = '#f1f5f9';
     trFoot.style.fontWeight = '800';
@@ -24177,6 +24343,17 @@ function handleOrderBookingSubmit(e) {
     showToast(`New SKU ${barcode} booked for ${vendor}!`);
   }
 
+  // Order History sync: current month ki entry upsert (same-month = replace,
+  // different month = append — old month entry history me rehti hai).
+  try {
+    const _bkSku = (state.skus || []).find(s => s.barcode === barcode);
+    if (_bkSku) {
+      upsertOrderHistoryEntry(_bkSku,
+        normalizeOrderMonthISO(month) || getSkuOrderMonthISO(_bkSku),
+        Number(orderQty || 0));
+    }
+  } catch (_) {}
+
   // Record into Today's Transactions
   addTodayTransaction({
     type: 'Order Booking',
@@ -26284,36 +26461,106 @@ function downloadOrderSheetPDF() {
   }
 }
 
+/**
+ * Generic professional Excel (.xls) builder — bina kisi library; HTML table +
+ * Excel-compatible styles se download (jaise baaki exports karte hain).
+ * NOTE: eff9e7a (28 Oct) se Order Sheet export IS function ko call kar raha tha
+ * lekin function kabhi define nahi hua tha → har click par ReferenceError.
+ * opts: { reportTitle, reportSubtitle, divisionName, scopeText,
+ *         columns:[{title,align,type}], dataRows:[[...]], totalsRow:[...], filename }
+ */
+function buildAndDownloadProfessionalExcel(opts) {
+  opts = opts || {};
+  const cols = Array.isArray(opts.columns) ? opts.columns : [];
+  const dataRows = Array.isArray(opts.dataRows) ? opts.dataRows : [];
+  const totalsRow = Array.isArray(opts.totalsRow) ? opts.totalsRow : null;
+  const esc = v => String(v === null || v === undefined ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const span = cols.length || 1;
+  const headStyle = 'background:#0f172a; color:#ffffff; font-size:13pt; font-weight:700; text-align:center; padding:8px; border:1px solid #0f172a;';
+  const subStyle = 'background:#1e3a8a; color:#dbeafe; font-size:10pt; font-weight:600; text-align:center; padding:5px; border:1px solid #1e3a8a;';
+  const thStyle = 'background:#1e3a8a; color:#ffffff; font-size:9.5pt; font-weight:700; text-align:center; padding:5px; border:1px solid #cbd5e1;';
+  const tdStyle = a => `font-size:9.5pt; text-align:${a}; padding:4px 5px; border:1px solid #cbd5e1;`;
+  const alignOf = c => (c && (c.align === 'right' || c.align === 'left')) ? c.align : 'center';
+
+  let html = `<table cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse; font-family:Calibri, Arial, sans-serif;">`;
+  html += `<tr><th colspan="${span}" style="${headStyle}">${esc(opts.reportTitle || 'REPORT')}</th></tr>`;
+  const subParts = [opts.reportSubtitle, opts.divisionName, opts.scopeText].filter(Boolean);
+  if (subParts.length) html += `<tr><th colspan="${span}" style="${subStyle}">${esc(subParts.join('  •  '))}</th></tr>`;
+  html += `<tr>${cols.map(c => `<th style="${thStyle}">${esc(c.title)}</th>`).join('')}</tr>`;
+  dataRows.forEach(r => {
+    html += `<tr>${(Array.isArray(r) ? r : []).map((v, i) =>
+      `<td style="${tdStyle(alignOf(cols[i]))}">${esc(v)}</td>`).join('')}</tr>`;
+  });
+  if (totalsRow) {
+    const tStyle = 'background:#fef3c7; color:#0f172a; font-size:9.5pt; font-weight:700; padding:5px; border:1px solid #cbd5e1;';
+    html += `<tr>${totalsRow.map((v, i) =>
+      `<td style="${tStyle.replace('padding:5px', 'padding:5px; text-align:' + alignOf(cols[i]))}">${esc(v)}</td>`).join('')}</tr>`;
+  }
+  html += `</table>`;
+
+  const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+<x:Name>Report</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>
+</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${html}</body></html>`;
+
+  try {
+    const blob = new Blob(['\ufeff' + doc], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = opts.filename || 'report.xls';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    if (typeof showToast === 'function') showToast('✅ Excel downloaded: ' + a.download);
+  } catch (err) {
+    console.error('buildAndDownloadProfessionalExcel failed:', err);
+    if (typeof showToast === 'function') showToast('❌ Excel export failed: ' + (err && err.message || err));
+  }
+}
+
 function exportOrderSheetExcel() {
   const activeV = state.activeVendor || 'all';
   const vTag = activeV === 'all' ? 'CONSOLIDATED' : activeV.toUpperCase();
   // Screen ke Order Month filter ko export me bhi respect karo (breakup consistent)
   const mFilter = document.getElementById('orderSheetMonthFilter') ? document.getElementById('orderSheetMonthFilter').value : 'all';
-  const filteredSkus = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV) &&
-    (mFilter === 'all' || getSkuOrderMonthISO(s) === mFilter));
+  const filteredSkus = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV));
 
-  let totOrder = 0, totPaper = 0, totBoard = 0;
-  const rows = filteredSkus.map(s => {
-    totOrder += (s.orderQty || 0);
-    totPaper += (s.plannedPaperConsumptionKg || 0);
-    totBoard += (s.plannedBoardSheets || 0);
-    return [
-      getSkuOrderMonth(s),
-      s.vendor || 'Camlin',
-      s.barcode || '',
-      s.description || '',
-      (s.mrp > 0 ? Number(s.mrp).toFixed(2) : '-'),
-      s.size || 'A4 Longbook',
-      s.paperPages ? `${s.paperPages}p+${s.indexPages}p` : `${s.pages || 52}p`,
-      s.binding || 'BACK PRESSED',
-      s.ruling || 'Single Line',
-      s.inner || '-',
-      s.caseQty || '-',
-      s.orderQty || 0,
-      s.bookWt || 0,
-      s.plannedPaperConsumptionKg || 0,
-      s.plannedBoardSheets || 0
-    ];
+  // Screen ke Order Month filter ko export me bhi respect karo (breakup consistent)
+  let totOrder = 0, totPaper = 0, totBoard = 0, entriesCount = 0;
+  const rows = [];
+  filteredSkus.forEach(s => {
+    const entries = getSkuOrderEntries(s);
+    const totalEntriesQty = entries.reduce((a, e) => a + e.qty, 0);
+    const shown = entries.filter(e => mFilter === 'all' || e.month === mFilter);
+    shown.forEach(en => {
+      const share = totalEntriesQty > 0 ? (en.qty / totalEntriesQty) : (1 / entries.length);
+      const rowPaper = (s.plannedPaperConsumptionKg || 0) * share;
+      const rowBoard = (s.plannedBoardSheets || 0) * share;
+      totOrder += en.qty;
+      totPaper += rowPaper;
+      totBoard += rowBoard;
+      entriesCount++;
+      rows.push([
+        formatOrderMonth(en.month),
+        s.vendor || 'Camlin',
+        s.barcode || '',
+        s.description || '',
+        (s.mrp > 0 ? Number(s.mrp).toFixed(2) : '-'),
+        s.size || 'A4 Longbook',
+        s.paperPages ? `${s.paperPages}p+${s.indexPages}p` : `${s.pages || 52}p`,
+        s.binding || 'BACK PRESSED',
+        s.ruling || 'Single Line',
+        s.inner || '-',
+        s.caseQty || '-',
+        en.qty,
+        s.bookWt || 0,
+        Math.round(rowPaper),
+        Math.round(rowBoard)
+      ]);
+    });
   });
 
   const columns = [
@@ -26335,8 +26582,8 @@ function exportOrderSheetExcel() {
   ];
 
   const totalsRow = [
-    "TOTAL / SUMMARY", "", "", `${filteredSkus.length} SKUs`, "", "", "", "", "", "", "",
-    totOrder, "", `${Math.round(totPaper).toLocaleString()} Kg`, totBoard
+    "TOTAL / SUMMARY", "", "", `${entriesCount} Entries`, "", "", "", "", "", "", "",
+    totOrder, "", `${Math.round(totPaper).toLocaleString()} Kg`, Math.round(totBoard)
   ];
 
   buildAndDownloadProfessionalExcel({
@@ -27919,6 +28166,9 @@ function saveSkuEdit(e) {
   // Size/Vendor identity change → paperSpec recalc se dobara derive ho (warna purana reh jata)
   const _oldIdent = [sku.vendor, sku.size, sku.reelSize, sku.cut, sku.pages, sku.ups].join('|');
   const _oldRuling = String(sku.ruling || '');
+  // Order History reconcile ke liye purana month/qty (mutation se PEHLE)
+  const _oldOrderMonth = getSkuOrderMonthISO(sku);
+  const _oldOrderQty = Number(sku.orderQty || 0);
   sku.vendor = document.getElementById('edit_sku_vendor').value;
   sku.description = document.getElementById('edit_sku_desc').value;
   if (document.getElementById('edit_sku_mrp')) sku.mrp = parseFloat(document.getElementById('edit_sku_mrp').value) || 0;   // blank = MRP nahi hai (optional)
@@ -27945,6 +28195,12 @@ function saveSkuEdit(e) {
     const om = document.getElementById('edit_sku_orderMonth').value;
     if (om) sku.month = om;
   }
+
+  // Order History reconcile: qty/month badalne par entries sync
+  try {
+    reconcileEditedOrderHistory(sku, _oldOrderMonth, getSkuOrderMonthISO(sku),
+      _oldOrderQty, Number(sku.orderQty || 0));
+  } catch (_) {}
 
   const _newIdent = [sku.vendor, sku.size, sku.reelSize, sku.cut, sku.pages, sku.ups].join('|');
   if (_oldIdent !== _newIdent) sku.paperSpec = '';   // identity badli → recalc naya default derive karega
@@ -30859,6 +31115,8 @@ function savePoRequestEdit(e) {
       sku.initialOrderQty = item.orderQuantity;
     }
     sku.orderQty = item.orderQuantity;
+    // Order History sync: PO edit se orderQty badla → live month entry upsert
+    try { upsertOrderHistoryEntry(sku, getSkuOrderMonthISO(sku), Number(item.orderQuantity || 0)); } catch (_) {}
     // OPTION A: sku.production ko PO Request se kabhi mat badlo —
     // production sirf Daily Production Log se aata hai.
     // Produced Qty field editable hai — user ki edited value (edit form se, upar
@@ -37078,7 +37336,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-24-1';
+const APP_VERSION = '2026-11-25-1';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
@@ -40457,6 +40715,7 @@ function daybookSaveModal(e) {
     const t = (state.todayTransactions || [])[idx];
     if (!t) return;
     const oldType = t.type || '';
+    const _oldTxRef = String(t.ref || '');   // Order Booking month reconcile (ref overwrite se pehle)
     t.date = val('daybook_date') || daybookTodayISO();
     t.vendor = val('daybook_vendor') || t.vendor;
     t.barcode = val('daybook_barcode') || t.barcode;
@@ -40475,6 +40734,13 @@ function daybookSaveModal(e) {
         sku.orderQty = Math.max(0, Number(sku.orderQty || 0) + (newV - oldV));
         t.details.orderQty = newV;
         t.qty = daybookNum(newV) + ' Pcs Booked';
+        // Order History reconcile: qty delta + (ref Month edit par) month shift
+        try {
+          const _om = orderMonthFromTxRef(_oldTxRef);
+          const _nm = orderMonthFromTxRef(String(t.ref || '')) || _om;
+          if (_om && String(sku.month || '') === _om && _nm && _nm !== _om) sku.month = _nm;
+          reconcileEditedOrderHistory(sku, _om || getSkuOrderMonthISO(sku), _nm || getSkuOrderMonthISO(sku), oldV, newV);
+        } catch (_) {}
       } else if (oldType.indexOf('Production') >= 0) {
         sku.production = Math.max(0, Number(sku.production || 0) + (newV - oldV));
         t.details.addQty = newV;
@@ -40625,7 +40891,16 @@ function daybookDeleteEntry(source, idx) {
     if (sku) {
       if (type.indexOf('Production') >= 0) sku.production = Math.max(0, Number(sku.production || 0) - (Number(det.addQty || 0) - Number(det.rejection || 0)));
       else if (type.indexOf('Despatch') >= 0) sku.despatched = Math.max(0, Number(sku.despatched || 0) - Number(det.addQty || 0));
-      else if (type.indexOf('Order') >= 0) sku.orderQty = Math.max(0, Number(sku.orderQty || 0) - Number(det.orderQty || 0));
+      else if (type.indexOf('Order') >= 0) {
+        sku.orderQty = Math.max(0, Number(sku.orderQty || 0) - Number(det.orderQty || 0));
+        // Order History: us month ki entry adjust (delete = order hataya)
+        try {
+          const _dm = orderMonthFromTxRef(raw.ref) || getSkuOrderMonthISO(sku);
+          adjustSkuOrderHistoryQty(sku, _dm, -Number(det.orderQty || 0));
+          const _lm = getSkuOrderMonthISO(sku);
+          if (_lm && Number(sku.orderQty || 0) > 0) upsertOrderHistoryEntry(sku, _lm, Number(sku.orderQty));
+        } catch (_) {}
+      }
     }
     (state.todayTransactions || []).splice(idx, 1);
   } else if (source === 'paper') {
