@@ -4739,60 +4739,36 @@ body.print-flash-mode .no-print {
         </div>
       </div>
 
-      <!-- Board Size Master & Location Table -->
+      <!-- BOARD (Godownwise) — Party rows × Board Size columns + Amount (Excel format) -->
+      <style>
+        #boardGwBody tr { cursor: pointer; }
+        #boardGwBody tr:hover td { filter: brightness(0.96); }
+      </style>
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <div class="panel-title">Board Stock Summary by Size &amp; Godown (Wise)</div>
-            <div class="formula-indicator">Stock = Opening Sheets + Inward - Consumed</div>
+            <div class="panel-title">BOARD (Godownwise) — Party-wise Raw Sheet Stock</div>
+            <div class="formula-indicator">Amount = Current Stock × Rate · Party row par click → Date-wise Full Ledger (In / Out + Rate + Amount)</div>
           </div>
-          <div style="display:flex; gap:10px; align-items:center;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
             <button class="btn btn-outline" onclick="printPartyStockStatement()" style="font-weight:700; border-color:#1e3a8a; color:#1e3a8a; background:#eef2ff;" title="Godown-wise party stock statement — A4 portrait print">🖨 Party Stock Statement</button>
             <button class="btn btn-outline" onclick="openBoardOpeningModal()" style="font-weight:700; border-color:#b45309; color:#b45309; background:#fffbeb;">📦 Set Opening Balance (Board)</button>
+            <button class="btn btn-outline" onclick="openBoardManageModal()" style="font-weight:700; border-color:#475569; color:#334155; background:#f1f5f9;" title="Size-wise board records edit / delete">⚙️ Manage Records</button>
             <button class="btn btn-primary" onclick="quickLogBoard()">+ Add Board Movement Entry</button>
           </div>
         </div>
         <div class="table-responsive">
-          <table class="data-table">
-            <thead>
+          <table class="data-table" id="boardGwTable">
+            <thead id="boardGwHead">
               <tr>
-                <th>Board Size (cm)</th>
-                <th class="num">Sheet Wt (Kg)</th>
-                <th class="num">Rate / Sheet (₹)</th>
-                <th class="num" style="background:#fef3c7; color:#92400e;" title="Base balance — tracking shuru hone se pehle ka total stock (Subh + Printers). Current godown-wise columns me already adjust ho chuka hai.">Opening (Base)</th>
-                <th class="num" style="background:#0f172a; color:#38bdf8;" title="Hamare apne Subh raw godown me is size ki current sheets = Opening Godown + Inward - Printer bhej - Production consumed. Opening (Base) ka hissa isme already shamil hai.">Subh (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#fde047;" title="Fortune Graphics ke godown (printer) me abhi is size ki sheets = Opening printer (party-tagged) + bhej - Printed recd - Production consumed.">Fortune (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#fde047;" title="Rich ke godown (printer) me abhi is size ki sheets = Opening printer (party-tagged) + bhej - Printed recd - Production consumed.">Rich (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#fde047;" title="Vishruta ke godown (printer) me abhi is size ki sheets = Opening printer (party-tagged) + bhej - Printed recd - Production consumed.">Vishruta (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#fde047;" title="Salasar ke godown (printer) me abhi is size ki sheets = Opening printer (party-tagged) + bhej - Printed recd - Production consumed.">Salasar (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#cbd5e1;" title="Jin parties ka party-tag set nahi hai (ya nayi/unknown party) unka printer godown balance.">Other (Sheets)</th>
-                <th class="num" style="background:#0f172a; color:#86efac;" title="Subh + sabhi party columns ka total current stock. Opening (Base) alag se add nahi hota (already adjust).">Total Stock (Sheets)</th>
-                <th class="num">Total Stock (Kg)</th>
-                <th class="num">Total Valuation (₹)</th>
-                <th style="width: 75px; text-align: center;">Action</th>
+                <th>Party / Godown</th>
+                <th class="num">Amount (₹)</th>
               </tr>
             </thead>
-            <tbody id="boardSummaryBody">
+            <tbody id="boardGwBody">
               <!-- Rendered via JS -->
             </tbody>
-            <tfoot>
-              <tr style="background:#e2e8f0; font-weight:800;">
-                <td><strong>Total Board Inventory</strong></td>
-                <td>-</td>
-                <td>-</td>
-                <td class="num" id="boardFootOpening" style="color:#92400e; font-weight:800;">0</td>
-                <td class="num" id="boardFootSubh" style="color:#1e3a8a; font-weight:800;">0</td>
-                <td class="num" id="boardFootFortune" style="color:#854d0e; font-weight:800;">0</td>
-                <td class="num" id="boardFootRich" style="color:#854d0e; font-weight:800;">0</td>
-                <td class="num" id="boardFootVishruta" style="color:#854d0e; font-weight:800;">0</td>
-                <td class="num" id="boardFootSalasar" style="color:#854d0e; font-weight:800;">0</td>
-                <td class="num" id="boardFootOther" style="color:#475569; font-weight:800;">0</td>
-                <td class="num" id="boardFootTotSheets" style="color:#059669; font-weight:800;">0</td>
-                <td class="num" id="boardFootTotKg">0.00 Kg</td>
-                <td class="num" id="boardFootTotVal" style="color:#059669; font-weight:800;">₹ 0</td>
-                <td></td>
-              </tr>
-            </tfoot>
+            <tfoot id="boardGwFoot"></tfoot>
           </table>
         </div>
       </div>
@@ -18174,71 +18150,67 @@ function boardOpeningPartyOptions(selected) {
     (sel === 'Other' || !sel ? '<option value="Other" selected>Other</option>' : '<option value="Other">Other</option>');
 }
 
+// Godown list — party ka naam hi godown hai (Subh = hamara raw godown,
+// baaki printer godowns). Figure boardLedger se auto calculate hote hain.
+const GODOWN_KEYS = ['Subh', 'Fortune', 'Rich', 'Vishruta', 'Salasar', 'Other'];
+
+// Ek board size ke liye party-wise (godown-wise) balance.
+// Summary ka printer/godown figure production consumption bhi kaat-ta hai
+// (printer pehle, phir godown) — wo adjustment yahan bhi lagani warna
+// godown columns ka total "Total Stock" se nahi milega.
+// Top-level function: BOARD (Godownwise) party ledger modal bhi isi ko use karta hai.
+function sizePartyBal(b) {
+  const compact = String(b.size || '').replace(/\s+/g, '').toLowerCase();
+  const nets = {};
+  (state.boardLedger || []).forEach(bl => {
+    if (String(bl.size || '').replace(/\s+/g, '').toLowerCase() !== compact) return;
+    if (bl.notes === 'Opening Board Entry') return;
+    const net = Number(bl.outPrint || 0) - Number(bl.printedRecd || 0);
+    if (!net) return;
+    const p = String(bl.party || '').toLowerCase();
+    let key = 'Other';
+    if (p.indexOf('fortune') >= 0) key = 'Fortune';
+    else if (p.indexOf('vishruta') >= 0) key = 'Vishruta';
+    else if (p.indexOf('salasar') >= 0) key = 'Salasar';
+    else if (p.indexOf('rich') >= 0) key = 'Rich';
+    else if (p.indexOf('subh') >= 0 || p.indexOf('our godown') >= 0 || p.indexOf('self') >= 0) key = 'Subh';
+    nets[key] = (nets[key] || 0) + net;
+  });
+
+  // Opening printer ab party-tagged hai → usi party ke godown column me
+  // (legacy data jisme party tag nahi = Other). Subh mat chuno — Subh ka
+  // opening alag "Opening Godown" field se aata hai, double-count hoga.
+  let opKey = boardGodownKeyForParty(b.openingPrinterParty);
+  if (opKey === 'Subh') opKey = 'Other';
+
+  const bal = { Subh: Number(b.ourGodownSheets || 0), Fortune: 0, Rich: 0, Vishruta: 0, Salasar: 0, Other: 0 };
+  bal[opKey] = (bal[opKey] || 0) + Number(b.openingPrinterSheets || 0);
+
+  // Kitna production consumption printer se kaata gaya (summary vs raw ledger)
+  const rawPrinter = Number(b.openingPrinterSheets || 0) + Object.keys(nets).reduce((a, k) => a + nets[k], 0);
+  let cut = rawPrinter - Number(b.printerSheets || 0);
+  if (cut > 0) {
+    Object.keys(nets).forEach(k => { const c = Math.min(nets[k], cut); nets[k] -= c; cut -= c; });
+    bal[opKey] = Math.max(0, bal[opKey] - cut);   // bacha hua opening printer (us party ke column) se
+  } else if (cut < 0) {
+    Object.keys(nets).forEach(k => { nets[k] -= cut; cut = 0; });
+  }
+  Object.keys(nets).forEach(k => { bal[k] = (bal[k] || 0) + nets[k]; });
+  return bal;
+}
+
 function renderBoardSheet() {
   renderBoardExecutiveMatrix();
-  const tbody = document.getElementById('boardSummaryBody');
-  tbody.innerHTML = '';
-
-  // Godown list — party ka naam hi godown hai (Subh = hamara raw godown,
-  // baaki printer godowns). Figure boardLedger se auto calculate hote hain.
-  const GODOWN_KEYS = ['Subh', 'Fortune', 'Rich', 'Vishruta', 'Salasar', 'Other'];
 
   let ourSheets = 0, ourKg = 0, printSheets = 0, printKg = 0, totSheets = 0, totVal = 0, totKg = 0;
-  const godownTot = { Subh: 0, Fortune: 0, Rich: 0, Vishruta: 0, Salasar: 0, Other: 0 };
-
-  // Ek board size ke liye party-wise (godown-wise) balance.
-  // Summary ka printer/godown figure production consumption bhi kaat-ta hai
-  // (printer pehle, phir godown) — wo adjustment yahan bhi lagani warna
-  // godown columns ka total "Total Stock" se nahi milega.
-  const sizePartyBal = (b) => {
-    const compact = String(b.size || '').replace(/\s+/g, '').toLowerCase();
-    const nets = {};
-    (state.boardLedger || []).forEach(bl => {
-      if (String(bl.size || '').replace(/\s+/g, '').toLowerCase() !== compact) return;
-      if (bl.notes === 'Opening Board Entry') return;
-      const net = Number(bl.outPrint || 0) - Number(bl.printedRecd || 0);
-      if (!net) return;
-      const p = String(bl.party || '').toLowerCase();
-      let key = 'Other';
-      if (p.indexOf('fortune') >= 0) key = 'Fortune';
-      else if (p.indexOf('vishruta') >= 0) key = 'Vishruta';
-      else if (p.indexOf('salasar') >= 0) key = 'Salasar';
-      else if (p.indexOf('rich') >= 0) key = 'Rich';
-      else if (p.indexOf('subh') >= 0 || p.indexOf('our godown') >= 0 || p.indexOf('self') >= 0) key = 'Subh';
-      nets[key] = (nets[key] || 0) + net;
-    });
-
-    // Opening printer ab party-tagged hai → usi party ke godown column me
-    // (legacy data jisme party tag nahi = Other). Subh mat chuno — Subh ka
-    // opening alag "Opening Godown" field se aata hai, double-count hoga.
-    let opKey = boardGodownKeyForParty(b.openingPrinterParty);
-    if (opKey === 'Subh') opKey = 'Other';
-
-    const bal = { Subh: Number(b.ourGodownSheets || 0), Fortune: 0, Rich: 0, Vishruta: 0, Salasar: 0, Other: 0 };
-    bal[opKey] = (bal[opKey] || 0) + Number(b.openingPrinterSheets || 0);
-
-    // Kitna production consumption printer se kaata gaya (summary vs raw ledger)
-    const rawPrinter = Number(b.openingPrinterSheets || 0) + Object.keys(nets).reduce((a, k) => a + nets[k], 0);
-    let cut = rawPrinter - Number(b.printerSheets || 0);
-    if (cut > 0) {
-      Object.keys(nets).forEach(k => { const c = Math.min(nets[k], cut); nets[k] -= c; cut -= c; });
-      bal[opKey] = Math.max(0, bal[opKey] - cut);   // bacha hua opening printer (us party ke column) se
-    } else if (cut < 0) {
-      Object.keys(nets).forEach(k => { nets[k] -= cut; cut = 0; });
-    }
-    Object.keys(nets).forEach(k => { bal[k] = (bal[k] || 0) + nets[k]; });
-    return bal;
-  };
 
   const activeVB = state.activeVendor || 'all';
   const visibleBoard = (state.boardSummary || [])
     .map((b, idx) => ({ b, idx }))
     .filter(({ b }) => isBoardMatchingVendor(b.size, b.vendor, activeVB));
-  if (visibleBoard.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="14" style="text-align:center; padding:32px; color:#64748b;">📭 No board records under active workspace <strong>(${activeVB})</strong>.</td></tr>`;
-  }
 
-  visibleBoard.forEach(({ b, idx }) => {
+  // Totals — KPI cards (Board Master Matrix header) ke liye
+  visibleBoard.forEach(({ b }) => {
     ourSheets += (b.ourGodownSheets || 0);
     ourKg += (b.ourGodownKg || 0);
     printSheets += (b.printerSheets || 0);
@@ -18246,60 +18218,68 @@ function renderBoardSheet() {
     totSheets += (b.totalSheets || 0);
     totVal += (b.totalValuation || 0);
     totKg += ((b.ourGodownKg || 0) + (b.printerKg || 0));
-
-    const bal = sizePartyBal(b);
-    GODOWN_KEYS.forEach(k => { godownTot[k] += bal[k]; });
-
-    const cellTip = (k) => {
-      if (k === 'Subh') return 'Subh (hamara raw godown) ka current balance = Opening Godown + Inward - Printer bhej - Production consumed';
-      if (k === 'Other') return 'Other/untagged parties ke printer godown ka current balance (party tag nahi mila)';
-      return `Party "${k}" ke godown (printer) ka current balance = Opening printer (party-tagged) + Bhej - Printed recd - Production consumed`;
-    };
-    const cell = (k) => {
-      const v = bal[k];
-      const neg = v < 0;
-      const isSubh = k === 'Subh';
-      const isOther = k === 'Other';
-      return `<td class="num" style="font-weight:700; color:${neg ? '#dc2626' : (isSubh ? '#1e3a8a' : (isOther ? '#475569' : '#b45309'))}; background:${neg ? '#fee2e2' : (isSubh ? '#eff6ff' : (isOther ? '#f8fafc' : '#fef3c7'))};" title="${cellTip(k)}">${v.toLocaleString()}</td>`;
-    };
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><strong><span class="badge-status badge-info">${b.size}</span></strong></td>
-      <td class="num">${b.sheetWt} Kg</td>
-      <td class="num">₹ ${b.rate}</td>
-      <td class="num" style="font-weight:700; color:#92400e; background:#fef3c7;" title="Opening (Base) = tracking shuru hone se pehle ka stock = Opening Godown (Subh) + Opening at Printers (party-wise). Ye sirf reference hai — current godown columns me already adjust ho chuka hai, isliye Total Stock me dobara add nahi hota.">${(((b.openingGodownSheets || 0) + (b.openingPrinterSheets || 0))).toLocaleString()}</td>
-      ${GODOWN_KEYS.map(cell).join('')}
-      <td class="num" style="font-weight:800; color:${(b.totalSheets || 0) < 0 ? '#dc2626' : '#059669'};">${(b.totalSheets || 0).toLocaleString()}</td>
-      <td class="num">${(((b.ourGodownKg || 0) + (b.printerKg || 0))).toLocaleString()} Kg</td>
-      <td class="num" style="font-weight:800; color:${(b.totalValuation || 0) < 0 ? '#dc2626' : '#059669'};">₹ ${(b.totalValuation || 0).toLocaleString()}</td>
-      <td style="text-align: center; white-space: nowrap;">
-        <div style="display:inline-flex; gap:4px; align-items:center; justify-content:center;">
-          <button type="button" class="btn-icon" onclick="openEditBoardModal(${idx})" title="Edit Record" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">✏️</button>
-          <button type="button" class="btn-icon" onclick="deleteBoardItem(${idx})" title="Delete Record" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">🗑️</button>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
   });
 
-  let sumOpGodown = visibleBoard.reduce((a, { b }) => a + (b.openingGodownSheets || 0), 0);
-  let sumOpPrinter = visibleBoard.reduce((a, { b }) => a + (b.openingPrinterSheets || 0), 0);
-  const elOpB = document.getElementById('boardFootOpening');
-  if (elOpB) elOpB.textContent = (sumOpGodown + sumOpPrinter).toLocaleString();
-  GODOWN_KEYS.forEach(k => {
-    const el = document.getElementById('boardFoot' + k);
-    if (el) {
-      el.textContent = godownTot[k].toLocaleString();
-      el.style.color = godownTot[k] < 0 ? '#dc2626' : (k === 'Subh' ? '#1e3a8a' : (k === 'Other' ? '#475569' : '#b45309'));
+  // ===== BOARD (Godownwise): Party rows × Board Size columns + Amount =====
+  // Excel format: rows = parties, columns = board sizes (data se dynamic),
+  // last column = Amount = current stock × rate. Row click → date-wise ledger.
+  const gwHead = document.getElementById('boardGwHead');
+  const gwBody = document.getElementById('boardGwBody');
+  const gwFoot = document.getElementById('boardGwFoot');
+  const sizes = visibleBoard.map(({ b }) => b);
+  const PARTY_ROWS = [
+    { key: 'Subh', label: 'Our Godown (Subh)', tip: 'Hamara apna raw godown' },
+    { key: 'Fortune', label: 'Fortune Graphics', tip: 'Printer godown' },
+    { key: 'Rich', label: "Rich Printer's", tip: 'Printer godown' },
+    { key: 'Vishruta', label: 'Vishruta Packaging', tip: 'Printer godown' },
+    { key: 'Salasar', label: 'Salasar Printers', tip: 'Printer godown' },
+    { key: 'Other', label: 'Other', tip: 'Untagged / nayi parties' }
+  ];
+
+  if (gwHead && gwBody && gwFoot) {
+    if (sizes.length === 0) {
+      gwHead.innerHTML = `<tr><th>Party / Godown</th><th class="num">Amount (₹)</th></tr>`;
+      gwBody.innerHTML = `<tr><td colspan="2" style="text-align:center; padding:32px; color:#64748b;">📭 No board records under active workspace <strong>(${activeVB})</strong>.</td></tr>`;
+      gwFoot.innerHTML = '';
+    } else {
+      // Header: Party column + har board size ka column + Amount
+      gwHead.innerHTML = `<tr>
+        <th style="min-width:210px;">Party / Godown</th>
+        ${sizes.map(b => `<th class="num" title="Rate ₹${b.rate}/sheet · Sheet Wt ${b.sheetWt} Kg">${b.size}</th>`).join('')}
+        <th class="num" style="background:#0f172a; color:#fde047;" title="Amount = Current Stock × Rate">Amount (₹)</th>
+      </tr>`;
+
+      // Har party ka size-wise balance (summary aur ledger dono se, production cut ke saath)
+      const cells = {};
+      PARTY_ROWS.forEach(p => { cells[p.key] = sizes.map(b => Number(sizePartyBal(b)[p.key] || 0)); });
+
+      // Other row sirf tab dikhao jab uska kahin balance ho
+      const showRows = PARTY_ROWS.filter(p => p.key !== 'Other' || cells.Other.some(v => v !== 0));
+
+      gwBody.innerHTML = showRows.map(p => {
+        const vals = cells[p.key];
+        const rowAmt = vals.reduce((a, v, i) => a + v * (Number(sizes[i].rate) || 0), 0);
+        const isSubh = p.key === 'Subh';
+        const isOther = p.key === 'Other';
+        const color = isSubh ? '#1e3a8a' : (isOther ? '#475569' : '#b45309');
+        const bg = isSubh ? '#eff6ff' : (isOther ? '#f8fafc' : '#fef3c7');
+        return `<tr onclick="openBoardPartyLedger('${p.key}')" title="${p.tip} — click karo is party ka date-wise full ledger (In/Out + Rate + Amount) kholne ke liye">
+          <td style="font-weight:800; color:${color}; background:${bg}; white-space:nowrap;">${p.label} <span style="font-size:10px; color:#94a3b8;">🔍</span></td>
+          ${vals.map(v => `<td class="num" style="font-weight:700; color:${v < 0 ? '#dc2626' : color}; background:${v < 0 ? '#fee2e2' : bg};">${v.toLocaleString()}</td>`).join('')}
+          <td class="num" style="font-weight:800; color:${rowAmt < 0 ? '#dc2626' : '#059669'};">₹ ${Math.round(rowAmt).toLocaleString('en-IN')}</td>
+        </tr>`;
+      }).join('');
+
+      // Footer: Total Raw Sheet — per-size totals + grand Amount
+      const colTotals = sizes.map((b, i) => showRows.reduce((a, p) => a + cells[p.key][i], 0));
+      const grandAmt = showRows.reduce((a, p) => a + cells[p.key].reduce((x, v, i) => x + v * (Number(sizes[i].rate) || 0), 0), 0);
+      gwFoot.innerHTML = `<tr style="background:#e2e8f0; font-weight:800;">
+        <td><strong>Total Raw Sheet</strong></td>
+        ${colTotals.map(v => `<td class="num" style="color:${v < 0 ? '#dc2626' : '#059669'};">${v.toLocaleString()}</td>`).join('')}
+        <td class="num" style="color:#059669;">₹ ${Math.round(grandAmt).toLocaleString('en-IN')}</td>
+      </tr>`;
     }
-  });
-  document.getElementById('boardFootTotSheets').textContent = totSheets.toLocaleString();
-  document.getElementById('boardFootTotSheets').style.color = totSheets < 0 ? '#dc2626' : '#059669';
-  const elTotKg = document.getElementById('boardFootTotKg');
-  if (elTotKg) elTotKg.textContent = totKg.toLocaleString() + ' Kg';
-  document.getElementById('boardFootTotVal').textContent = '₹ ' + totVal.toLocaleString();
-  document.getElementById('boardFootTotVal').style.color = totVal < 0 ? '#dc2626' : '#059669';
+  }
 
   document.getElementById('boardGodownSheets').textContent = ourSheets.toLocaleString() + ' Sheets';
   document.getElementById('boardGodownKg').textContent = ourKg.toLocaleString() + ' Kg In Godown';
@@ -18334,6 +18314,154 @@ function renderBoardSheet() {
     `;
     tbodyLedger.appendChild(tr);
   });
+
+  // Manage Records modal khula hai to uski list bhi fresh rakho (edit/delete ke baad)
+  const mmEl = document.getElementById('boardManageModal');
+  if (mmEl && mmEl.style.display === 'flex') renderBoardManageList();
+}
+
+// ===== BOARD (Godownwise): Party row → date-wise full ledger modal =====
+// Columns: Date | Challan/Inv | Size | In | Out | Rate | Amount | Balance
+// Subh = mill inward IN + printer bhej OUT; printer party = unhe bheja (IN) - printed wapas (OUT).
+function closeBoardPartyLedger() {
+  const m = document.getElementById('boardPartyLedgerModal');
+  if (m) m.style.display = 'none';
+}
+
+function openBoardPartyLedger(partyKey) {
+  const LABELS = { Subh: 'Our Godown (Subh)', Fortune: 'Fortune Graphics', Rich: "Rich Printer's", Vishruta: 'Vishruta Packaging', Salasar: 'Salasar Printers', Other: 'Other' };
+  const title = LABELS[partyKey] || partyKey;
+  const activeVB = state.activeVendor || 'all';
+  const visibleSizes = (state.boardSummary || []).filter(b => isBoardMatchingVendor(b.size, b.vendor, activeVB));
+
+  // Opening balance — summary ke party-tagged opening fields se
+  let opening = 0;
+  visibleSizes.forEach(b => {
+    if (partyKey === 'Subh') { opening += Number(b.openingGodownSheets || 0); return; }
+    let opKey = boardGodownKeyForParty(b.openingPrinterParty);
+    if (opKey === 'Subh') opKey = 'Other';
+    if (opKey === partyKey) opening += Number(b.openingPrinterSheets || 0);
+  });
+
+  // Date-wise movement entries (opening entries alag se already counted)
+  const rows = [];
+  (state.boardLedger || []).forEach((l, idx) => {
+    if (String(l.notes || '') === 'Opening Board Entry') return;
+    if (!isBoardMatchingVendor(l.size, l.vendor, activeVB)) return;
+    const inward = Number(l.inward || 0);
+    const outP = Number(l.outPrint || 0);
+    const prc = Number(l.printedRecd || 0);
+    const rate = Number(l.rate || 0);
+    let inQ = 0, outQ = 0;
+    if (partyKey === 'Subh') {
+      inQ = inward;          // mill se aaya → hamare godown me IN
+      outQ = outP;           // printer ko bheja → hamare godown se OUT
+    } else {
+      if (boardGodownKeyForParty(l.party) !== partyKey) return;
+      inQ = outP;            // unke godown me raw sheets aaye
+      outQ = prc;            // printed wapas unke paas se gaya
+    }
+    if (!inQ && !outQ) return;
+    rows.push({ l, idx, inQ, outQ, rate });
+  });
+  // Date-wise (purana → naya); same date par purani entry upar (unshift = nayi index 0)
+  rows.sort((a, b) => {
+    const da = String(a.l.date || ''), db = String(b.l.date || '');
+    if (da !== db) return da < db ? -1 : 1;
+    return b.idx - a.idx;
+  });
+
+  const inr = (n) => Number(n || 0).toLocaleString('en-IN');
+  const inr2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  let bal = opening;
+  let totIn = 0, totOut = 0, totAmt = 0;
+  let html = `<tr style="background:#fef3c7;">
+    <td><strong>Opening Balance</strong></td><td>—</td><td>—</td>
+    <td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td>
+    <td class="num" style="font-weight:800; color:#92400e;">${inr(opening)}</td>
+  </tr>`;
+
+  rows.forEach(({ l, inQ, outQ, rate }) => {
+    const amt = (inQ - outQ) * rate;
+    bal += inQ - outQ;
+    totIn += inQ; totOut += outQ; totAmt += amt;
+    html += `<tr>
+      <td>${l.date || '—'}</td>
+      <td><strong>${l.inv || '—'}</strong></td>
+      <td><span class="badge-status badge-info">${l.size || '—'}</span></td>
+      <td class="num" style="color:#059669; font-weight:700;">${inQ ? '+' + inr(inQ) : '—'}</td>
+      <td class="num" style="color:#dc2626; font-weight:700;">${outQ ? '-' + inr(outQ) : '—'}</td>
+      <td class="num">${rate ? '₹ ' + inr2(rate) : '—'}</td>
+      <td class="num" style="font-weight:700; color:${amt < 0 ? '#dc2626' : amt > 0 ? '#059669' : '#64748b'};">${amt ? (amt > 0 ? '+' : '') + '₹ ' + inr2(amt) : '—'}</td>
+      <td class="num" style="font-weight:800; color:${bal < 0 ? '#dc2626' : '#1e3a8a'};">${inr(bal)}</td>
+    </tr>`;
+  });
+
+  if (!rows.length) {
+    html += `<tr><td colspan="8" style="text-align:center; padding:20px; color:#64748b;">📭 Is party ki koi movement entry nahi mili (workspace: ${activeVB}).</td></tr>`;
+  }
+
+  // Current stock (summary) tak reconcile — production consumption adjustment
+  let current = 0;
+  visibleSizes.forEach(b => { current += Number(sizePartyBal(b)[partyKey] || 0); });
+  const adj = current - bal;
+  if (Math.round(adj) !== 0) {
+    html += `<tr style="background:#f1f5f9;">
+      <td colspan="4"><strong>${adj < 0 ? 'Production Consumed' : 'Adjustment (+)'} (summary)</strong></td>
+      <td class="num" style="color:${adj < 0 ? '#dc2626' : '#059669'}; font-weight:700;">${adj < 0 ? '-' + inr(Math.abs(adj)) : '+' + inr(adj)}</td>
+      <td></td><td></td>
+      <td class="num" style="font-weight:800;">${inr(current)}</td>
+    </tr>`;
+  }
+
+  html += `<tr style="background:#e2e8f0; font-weight:800;">
+    <td colspan="3"><strong>Total (${rows.length} entries)</strong></td>
+    <td class="num" style="color:#059669;">+${inr(totIn)}</td>
+    <td class="num" style="color:#dc2626;">-${inr(totOut)}</td>
+    <td></td>
+    <td class="num" style="color:${totAmt < 0 ? '#dc2626' : '#059669'};">₹ ${inr2(totAmt)}</td>
+    <td class="num" style="color:${current < 0 ? '#dc2626' : '#059669'};">${inr(current)}</td>
+  </tr>`;
+
+  document.getElementById('bplTitle').textContent = '📒 ' + title + ' — Date-wise Full Ledger';
+  document.getElementById('bplSub').innerHTML = `Opening <strong>${inr(opening)}</strong> → Current Stock <strong>${inr(current)}</strong> sheets · workspace: <strong>${activeVB}</strong> · Amount = In/Out × Rate`;
+  document.getElementById('bplBody').innerHTML = html;
+
+  const m = document.getElementById('boardPartyLedgerModal');
+  if (m) m.style.display = 'flex';
+}
+
+// ===== BOARD (Godownwise): Manage Records (size-wise edit/delete) =====
+function closeBoardManageModal() {
+  const m = document.getElementById('boardManageModal');
+  if (m) m.style.display = 'none';
+}
+
+function renderBoardManageList() {
+  const el = document.getElementById('bmList');
+  if (!el) return;
+  const list = state.boardSummary || [];
+  if (!list.length) {
+    el.innerHTML = '<div style="padding:24px; text-align:center; color:#64748b;">📭 Koi board size record nahi hai.</div>';
+    return;
+  }
+  const inr = (n) => Number(n || 0).toLocaleString('en-IN');
+  el.innerHTML = list.map((b, i) => `
+    <div style="display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid #e2e8f0;">
+      <div style="flex:1; min-width:0;">
+        <strong>${b.size}</strong>
+        <div style="font-size:11px; color:#64748b;">Godown: ${inr(b.ourGodownSheets)} · Printer: ${inr(b.printerSheets)} · Total: ${inr(b.totalSheets)} sheets · Rate ₹${b.rate}</div>
+      </div>
+      <button type="button" class="btn-icon" onclick="openEditBoardModal(${i})" title="Edit Record" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; border-radius:5px; padding:4px 8px; font-size:12px; cursor:pointer; line-height:1;">✏️</button>
+      <button type="button" class="btn-icon" onclick="deleteBoardItem(${i})" title="Delete Record" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:5px; padding:4px 8px; font-size:12px; cursor:pointer; line-height:1;">🗑️</button>
+    </div>`).join('');
+}
+
+function openBoardManageModal() {
+  renderBoardManageList();
+  const m = document.getElementById('boardManageModal');
+  if (m) m.style.display = 'flex';
 }
 
 
@@ -41775,6 +41903,62 @@ function deleteHundiRegisterEntry(id) {
 </div>
 
 <!-- 3. EDIT BOARD MODAL -->
+<!-- BOARD (Godownwise) PARTY LEDGER MODAL — date-wise In/Out + Rate + Amount -->
+<div id="boardPartyLedgerModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.75); backdrop-filter:blur(4px); z-index:10000; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:#ffffff; border-radius:14px; width:100%; max-width:1040px; max-height:92vh; box-shadow:0 25px 50px -12px rgba(0,0,0,0.3); overflow:hidden; border:1px solid #cbd5e1; display:flex; flex-direction:column;">
+    <div style="background:linear-gradient(135deg, #091e42 0%, #1e3a8a 60%, #172554 100%); color:#ffffff; padding:14px 18px; display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:20px;">📒</span>
+        <div>
+          <h3 id="bplTitle" style="font-size:15px; font-weight:700; margin:0; color:#ffffff;">Party Ledger</h3>
+          <div id="bplSub" style="font-size:11px; opacity:.9; margin-top:2px;"></div>
+        </div>
+      </div>
+      <button type="button" onclick="closeBoardPartyLedger()" style="background:transparent; border:0; color:#ffffff; font-size:22px; cursor:pointer;">&times;</button>
+    </div>
+    <div style="padding:14px 18px; overflow:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Challan / Inv</th>
+            <th>Size</th>
+            <th class="num">In (Sheets)</th>
+            <th class="num">Out (Sheets)</th>
+            <th class="num">Rate (₹)</th>
+            <th class="num">Amount (₹)</th>
+            <th class="num">Balance</th>
+          </tr>
+        </thead>
+        <tbody id="bplBody"></tbody>
+      </table>
+    </div>
+    <div style="padding:10px 18px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; background:#f8fafc;">
+      <button type="button" onclick="closeBoardPartyLedger()" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- BOARD (Godownwise) MANAGE RECORDS MODAL — size-wise edit/delete -->
+<div id="boardManageModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.75); backdrop-filter:blur(4px); z-index:10000; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:#ffffff; border-radius:14px; width:100%; max-width:620px; max-height:88vh; box-shadow:0 25px 50px -12px rgba(0,0,0,0.3); overflow:hidden; border:1px solid #cbd5e1; display:flex; flex-direction:column;">
+    <div style="background:linear-gradient(135deg, #334155 0%, #475569 60%, #1e293b 100%); color:#ffffff; padding:14px 18px; display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:20px;">⚙️</span>
+        <div>
+          <h3 style="font-size:15px; font-weight:700; margin:0; color:#ffffff;">Manage Board Records</h3>
+          <div style="font-size:11px; opacity:.9; margin-top:2px;">Size-wise stock records — edit / delete</div>
+        </div>
+      </div>
+      <button type="button" onclick="closeBoardManageModal()" style="background:transparent; border:0; color:#ffffff; font-size:22px; cursor:pointer;">&times;</button>
+    </div>
+    <div id="bmList" style="padding:6px 0; overflow:auto;"></div>
+    <div style="padding:10px 18px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; background:#f8fafc;">
+      <button type="button" onclick="closeBoardManageModal()" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="editBoardModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.75); backdrop-filter:blur(4px); z-index:10000; align-items:center; justify-content:center; padding:16px;">
   <div style="background:#ffffff; border-radius:14px; width:100%; max-width:540px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.3); overflow:hidden; border:1px solid #cbd5e1;">
     <div style="background: linear-gradient(135deg, #091e42 0%, #1e3a8a 60%, #172554 100%); color:#ffffff; padding:14px 18px; display:flex; justify-content:space-between; align-items:center;">
