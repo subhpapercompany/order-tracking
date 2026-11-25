@@ -4394,6 +4394,8 @@ body.print-flash-mode .no-print {
                 <th class="num" style="background:#0f172a; color:#7dd3fc;">Inner</th>
                 <th class="num" style="background:#0f172a; color:#7dd3fc;">Case Qty</th>
                 <th class="num">Order Quantity</th>
+                <th class="num" style="background:#065f46; color:#a7f3d0;" title="Is month ki Daily Production Log entries">Produced<br>(Month)</th>
+                <th class="num" style="background:#7c2d12; color:#fed7aa;" title="Order Quantity − Produced (Month)">Due<br>(Month)</th>
                 <th class="num" style="background:#1e3a8a; color:#fde047;">Book Wt (Kg)</th>
                 <th class="num" style="background:#1e3a8a; color:#fde047;">Paper Req. As Per Order (Kg)</th>
                 <th class="num" style="background:#1e3a8a; color:#fde047;">Board Req. As Per Order (Sheets)</th>
@@ -4460,6 +4462,7 @@ body.print-flash-mode .no-print {
             <thead>
               <tr>
                 <th>Date</th>
+                <th>Order Month</th>
                 <th>Barcode</th>
                 <th>Description</th>
                 <th class="num">Qty (Pcs)</th>
@@ -9108,6 +9111,16 @@ body.print-flash-mode .no-print {
               <div class="form-group">
                 <label>Rejection Qty <span style="font-weight:600; color:#64748b; font-size:11px;">(Rejected Pcs)</span></label>
                 <input type="number" id="ep_rejection" min="0" step="1" value="0" oninput="calcProdLogPreview()" placeholder="0">
+              </div>
+
+              <!-- ORDER MONTH: production hamesha order month ke against hota hai
+                   (barcode same ho sakta hai par month alag) — SKU ke booked
+                   months (orderHistory) se options aate hain. -->
+              <div class="form-group">
+                <label>Order Month * <span style="font-weight:600; color:#64748b; font-size:11px;">(kis month ke order par)</span></label>
+                <select id="ep_orderMonth" onchange="calcProdLogPreview()" style="padding:9px 12px; border-radius:8px; border:1.5px solid #3b82f6; font-size:13px; background:#eff6ff; font-weight:700; color:#1e3a8a;">
+                  <option value="">— Pehle SKU select karein —</option>
+                </select>
               </div>
 
               <!-- Index Paper Configuration Block -->
@@ -17342,24 +17355,22 @@ function getSkuOrderMonth(sku) {
 // (PO) aur Dashboard ab entries ke hisaab se rows dikhata hai (one row per
 // sku × entry). Ye seed GitHub Pages par bhi chale isliye index.html me hi
 // embed hai (data/ wahan gitignored hai → fetch fail hota).
-// Purana data: prev/snapshots me 21 qty>0 skus mile the (sum 441,960) —
+// Purana data: prev/snapshots me 21 qty>0 entries mile the (sum 4,41,960) —
 // Oct 60,000 (3 entries), Nov 1,19,168 (9 entries), No-Month 2,62,792 (9).
+// 25 Nov 2026: ITC (025*) ke 5 rows hata diye (user ne ITC delete kiya tha)
+// → ab 16 rows / 4,36,792 (Oct 60,000 + Nov 1,14,000 + ex-No-Month 2,62,792).
 // Jan-2027 orders LIVE aate hain (sku.orderQty) — seed me nahi.
 const ORDER_HISTORY_SEED = [
   // October2026 — 60,000
   ['1132103092', '2026-10', 25000],
   ['1132203092', '2026-10', 20000],
   ['1152203140', '2026-10', 15000],
-  // November 2026 — 1,19,168 (4 regular + 5 IPO)
+  // November 2026 — 1,14,000 (4 regular; 5 IPO/ITC rows 25 Nov ko hata diye —
+  // user ne ITC skus delete kar diye the, seed me ITC ka koi row nahi)
   ['1132201092', '2026-11', 46000],
   ['1132203140', '2026-11', 30000],
   ['1132201140', '2026-11', 18000],
   ['1152201176', '2026-11', 20000],
-  ['02535886H', '2026-11', 4200],
-  ['02535905H', '2026-11', 100],
-  ['02535909H', '2026-11', 168],
-  ['02535924H', '2026-11', 500],
-  ['02535932H', '2026-11', 200],
   // Nov 2026 (pehle "No Month" the — user ne 25 Nov ko kaha "jo no month ka
   // order hai usko nov 26 me dal dijiye") — 2,62,792
   ['1132201056', '2026-11', 50000],
@@ -17705,7 +17716,7 @@ function renderOrderSheet() {
   const filtered = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV));
 
   // Rows = one per (sku × order entry); month filter entries par lagta hai.
-  let totOrder = 0, totPaper = 0, totBoard = 0;
+  let totOrder = 0, totPaper = 0, totBoard = 0, totProd = 0, totDue = 0;
   const rows = [];
   filtered.forEach(s => {
     const entries = getSkuOrderEntries(s);
@@ -17725,6 +17736,11 @@ function renderOrderSheet() {
   });
 
   rows.forEach(({ sku: s, entry: en, paper: rowPaper, board: rowBoard }) => {
+    // Month-wise Produced (Production Log se) aur Due = order − produced
+    const prodM = producedForBarcodeMonth(s.barcode, en.month);
+    const dueM = en.qty - prodM;
+    totProd += prodM;
+    totDue += dueM;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${formatOrderMonth(en.month)}</td>
@@ -17739,6 +17755,8 @@ function renderOrderSheet() {
       <td class="num" style="font-weight:600; color:#0e7490;">${s.inner ? s.inner : '-'}</td>
       <td class="num" style="font-weight:600; color:#0e7490;">${s.caseQty ? `${s.caseQty.toLocaleString()}${en.qty && s.caseQty ? ` (${Math.round(en.qty/s.caseQty)} cs)` : ''}` : '-'}</td>
       <td class="num"><strong>${en.qty.toLocaleString()}</strong></td>
+      <td class="num" style="font-weight:800; color:${prodM > 0 ? '#15803d' : '#94a3b8'};" title="Production Log entries (is month)">${prodM.toLocaleString()}</td>
+      <td class="num" style="font-weight:800; color:${dueM > 0 ? '#d97706' : '#16a34a'};" title="Order Quantity − Produced (Month)">${dueM.toLocaleString()}</td>
       <td class="num" style="font-weight:700; color:#1e40af;">${s.bookWt || 0}</td>
       <td class="num" style="color:#854d0e; font-weight:700; background:#fefce8;">${Math.round(rowPaper).toLocaleString()} Kg</td>
       <td class="num" style="font-weight:700; background:#fefce8;">${Math.round(rowBoard).toLocaleString()}</td>
@@ -17755,7 +17773,7 @@ function renderOrderSheet() {
   if (rows.length === 0) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td colspan="16" style="text-align:center; padding: 32px 16px; background:#fffbeb; border:2px dashed #fde68a;">
+      <td colspan="18" style="text-align:center; padding: 32px 16px; background:#fffbeb; border:2px dashed #fde68a;">
         <div style="font-size:16px; font-weight:700; color:#b45309; margin-bottom:6px;">
           🔍 No Orders match current filter: "${activeV}"${mFilter !== 'all' ? ' / ' + formatOrderMonth(mFilter) : ''}
         </div>
@@ -17778,6 +17796,8 @@ function renderOrderSheet() {
     trFoot.innerHTML = `
       <td colspan="11" style="text-align:right; font-weight:800; color:#0f172a;">Total Requirement (As Per Order):</td>
       <td class="num" style="font-weight:900; color:#0f172a;">${totOrder.toLocaleString()}</td>
+      <td class="num" style="font-weight:900; color:#15803d; background:#f0fdf4;">${totProd.toLocaleString()}</td>
+      <td class="num" style="font-weight:900; color:#d97706; background:#fff7ed;">${totDue.toLocaleString()}</td>
       <td></td>
       <td class="num" style="font-weight:900; color:#854d0e; background:#fef3c7;">${totPaper.toLocaleString()} Kg</td>
       <td class="num" style="font-weight:900; color:#1e3a8a; background:#e0f2fe;">${totBoard.toLocaleString()}</td>
@@ -17785,7 +17805,7 @@ function renderOrderSheet() {
     `;
     tbody.appendChild(trFoot);
   } else {
-    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; padding:32px 16px; color:#64748b;">📭 No orders booked under active workspace <strong>(${activeV})</strong>. Switch workspace above or book new orders in Entry Mode.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding:32px 16px; color:#64748b;">📭 No orders booked under active workspace <strong>(${activeV})</strong>. Switch workspace above or book new orders in Entry Mode.</td></tr>`;
   }
 }
 
@@ -17847,6 +17867,46 @@ function renderManufacturingSheet() {
   if (typeof renderProductionEntryLog === 'function') renderProductionEntryLog();
 }
 
+/**
+ * Production tx ka ORDER MONTH — Order Sheet (month-wise Produced/Due) aur
+ * Production Entry Log dono isi se padhte hain:
+ *   1. details.orderMonth  (nayi entries — form se aata hai)
+ *   2. ref "Month: YYYY-MM" (belt & suspenders)
+ *   3. Legacy fallback (purani 150 entries, month nahi): sku ki ek hi order
+ *      entry ho to wahi; multiple ho to sku.month (agar usi month me hai),
+ *      warna pehli entry. Ye attribution deterministic hai — totals bigadte nahi.
+ */
+function prodTxOrderMonth(t) {
+  const d = (t && t.details) || {};
+  if (d.orderMonth) return String(d.orderMonth);
+  const fromRef = orderMonthFromTxRef(t && t.ref);
+  if (fromRef) return fromRef;
+  const sku = (state.skus || []).find(s => String(s.barcode) === String((t && t.barcode) || ''));
+  if (!sku) return '';
+  const entries = getSkuOrderEntries(sku).filter(e => e.qty > 0 && e.month);
+  if (entries.length === 1) return entries[0].month;
+  const isEntry = m => !!m && entries.some(e => e.month === m);
+  // Legacy (purani entries, month nahi): tx DATE ka month agar usi sku ki
+  // entry ho — production ki asli date sabse strong evidence hai.
+  const dm = String((t && t.date) || '').slice(0, 7);
+  if (isEntry(dm)) return dm;
+  const sm = getSkuOrderMonthISO(sku);
+  if (isEntry(sm)) return sm;
+  return entries.length ? entries[0].month : '';
+}
+
+// Is barcode ke IS ORDER MONTH ki total production (Daily Production Log se).
+function producedForBarcodeMonth(barcode, month) {
+  const m = String(month || '');
+  let sum = 0;
+  (state.todayTransactions || []).forEach(t => {
+    if (String(t.type || '') !== 'Production') return;
+    if (String(t.barcode || '') !== String(barcode || '')) return;
+    if (prodTxOrderMonth(t) === m) sum += Number((t.details && t.details.addQty) || 0);
+  });
+  return sum;
+}
+
 // Production Entry Log — har Daily Production entry ek row (Date column
 // barcode se pehle). Matrix cumulative dikhata hai; ye ENTRY-LEVEL list hai.
 function renderProductionEntryLog() {
@@ -17860,7 +17920,7 @@ function renderProductionEntryLog() {
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.id || '').localeCompare(String(a.id || '')));
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:26px 16px; color:#64748b;">📭 Abhi koi production entry nahi — <strong>"+ Log Daily Production"</strong> se entry karein.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:26px 16px; color:#64748b;">📭 Abhi koi production entry nahi — <strong>"+ Log Daily Production"</strong> se entry karein.</td></tr>`;
     if (tfoot) tfoot.innerHTML = '';
     return;
   }
@@ -17872,6 +17932,7 @@ function renderProductionEntryLog() {
     tq += q; tp += pp; ti += ix; tb += bd;
     return `<tr>
       <td><strong style="color:#1e3a8a; white-space:nowrap;">${fmtDmy(t.date)}</strong></td>
+      <td style="white-space:nowrap; font-weight:700; color:#1e3a8a; background:#eff6ff; font-size:11.5px;">${formatOrderMonth(prodTxOrderMonth(t))}</td>
       <td><strong>${t.barcode || '-'}</strong></td>
       <td>${t.description || '-'}</td>
       <td class="num" style="font-weight:800; color:#15803d;">+${q.toLocaleString()}</td>
@@ -17890,7 +17951,7 @@ function renderProductionEntryLog() {
 
   if (tfoot) {
     tfoot.innerHTML = `<tr style="background:#f1f5f9; font-weight:800; border-top:2px solid #cbd5e1;">
-      <td colspan="3" style="text-align:right; font-weight:800; color:#0f172a;">TOTAL — ${rows.length} entries:</td>
+      <td colspan="4" style="text-align:right; font-weight:800; color:#0f172a;">TOTAL — ${rows.length} entries:</td>
       <td class="num" style="font-weight:900; color:#15803d;">+${tq.toLocaleString()}</td>
       <td class="num" style="font-weight:900; color:#b45309;">${tp.toLocaleString()} Kg</td>
       <td class="num" style="font-weight:900; color:#0f766e;">${ti.toLocaleString()} Kg</td>
@@ -22713,6 +22774,8 @@ function onProdSkuChange() {
     // Form reset ke baad purana cost note na rahe
     const costEl = document.getElementById('ep_costNote');
     if (costEl) { costEl.style.display = 'none'; costEl.textContent = ''; }
+    const omClear = document.getElementById('ep_orderMonth');
+    if (omClear) { omClear.innerHTML = '<option value="">— Pehle SKU select karein —</option>'; omClear.dataset.hasMonths = '0'; }
     return;
   }
 
@@ -22721,6 +22784,26 @@ function onProdSkuChange() {
   if (descEl) descEl.value = sku.description || '';
   const vendorEl = document.getElementById('ep_vendor');
   if (vendorEl) vendorEl.value = sku.vendor || 'Camlin';
+
+  // ORDER MONTH options — is SKU ke booked months (orderHistory) se.
+  // Ek hi month → auto-select. Multiple → placeholder (user ko chunna hoga,
+  // galat month par production na chala jaye). Koi order nahi → 'No Order Month'.
+  const omSel = document.getElementById('ep_orderMonth');
+  if (omSel) {
+    const months = [];
+    getSkuOrderEntries(sku).forEach(e => {
+      if (e.qty > 0 && e.month && months.indexOf(e.month) === -1) months.push(e.month);
+    });
+    if (months.length === 0) {
+      omSel.innerHTML = '<option value="">— No Order Month —</option>';
+      omSel.dataset.hasMonths = '0';
+    } else {
+      omSel.dataset.hasMonths = '1';
+      omSel.innerHTML = (months.length > 1 ? '<option value="" selected disabled>— Select Order Month —</option>' : '') +
+        months.map(m => `<option value="${m}">${formatOrderMonth(m)}</option>`).join('');
+      if (months.length === 1) omSel.value = months[0];
+    }
+  }
 
   document.getElementById('ep_currProd').value = (sku.production || 0).toLocaleString() + ' Pcs';
   document.getElementById('ep_currDue').value = (sku.dueProduction || 0).toLocaleString() + ' Pcs';
@@ -24608,6 +24691,15 @@ function handleProductionLogSubmit(e) {
     return;
   }
 
+  // ORDER MONTH: production hamesha order month ke against hota hai — booked
+  // months wale SKU par mandatory (koi mutation is check se pehle nahi hota).
+  const omEl = document.getElementById('ep_orderMonth');
+  const orderMonth = omEl ? String(omEl.value || '') : '';
+  if (omEl && omEl.dataset.hasMonths === '1' && !orderMonth) {
+    alert('⚠️ Order Month select karein — ye production kis month ke order ke against hai?');
+    return;
+  }
+
   const hasIndexBox = document.getElementById('ep_hasIndex');
   const hasIndex = hasIndexBox ? hasIndexBox.checked : false;
   const indexSpecSelect = document.getElementById('ep_indexSpec');
@@ -24838,8 +24930,8 @@ function handleProductionLogSubmit(e) {
     description: sku.description,
     qty: `+${addQty.toLocaleString()} Pcs Produced`,
     impact: impactDesc + costDesc,
-    ref: `${machine} (${notes || date})`,
-    details: { addQty, rejection: rejQty, batchPaper, paperSpec: sku.paperSpec, batchIndex, indexSpec: selectedIndexSpec, batchBoard, batchCfc, hasIndex, machine, notes, date, materialCost: mfgCost, costPerPc: Number((mfgCost.total / Math.max(1, addQty)).toFixed(2)) }
+    ref: `${machine} (${notes || date})${orderMonth ? ' | Month: ' + orderMonth : ''}`,
+    details: { addQty, rejection: rejQty, orderMonth, batchPaper, paperSpec: sku.paperSpec, batchIndex, indexSpec: selectedIndexSpec, batchBoard, batchCfc, hasIndex, machine, notes, date, materialCost: mfgCost, costPerPc: Number((mfgCost.total / Math.max(1, addQty)).toFixed(2)) }
   });
 
   saveState();
@@ -25214,7 +25306,9 @@ function saveProductionTxEdit(t, d, sku, qty, date) {
   });
   t.qty = `+${qty.toLocaleString()} Pcs Produced`;
   t.impact = impactDesc + costDesc;
-  t.ref = `${machine || '—'} (${notes || date})`;
+  // orderMonth details se preserve hota hai (Object.assign upar) — ref me bhi
+  // Month suffix wapas rakho taaki ref-based month parse (orderMonthFromTxRef) sahi rahe.
+  t.ref = `${machine || '—'} (${notes || date})${d.orderMonth ? ' | Month: ' + d.orderMonth : ''}`;
   showToast(`✅ Production entry updated: ${oldAdd.toLocaleString()} → ${qty.toLocaleString()} Pcs${rej > 0 ? ` (Reject ${rej.toLocaleString()})` : ''}`);
   return true;
 }
@@ -26540,7 +26634,7 @@ function exportOrderSheetExcel() {
   const filteredSkus = (state.skus || []).filter(s => isMatchingVendor(s.vendor, activeV));
 
   // Screen ke Order Month filter ko export me bhi respect karo (breakup consistent)
-  let totOrder = 0, totPaper = 0, totBoard = 0, entriesCount = 0;
+  let totOrder = 0, totPaper = 0, totBoard = 0, totProd = 0, totDue = 0, entriesCount = 0;
   const rows = [];
   filteredSkus.forEach(s => {
     const entries = getSkuOrderEntries(s);
@@ -26554,6 +26648,11 @@ function exportOrderSheetExcel() {
       totPaper += rowPaper;
       totBoard += rowBoard;
       entriesCount++;
+      // Month-wise Produced/Due — screen Order Sheet ke columns se same source
+      const prodM = producedForBarcodeMonth(s.barcode, en.month);
+      const dueM = en.qty - prodM;
+      totProd += prodM;
+      totDue += dueM;
       rows.push([
         formatOrderMonth(en.month),
         s.vendor || 'Camlin',
@@ -26567,6 +26666,8 @@ function exportOrderSheetExcel() {
         s.inner || '-',
         s.caseQty || '-',
         en.qty,
+        prodM,
+        dueM,
         s.bookWt || 0,
         Math.round(rowPaper),
         Math.round(rowBoard)
@@ -26587,6 +26688,8 @@ function exportOrderSheetExcel() {
     { title: "Inner", align: "center", type: "text" },
     { title: "Case Qty", align: "right", type: "num" },
     { title: "Order Quantity", align: "right", type: "num" },
+    { title: "Produced (Month)", align: "right", type: "num" },
+    { title: "Due (Month)", align: "right", type: "num" },
     { title: "Book Wt (Kg)", align: "right", type: "dec" },
     { title: "Paper Req (Kg)", align: "right", type: "dec" },
     { title: "Board Req (Sheets)", align: "right", type: "num" }
@@ -26594,7 +26697,7 @@ function exportOrderSheetExcel() {
 
   const totalsRow = [
     "TOTAL / SUMMARY", "", "", `${entriesCount} Entries`, "", "", "", "", "", "", "",
-    totOrder, "", `${Math.round(totPaper).toLocaleString()} Kg`, Math.round(totBoard)
+    totOrder, totProd, totDue, "", `${Math.round(totPaper).toLocaleString()} Kg`, Math.round(totBoard)
   ];
 
   buildAndDownloadProfessionalExcel({
@@ -29805,13 +29908,27 @@ function onPoRelCodeChange(code) {
     document.getElementById('porel_producedQty').value = req.producedQuantity;
   }
 
-  // PO release entry me KCL Approved rate wahi hoga jo PO Request ka tha, but editable rahega
+  // PO release entry me KCL Approved rate = PO Request ka approved rate.
+  // RATE LOCK (user approved, 25 Nov 2026): agar us code ki PO Request saved
+  // hai to rate uspe LOCK (readOnly) — hamesha same dikhega, edit nahi hoga.
+  // Bina PO Request ke (formula rate) field editable rehti hai.
   const expectedRate = calculatePoRequestKclApprovedRate(code);
+  const explicitReqRate = savedPoReqRate(code);
   const rateInput = document.getElementById('porel_kclRate');
   // Code change = auto-fill authoritative hai — user ka purana manual edit reset
   if (rateInput) rateInput.dataset.userEdited = '0';
   if (rateInput) {
-    if (expectedRate > 0) {
+    const lock = explicitReqRate > 0;
+    rateInput.readOnly = lock;
+    rateInput.style.background = lock ? '#f1f5f9' : '';
+    rateInput.style.cursor = lock ? 'not-allowed' : '';
+    rateInput.title = lock
+      ? 'PO Request ke approved rate par LOCK — rate badalna ho to PO Request edit karein.'
+      : 'Is code ki PO Request nahi hai — formula rate editable hai.';
+    if (lock) {
+      rateInput.value = explicitReqRate.toFixed(2);
+      rateInput.dataset.poReqRate = explicitReqRate.toFixed(2);
+    } else if (expectedRate > 0) {
       rateInput.value = expectedRate.toFixed(2);
       rateInput.dataset.poReqRate = expectedRate.toFixed(2);
     } else if (req && req.kclApprovedRate) {
@@ -29863,7 +29980,7 @@ function calcPoRelLivePreview(userEdited) {
       rateInput.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.2)';
     } else {
       rateInput.style.color = '#0f172a';
-      rateInput.style.backgroundColor = '#ffffff';
+      rateInput.style.backgroundColor = rateInput.readOnly ? '#f1f5f9' : '#ffffff';
       rateInput.style.borderColor = '#cbd5e1';
       rateInput.style.fontWeight = '600';
       rateInput.style.boxShadow = 'none';
@@ -29874,7 +29991,8 @@ function calcPoRelLivePreview(userEdited) {
     if (isMismatch) {
       rateBadge.innerHTML = `<span style="color:#b91c1c; font-weight:700;">⚠️ Mismatched (PO Req: ₹ ${poReqExpectedRate.toFixed(2)})</span>`;
     } else if (poReqExpectedRate > 0) {
-      rateBadge.innerHTML = `<span style="color:#16a34a; font-weight:600;">✓ Matched PO Request (₹ ${poReqExpectedRate.toFixed(2)})</span>`;
+      const lk = (rateInput && rateInput.readOnly) ? '🔒 ' : '';
+      rateBadge.innerHTML = `<span style="color:#16a34a; font-weight:600;">${lk}✓ Matched PO Request (₹ ${poReqExpectedRate.toFixed(2)})</span>`;
     } else {
       rateBadge.innerHTML = `<span style="color:#64748b;">(Auto from PO Request)</span>`;
     }
@@ -30166,6 +30284,18 @@ function lookupCamlinConversionRate(digit, finish, pages, ruling) {
  * Auto-fetch / calculate KCL Approved Rate strictly from PO Request Master Formulas
  * PO release entry me KCL Approved rate wahi hoga jo PO Request ka tha
  */
+/**
+ * PO Request ka EXPLICIT saved rate (formula fallback NAHI) — rate LOCK ke liye.
+ * Sirf tab lock jab asli PO Request saved ho; warna formula rate editable.
+ */
+function savedPoReqRate(code) {
+  const cs = String(code || '').trim();
+  if (!cs) return 0;
+  const r = (state.poRequests || []).find(x => String(x.productCode || '') === cs);
+  const v = r ? Number(r.kclApprovedRate) : 0;
+  return v > 0 ? Number(v.toFixed(2)) : 0;
+}
+
 function calculatePoRequestKclApprovedRate(code) {
   if (!code) return 0;
   const codeStr = String(code).trim();
@@ -31211,10 +31341,22 @@ function openEditPoReleaseModal(index) {
   // Produced = PO Request ka value (ya user ka override), production se nahi — editable
   document.getElementById('edit_porel_producedQty').value = poRelProducedQty(item);
 
-  const initialRate = (item.kclApprovedRate !== undefined && item.kclApprovedRate !== null) 
-    ? item.kclApprovedRate 
-    : (poReqExpectedRate || cat.kclApprovedRate || 21.50);
-  document.getElementById('edit_porel_kclRate').value = Number(initialRate).toFixed(2);
+  // RATE LOCK (user approved, 25 Nov 2026): PO Request saved hai to modal me
+  // rate usi par sync + readOnly — "hamesha same". Bina PO Request ke purani
+  // value editable (formula/legacy).
+  const explicitRelReqRate = savedPoReqRate(item.productCode);
+  const initialRate = explicitRelReqRate > 0
+    ? explicitRelReqRate
+    : ((item.kclApprovedRate !== undefined && item.kclApprovedRate !== null)
+      ? item.kclApprovedRate
+      : (poReqExpectedRate || cat.kclApprovedRate || 21.50));
+  const relRateEl = document.getElementById('edit_porel_kclRate');
+  relRateEl.value = Number(initialRate).toFixed(2);
+  relRateEl.readOnly = explicitRelReqRate > 0;
+  relRateEl.style.background = explicitRelReqRate > 0 ? '#f1f5f9' : '#ffffff';
+  relRateEl.title = explicitRelReqRate > 0
+    ? 'PO Request ke approved rate par LOCK — rate badalna ho to PO Request edit karein.'
+    : '';
 
   // Set destination: Kolkata / Guwahati / Bangalore / Others
   const dest = item.destination || 'Kolkata';
@@ -37347,7 +37489,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-25-2';
+const APP_VERSION = '2026-11-25-3';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
