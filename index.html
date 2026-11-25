@@ -17360,16 +17360,17 @@ const ORDER_HISTORY_SEED = [
   ['02535909H', '2026-11', 168],
   ['02535924H', '2026-11', 500],
   ['02535932H', '2026-11', 200],
-  // No Month (month kahin record nahi — user ne confirm kiya "—" hi rakho) — 2,62,792
-  ['1132201056', '', 50000],
-  ['1152201100', '', 44880],
-  ['1132205056', '', 36432],
-  ['1152203100', '', 36480],
-  ['1132203056', '', 30000],
-  ['1132101092', '', 20000],
-  ['1152203052', '', 15000],
-  ['1152201052', '', 15000],
-  ['1152205100', '', 15000]
+  // Nov 2026 (pehle "No Month" the — user ne 25 Nov ko kaha "jo no month ka
+  // order hai usko nov 26 me dal dijiye") — 2,62,792
+  ['1132201056', '2026-11', 50000],
+  ['1152201100', '2026-11', 44880],
+  ['1132205056', '2026-11', 36432],
+  ['1152203100', '2026-11', 36480],
+  ['1132203056', '2026-11', 30000],
+  ['1132101092', '2026-11', 20000],
+  ['1152203052', '2026-11', 15000],
+  ['1152201052', '2026-11', 15000],
+  ['1152205100', '2026-11', 15000]
 ];
 
 // Seed idempotent + self-holing: flag payload whitelist me NAHI jaata
@@ -17379,6 +17380,16 @@ const ORDER_HISTORY_SEED = [
 function seedOrderHistoryOnce() {
   try {
     if (state._orderHistorySeeded) return;
+    // MIGRATION (user rule: 25 Nov 2026) — "jo no month ka order hai usko
+    // nov 26 me dal dijiye": No-Month ("—") ki saari qty>0 entries → Nov 2026.
+    // Stale tab "" par wapas save kare to bhi ye NEXT LOAD par khud shift kar
+    // leti hai (self-heal) — totals kabhi dobara nahi bigadte.
+    (state.skus || []).forEach(skuM => {
+      if (!Array.isArray(skuM.orderHistory)) return;
+      skuM.orderHistory.forEach(eM => {
+        if (String(eM.month || '') === '' && Number(eM.qty || 0) > 0) eM.month = '2026-11';
+      });
+    });
     const idx = {};
     (state.skus || []).forEach(s => { idx[String(s.barcode)] = s; });
     (ORDER_HISTORY_SEED || []).forEach(row => {
@@ -37336,7 +37347,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-25-1';
+const APP_VERSION = '2026-11-25-2';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
