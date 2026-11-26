@@ -29908,27 +29908,18 @@ function onPoRelCodeChange(code) {
     document.getElementById('porel_producedQty').value = req.producedQuantity;
   }
 
-  // PO release entry me KCL Approved rate = PO Request ka approved rate.
-  // RATE LOCK (user approved, 25 Nov 2026): agar us code ki PO Request saved
-  // hai to rate uspe LOCK (readOnly) — hamesha same dikhega, edit nahi hoga.
-  // Bina PO Request ke (formula rate) field editable rehti hai.
+  // PO release entry me KCL Approved rate = PO Request ka approved rate
+  // AUTO-FILL, par EDITABLE rehta hai (user rule, 26 Nov 2026: "auto with
+  // editable rahega kyoki kabhi kabhi manually paise ka change karna padta
+  // hai"). Alag rate dalne par app pehle se mismatch warn karta hai (red
+  // badge + ⚠️ Diff + rateMismatch flag) — koi lock nahi.
   const expectedRate = calculatePoRequestKclApprovedRate(code);
-  const explicitReqRate = savedPoReqRate(code);
   const rateInput = document.getElementById('porel_kclRate');
   // Code change = auto-fill authoritative hai — user ka purana manual edit reset
   if (rateInput) rateInput.dataset.userEdited = '0';
   if (rateInput) {
-    const lock = explicitReqRate > 0;
-    rateInput.readOnly = lock;
-    rateInput.style.background = lock ? '#f1f5f9' : '';
-    rateInput.style.cursor = lock ? 'not-allowed' : '';
-    rateInput.title = lock
-      ? 'PO Request ke approved rate par LOCK — rate badalna ho to PO Request edit karein.'
-      : 'Is code ki PO Request nahi hai — formula rate editable hai.';
-    if (lock) {
-      rateInput.value = explicitReqRate.toFixed(2);
-      rateInput.dataset.poReqRate = explicitReqRate.toFixed(2);
-    } else if (expectedRate > 0) {
+    rateInput.readOnly = false;
+    if (expectedRate > 0) {
       rateInput.value = expectedRate.toFixed(2);
       rateInput.dataset.poReqRate = expectedRate.toFixed(2);
     } else if (req && req.kclApprovedRate) {
@@ -29980,7 +29971,7 @@ function calcPoRelLivePreview(userEdited) {
       rateInput.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.2)';
     } else {
       rateInput.style.color = '#0f172a';
-      rateInput.style.backgroundColor = rateInput.readOnly ? '#f1f5f9' : '#ffffff';
+      rateInput.style.backgroundColor = '#ffffff';
       rateInput.style.borderColor = '#cbd5e1';
       rateInput.style.fontWeight = '600';
       rateInput.style.boxShadow = 'none';
@@ -29991,8 +29982,7 @@ function calcPoRelLivePreview(userEdited) {
     if (isMismatch) {
       rateBadge.innerHTML = `<span style="color:#b91c1c; font-weight:700;">⚠️ Mismatched (PO Req: ₹ ${poReqExpectedRate.toFixed(2)})</span>`;
     } else if (poReqExpectedRate > 0) {
-      const lk = (rateInput && rateInput.readOnly) ? '🔒 ' : '';
-      rateBadge.innerHTML = `<span style="color:#16a34a; font-weight:600;">${lk}✓ Matched PO Request (₹ ${poReqExpectedRate.toFixed(2)})</span>`;
+      rateBadge.innerHTML = `<span style="color:#16a34a; font-weight:600;">✓ Matched PO Request (₹ ${poReqExpectedRate.toFixed(2)})</span>`;
     } else {
       rateBadge.innerHTML = `<span style="color:#64748b;">(Auto from PO Request)</span>`;
     }
@@ -30284,18 +30274,6 @@ function lookupCamlinConversionRate(digit, finish, pages, ruling) {
  * Auto-fetch / calculate KCL Approved Rate strictly from PO Request Master Formulas
  * PO release entry me KCL Approved rate wahi hoga jo PO Request ka tha
  */
-/**
- * PO Request ka EXPLICIT saved rate (formula fallback NAHI) — rate LOCK ke liye.
- * Sirf tab lock jab asli PO Request saved ho; warna formula rate editable.
- */
-function savedPoReqRate(code) {
-  const cs = String(code || '').trim();
-  if (!cs) return 0;
-  const r = (state.poRequests || []).find(x => String(x.productCode || '') === cs);
-  const v = r ? Number(r.kclApprovedRate) : 0;
-  return v > 0 ? Number(v.toFixed(2)) : 0;
-}
-
 function calculatePoRequestKclApprovedRate(code) {
   if (!code) return 0;
   const codeStr = String(code).trim();
@@ -31341,22 +31319,13 @@ function openEditPoReleaseModal(index) {
   // Produced = PO Request ka value (ya user ka override), production se nahi — editable
   document.getElementById('edit_porel_producedQty').value = poRelProducedQty(item);
 
-  // RATE LOCK (user approved, 25 Nov 2026): PO Request saved hai to modal me
-  // rate usi par sync + readOnly — "hamesha same". Bina PO Request ke purani
-  // value editable (formula/legacy).
-  const explicitRelReqRate = savedPoReqRate(item.productCode);
-  const initialRate = explicitRelReqRate > 0
-    ? explicitRelReqRate
-    : ((item.kclApprovedRate !== undefined && item.kclApprovedRate !== null)
-      ? item.kclApprovedRate
-      : (poReqExpectedRate || cat.kclApprovedRate || 21.50));
-  const relRateEl = document.getElementById('edit_porel_kclRate');
-  relRateEl.value = Number(initialRate).toFixed(2);
-  relRateEl.readOnly = explicitRelReqRate > 0;
-  relRateEl.style.background = explicitRelReqRate > 0 ? '#f1f5f9' : '#ffffff';
-  relRateEl.title = explicitRelReqRate > 0
-    ? 'PO Request ke approved rate par LOCK — rate badalna ho to PO Request edit karein.'
-    : '';
+  // Rate = is release ka apna saved rate (ya formula fallback) — EDITABLE
+  // rehta hai (user rule, 26 Nov: "auto with editable"); PO Request se alag
+  // dalne par mismatch warning aati hai.
+  const initialRate = (item.kclApprovedRate !== undefined && item.kclApprovedRate !== null) 
+    ? item.kclApprovedRate 
+    : (poReqExpectedRate || cat.kclApprovedRate || 21.50);
+  document.getElementById('edit_porel_kclRate').value = Number(initialRate).toFixed(2);
 
   // Set destination: Kolkata / Guwahati / Bangalore / Others
   const dest = item.destination || 'Kolkata';
@@ -37489,7 +37458,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-25-3';
+const APP_VERSION = '2026-11-26-1';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
