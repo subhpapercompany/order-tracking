@@ -11365,7 +11365,6 @@ body.print-flash-mode .no-print {
             <thead>
               <tr>
                 <th style="width: 38px; text-align: center;"><input type="checkbox" id="chkSelectAllTodayTx" onchange="toggleSelectAllTodayTx(this.checked)" title="Select All"></th>
-                <th style="width: 80px;">Time</th>
                 <th style="width: 95px;">Date</th>
                 <th style="width: 140px;">Tx Type</th>
                 <th style="width: 90px;">Vendor</th>
@@ -23867,6 +23866,16 @@ function formatTxDate(iso) {
   return String(iso);
 }
 
+// Billing/entry-form date — Date column HAMESHA wo date dikhao jo entry form
+// me bhara gaya (epaper_date/eboard_date/econs_date/econ_date/invoice date),
+// kabhi recording (aaj ki) date nahi. Order Booking ke paas koi date field
+// nahi hai (sirf Month) → wahan fallback t.date (record date).
+function txBillingDate(t) {
+  if (!t) return '';
+  const d = t.details || {};
+  return d.date || d.requestDate || d.poDate || t.date || '';
+}
+
 function renderTodayTransactions(highlightId) {
   const tbody = document.getElementById('todayTxBody');
   if (!tbody) return;
@@ -23886,7 +23895,12 @@ function renderTodayTransactions(highlightId) {
   let sumDesp = 0;
   let sumPaper = 0;
 
-  filtered.forEach(t => {
+  // Metric cards sirf AAJ ki entries count kare — purane din ke orders
+  // (jaise 66,84,100 lifetime sum) ab nahi jodenge.
+  const _todayISO = daybookTodayISO();
+  const todayFiltered = filtered.filter(t => t.date === _todayISO);
+
+  todayFiltered.forEach(t => {
     if (t.type === 'Order Booking' && t.details && t.details.orderQty) {
       sumOrders += Number(t.details.orderQty) || 0;
     } else if (t.type === 'Production' && t.details) {
@@ -23940,7 +23954,7 @@ function renderTodayTransactions(highlightId) {
   }
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding: 26px; color:#94a3b8;">
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding: 26px; color:#94a3b8;">
       No ${filter === 'all' ? 'transactions' : '"' + filter + '" entries'} recorded ${filter === 'all' ? 'today' : 'for this entry tab'} yet. Entries logged above will automatically appear here.
     </td></tr>`;
     return;
@@ -23966,8 +23980,7 @@ function renderTodayTransactions(highlightId) {
         <td style="text-align: center;">
           <input type="checkbox" class="today-tx-chk" value="${t.id}" onchange="updateTodayTxBulkDeleteBtn()">
         </td>
-        <td style="font-family:'JetBrains Mono'; font-weight:600; color:#64748b; font-size:11.5px;">${t.time}</td>
-        <td style="font-family:'JetBrains Mono'; font-weight:600; color:#334155; font-size:11.5px; white-space:nowrap;">${formatTxDate(t.date)}</td>
+        <td style="font-family:'JetBrains Mono'; font-weight:600; color:#334155; font-size:11.5px; white-space:nowrap;">${formatTxDate(txBillingDate(t))}</td>
         <td>${getTxBadge(t.type)}</td>
         <td>${getVendorBadgeHtml(t.vendor)}</td>
         <td><strong style="font-family:'JetBrains Mono'; color:#0f172a;">${t.barcode}</strong></td>
@@ -24222,10 +24235,9 @@ function exportTodayTransactionsCSV() {
     alert("No transactions to export for the current filter.");
     return;
   }
-  const headers = ["Date", "Time", "Transaction Type", "Vendor", "Product Code", "Product Description", "Quantity", "Impact", "Reference"];
+  const headers = ["Date", "Transaction Type", "Vendor", "Product Code", "Product Description", "Quantity", "Impact", "Reference"];
   const rows = txs.map(t => [
-    `"${formatTxDate(t.date)}"`,
-    `"${t.time}"`,
+    `"${formatTxDate(txBillingDate(t))}"`,
     `"${t.type}"`,
     `"${t.vendor}"`,
     `"${t.barcode}"`,
@@ -25514,6 +25526,7 @@ function handleConsumptionEntrySubmit(e) {
   const actualPaper = Number(document.getElementById('econ_paperKg').value);
   const actualBoard = Number(document.getElementById('econ_boardSheets').value);
   const remarks = document.getElementById('econ_remarks').value;
+  const date = document.getElementById('econ_date') ? document.getElementById('econ_date').value : '';
   const sku = state.skus.find(s => s.barcode === barcode);
   if (!sku) return;
 
@@ -25529,7 +25542,7 @@ function handleConsumptionEntrySubmit(e) {
     qty: `${actualPaper.toLocaleString()} Kg Paper`,
     impact: `${actualBoard.toLocaleString()} Board Sheets Adjusted`,
     ref: remarks || 'Line Consumption Run',
-    details: { actualPaper, actualBoard }
+    details: { actualPaper, actualBoard, date }
   });
 
   saveState();
@@ -25709,7 +25722,7 @@ function handlePaperInwardProcessSubmit(e) {
       qty: `Opening WIP: +${processed.toLocaleString()} Kg | Reels: +${inward.toLocaleString()} Kg`,
       impact: `Opening Balance Set @ ₹${rate}/Kg`,
       ref: inv || 'OPENING-BALANCE',
-      details: { openingWip: processed, openingReels: inward, rate }
+      details: { openingWip: processed, openingReels: inward, rate, date }
     });
 
     saveState();
@@ -25761,7 +25774,7 @@ function handlePaperInwardProcessSubmit(e) {
       qty: inward ? `+${inward.toLocaleString()} Kg Inward` : `+${processed.toLocaleString()} Kg Slitted`,
       impact: `Wastage: ${wastage} Kg | WIP: ${summary.wipKg.toLocaleString()} Kg`,
       ref: `Batch/Inv: ${inv}`,
-      details: { inward, processed, wastage }
+      details: { inward, processed, wastage, date }
     });
 
     saveState();
@@ -25884,7 +25897,7 @@ function handleBoardMovementSubmit(e) {
       qty: `Godown: +${inward.toLocaleString()} Sheets | Printer: +${printedRecd.toLocaleString()} Sheets`,
       impact: `Opening Balance Set @ ₹${rate}/Sheet`,
       ref: inv || 'OPENING-BOARD',
-      details: { openingGodown: inward, openingPrinter: printedRecd, rate }
+      details: { openingGodown: inward, openingPrinter: printedRecd, rate, date }
     });
 
     saveState();
@@ -25947,7 +25960,7 @@ function handleBoardMovementSubmit(e) {
       qty: qtyStr,
       impact: `Our Godown: ${bSum.ourGodownSheets.toLocaleString()} | Printer Bal: ${bSum.printerSheets.toLocaleString()}${entryAmt > 0 ? ` | Amount: ₹${entryAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}`,
       ref: `DC/Inv: ${inv}`,
-      details: { inward, outPrint, printedRecd, rate, amount: Number(entryAmt.toFixed(2)) }
+      details: { inward, outPrint, printedRecd, rate, amount: Number(entryAmt.toFixed(2)), date }
     });
 
     saveState();
@@ -26046,7 +26059,7 @@ function handleConsumablesLogSubmit(e) {
       qty: `Opening Stock: +${qty} ${c.unit}`,
       impact: `Available Stock: ${c.stock} ${c.unit} @ ₹${rate}/${c.unit}`,
       ref: ref || 'OPENING-CONSUMABLE',
-      details: { qty, type: 'opening', rate, amount: Number((qty * rate).toFixed(2)) }
+      details: { qty, type: 'opening', rate, amount: Number((qty * rate).toFixed(2)), date }
     });
 
     saveState();
@@ -26104,7 +26117,7 @@ function handleConsumablesLogSubmit(e) {
       qty: (type === 'inward' ? `+${qty}` : `-${qty}`) + ` ${c.unit}`,
       impact: `Closing Available Stock: ${c.stock} ${c.unit} @ ₹${rate}/${c.unit} | Amount: ₹${(qty * rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       ref: `${ref || (type === 'inward' ? 'Inward Challan' : 'Line Issue')} (${date})`,
-      details: { qty, type, rate, amount: Number((qty * rate).toFixed(2)) }
+      details: { qty, type, rate, amount: Number((qty * rate).toFixed(2)), date }
     });
 
     saveState();
@@ -37693,7 +37706,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-27-3';
+const APP_VERSION = '2026-11-27-4';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
