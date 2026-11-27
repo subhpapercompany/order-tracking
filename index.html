@@ -37663,7 +37663,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-27-1';
+const APP_VERSION = '2026-11-27-2';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
@@ -40540,6 +40540,36 @@ function getDaybookEntries() {
   // 1. Transaction audit log (Order / Manufacturing / Despatch / Consumables)
   // Note: PO Request/Release and Paper/Board movement are read from their dedicated
   // ledgers below, so their audit duplicates are skipped here.
+  //
+  // CURRENT-ORDERS-ONLY (user rule 27 Nov): Daybook me Order rows SIRF abhi ke
+  // current orders dikhengi (Order Sheet ke barabar = 13). Har (barcode ×
+  // current month) ka LATEST booking tx hi select hota hai — purani bookings
+  // (deleted skus / superseded months / re-booked qty) Daybook me nahi aati.
+  // Audit data DELETE nahi hota — sirf Daybook view filter hota hai, aur
+  // edit/delete idx original todayTransactions index par hi lagta hai.
+  const latestOrderTxIdx = {};
+  (state.todayTransactions || []).forEach((t, idx) => {
+    if (String(t.type || '').indexOf('Order') < 0) return;
+    const bcO = String(t.barcode || '');
+    const skuO = (state.skus || []).find(s => String(s.barcode) === bcO);
+    if (!skuO) return;                          // SKU delete ho chuka → purana order
+    const mO = orderMonthFromTxRef(t.ref);
+    if (!mO) return;
+    let isCurrent = false;
+    (Array.isArray(skuO.orderHistory) ? skuO.orderHistory : []).forEach(e => {
+      if (Number(e && e.qty || 0) > 0 && String(e.month || '') === mO) isCurrent = true;
+    });
+    if (getSkuOrderMonthISO(skuO) === mO) isCurrent = true;
+    if (!isCurrent) return;                     // old month / purani booking
+    const key = bcO + '|' + mO;
+    const stamp = String(t.date || '') + ' ' + String(t.time || '');
+    if (!latestOrderTxIdx[key] || stamp >= latestOrderTxIdx[key].stamp) {
+      latestOrderTxIdx[key] = { stamp: stamp, idx: idx };
+    }
+  });
+  const latestOrderTxSet = {};
+  Object.keys(latestOrderTxIdx).forEach(k => { latestOrderTxSet[latestOrderTxIdx[k].idx] = 1; });
+
   (state.todayTransactions || []).forEach((t, idx) => {
     const det = t.details || {};
     const rawType = String(t.type || '');
@@ -40550,6 +40580,7 @@ function getDaybookEntries() {
     else if (rawType.indexOf('Despatch') >= 0) type = 'Despatch';
     else if (rawType.indexOf('Materials') >= 0 && subType.indexOf('Consumable') >= 0) type = 'Consumables Movement';
     else return;
+    if (type === 'Order' && !latestOrderTxSet[idx]) return;   // purani order booking hide
 
     const qty = t.qty || '-';
     const specifics = [t.barcode && t.barcode !== '-' ? t.barcode : '', t.description && t.description !== '-' ? t.description : ''].filter(Boolean).join(' · ');
