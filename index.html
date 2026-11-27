@@ -12832,7 +12832,12 @@ function getFullEnterpriseStatePayload() {
     financials: state.financials || {},
     dailyFlashReports: state.dailyFlashReports || [],
     ranjitMakingEntries: state.ranjitMakingEntries || [],
-    hr: state.hr || DEFAULT_HR_DATA
+    hr: state.hr || DEFAULT_HR_DATA,
+    // Order History seed flag — ab payload me PERSIST hota hai (pehle flag
+    // whitelist me nahi tha → har load par seed dobara chalta tha, jisse user
+    // ki deleted entries wapas aa jati thi aur qty-edit par ghost duplicate
+    // entry auto-generate hoti thi).
+    orderHistorySeeded: state._orderHistorySeeded === true
   };
 }
 
@@ -13009,9 +13014,12 @@ function loadStateFromDatabaseObject(parsed) {
   if (parsed.hr && typeof parsed.hr === 'object') state.hr = parsed.hr;
   else if (!state.hr) state.hr = JSON.parse(JSON.stringify(DEFAULT_HR_DATA));
 
-  // Order History seed (Oct/Nov purana data) — flag reset + idempotent apply.
-  // Har load par chalta hai: stale tab ke overwrite se bhi auto-recover.
-  state._orderHistorySeeded = false;
+  // Order History seed — flag AB payload se aata hai (orderHistorySeeded).
+  // Pehle yahan force-reset hota tha → seed har load par chalta tha → user ki
+  // deleted entries wapas aa jati thi / month+qty dedup se ghost dup banthe.
+  // Purane payload me flag nahi → seedOrderHistoryOnce() 2026-10 marker se
+  // khud detect kar leta hai ki data pehle se seeded hai.
+  state._orderHistorySeeded = parsed.orderHistorySeeded === true;
   seedOrderHistoryOnce();
 
   recalculateAllFormulas();
@@ -13175,6 +13183,11 @@ function hydrateFromDatabaseObject(parsed) {
       if (s.caseQty === undefined || s.caseQty === null) s.caseQty = isA4 ? (p <= 52 ? 120 : (p <= 76 ? 72 : (p <= 100 ? 60 : 36))) : (p <= 56 ? 144 : (p <= 92 ? 96 : 72));
     }
   });
+
+  // Seed flag (payload se) — hydrate ke baad renderKPIs ka defensive seed run
+  // isi se gate hota hai. Purane payload me missing → seed khud marker check
+  // (2026-10 entries) se already-seeded detect karta hai.
+  state._orderHistorySeeded = parsed.orderHistorySeeded === true;
 
   if (parsed.timestamp) {
     updateSaveStatus(parsed.timestamp);
@@ -17360,36 +17373,52 @@ const ORDER_HISTORY_SEED = [
   ['1152205100', '2026-11', 15000]
 ];
 
-// Seed idempotent + self-holing: flag payload whitelist me NAHI jaata
-// (getFullEnterpriseStatePayload me skus nested persist hote hain, flag nahi)
-// → har load par dobara chalta hai, per-entry dedupe (month+qty) ke saath.
-// Stale tab purana state overwrite kare to bhi seed khud ko heal kar leta hai.
+// Seed idempotent + delete-safe: flag payload me persist hota hai
+// (getFullEnterpriseStatePayload me orderHistorySeeded). Har load par chalne
+// ki zaroorat nahi — sirf tab jab data "unseeded" ho (naya/fresh). Isse user
+// ki deleted entries wapas nahi aati aur qty-edit par ghost duplicate entry
+// auto-generate nahi hoti. Purane payloads (flag missing) ke liye 2026-10
+// marker: Oct entries SIRF seed se aayi the → unka hona = "data seeded".
 function seedOrderHistoryOnce() {
   try {
-    if (state._orderHistorySeeded) return;
     // MIGRATION (user rule: 25 Nov 2026) — "jo no month ka order hai usko
     // nov 26 me dal dijiye": No-Month ("—") ki saari qty>0 entries → Nov 2026.
-    // Stale tab "" par wapas save kare to bhi ye NEXT LOAD par khud shift kar
-    // leti hai (self-heal) — totals kabhi dobara nahi bigadte.
+    // Ye har run chalta hai (idempotent) — stale tab "" par wapas save kare to
+    // bhi NEXT LOAD par khud shift ho jati hai (self-heal).
     (state.skus || []).forEach(skuM => {
       if (!Array.isArray(skuM.orderHistory)) return;
       skuM.orderHistory.forEach(eM => {
         if (String(eM.month || '') === '' && Number(eM.qty || 0) > 0) eM.month = '2026-11';
       });
     });
-    const idx = {};
-    (state.skus || []).forEach(s => { idx[String(s.barcode)] = s; });
-    (ORDER_HISTORY_SEED || []).forEach(row => {
-      const sku = idx[String(row[0])];
-      if (!sku) return;                       // sku delete ho chuka → skip
-      if (!Array.isArray(sku.orderHistory)) sku.orderHistory = [];
-      const m = String(row[1] || ''), q = Number(row[2] || 0);
-      if (!(q > 0)) return;
-      const dup = sku.orderHistory.some(e => String(e.month || '') === m && Number(e.qty || 0) === q);
-      if (!dup) sku.orderHistory.push({ month: m, qty: q });
-    });
+
+    if (!state._orderHistorySeeded) {
+      const alreadySeeded = (state.skus || []).some(s => Array.isArray(s.orderHistory) &&
+        s.orderHistory.some(e => String(e && e.month || '') === '2026-10'));
+      if (!alreadySeeded) {
+        const idx = {};
+        (state.skus || []).forEach(s => { idx[String(s.barcode)] = s; });
+        (ORDER_HISTORY_SEED || []).forEach(row => {
+          const sku = idx[String(row[0])];
+          if (!sku) return;                       // sku delete ho chuka → skip
+          if (!Array.isArray(sku.orderHistory)) sku.orderHistory = [];
+          const m = String(row[1] || ''), q = Number(row[2] || 0);
+          if (!(q > 0)) return;
+          // MONTH-ONLY dedup: same month ki entry phele se hai (user ki qty
+          // edit ya real booking) → push MAT. Purane month+qty exact-match se
+          // user ke qty-edit ke baad seed purani qty wali ghost entry dobara
+          // push kar deta tha ("ek entry karne pe second entry apne aap generate").
+          const dup = sku.orderHistory.some(e => String(e.month || '') === m);
+          if (!dup) sku.orderHistory.push({ month: m, qty: q });
+        });
+      }
+      state._orderHistorySeeded = true;
+    }
+
     // Live-month upsert: current month ki entry hamesha sku.orderQty par set —
     // same-month booking = replace semantics isliye latest qty sahi rehti hai.
+    // Ye har run chalta hai (replace = dup kabhi nahi banata) aur stale-tab
+    // overwrite ko heal karta hai.
     (state.skus || []).forEach(s => {
       const q = Number(s.orderQty || 0);
       if (!(q > 0)) return;
@@ -17400,7 +17429,6 @@ function seedOrderHistoryOnce() {
       if (hit) hit.qty = q;
       else s.orderHistory.push({ month: m, qty: q });
     });
-    state._orderHistorySeeded = true;
   } catch (err) {
     console.error('seedOrderHistoryOnce failed:', err);
   }
@@ -17697,7 +17725,10 @@ function renderOrderSheet() {
   filtered.forEach(s => {
     const entries = getSkuOrderEntries(s);
     const totalEntriesQty = entries.reduce((a, e) => a + e.qty, 0);
-    const shown = entries.filter(e => mFilter === 'all' || e.month === mFilter);
+    // qty-0 fallback rows (koi order entry nahi) Order Sheet me nahi dikhti —
+    // yahi "screenshot wali entry delete nahi hoti" ka root cause thi (data me
+    // entry/order already delete ho chuka hota tha, row phir bhi render hoti thi).
+    const shown = entries.filter(e => e.qty > 0 && (mFilter === 'all' || e.month === mFilter));
     if (shown.length === 0) return;
     // paper/board pro-rata: entry.qty / total entries qty → All totals bilkul same
     shown.forEach(en => {
@@ -17739,7 +17770,7 @@ function renderOrderSheet() {
       <td style="text-align: center; white-space: nowrap;">
         <div style="display:inline-flex; gap:4px; align-items:center; justify-content:center;">
           <button type="button" class="btn-icon" onclick="openEditSkuModal('${s.barcode}')" title="Edit Record" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">✏️</button>
-          <button type="button" class="btn-icon" onclick="deleteSkuItem('${s.barcode}')" title="Delete Record" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">🗑️</button>
+          <button type="button" class="btn-icon" onclick="deleteSkuOrderEntry('${s.barcode}', '${en.month}')" title="Delete this order entry (sirf ye entry)" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; line-height:1; transition:all 0.15s;">🗑️</button>
         </div>
       </td>
     `;
@@ -28494,7 +28525,7 @@ function deleteSelectedBookWt() {
     return;
   }
 
-  state.skus = (state.skus || []).filter(s => !checked.includes(s.barcode));
+  state.skus = (state.skus || []).filter(s => !checked.includes(String(s.barcode)));
   saveState();
   renderBookWtMaster();
   populateSkuDropdowns();
@@ -28505,13 +28536,59 @@ function deleteSelectedBookWt() {
 }
 
 function deleteSkuItem(barcode) {
-  if (!confirm("Are you sure you want to delete SKU " + barcode + "?\nThis will remove it from all sheets and recalculate summary cards.")) return;
-  state.skus = (state.skus || []).filter(s => s.barcode !== barcode);
+  const bc = String(barcode == null ? '' : barcode);
+  if (!confirm("Are you sure you want to delete SKU " + bc + "?\nThis will remove it from all sheets and recalculate summary cards.")) return;
+  // String() coercion: barcode number ho to strict !== se delete NO-OP ho jata
+  // tha ("delete karne pe bhi delete nahi hota").
+  state.skus = (state.skus || []).filter(s => String(s.barcode) !== bc);
   recalculateAllFormulas();
   saveState();
   populateSkuDropdowns();
   renderAllViews();
-  showToast("SKU " + barcode + " deleted successfully.");
+  showToast("SKU " + bc + " deleted successfully.");
+}
+
+// Order Sheet 🗑️: SIRF clicked row ki order entry delete (month-level).
+// Puri SKU delete NAHI hoti — pehle ye button deleteSkuItem() call karta tha
+// jisse "ek entry delete karne pe uski dusri entry bhi delete ho jati thi".
+function deleteSkuOrderEntry(barcode, month) {
+  const bc = String(barcode == null ? '' : barcode);
+  const sku = (state.skus || []).find(s => String(s.barcode) === bc);
+  if (!sku) { if (typeof showToast === 'function') showToast('⚠️ Record nahi mila.'); return; }
+  const m = String(month || '');
+  const hist = Array.isArray(sku.orderHistory) ? sku.orderHistory : [];
+  const i = hist.findIndex(e => String(e.month || '') === m && Number(e.qty || 0) > 0);
+  if (i >= 0) {
+    const en = hist[i];
+    const ok = confirm('Delete this order entry?\n\nBarcode: ' + bc + '\n' +
+      'Month: ' + formatOrderMonth(m) + '\n' +
+      'Qty: ' + Number(en.qty || 0).toLocaleString() + '\n\n' +
+      'Sirf YE entry delete hogi — baaki entries aur SKU record safe rahenge.');
+    if (!ok) return;
+    hist.splice(i, 1);
+    // Live month ki entry delete = live orderQty bhi 0. Warn next load par
+    // live-month upsert orderQty se entry wapas bana deta
+    // ("entry delete karne pe wapas chala jata hai").
+    const liveM = getSkuOrderMonthISO(sku);
+    if (liveM && normalizeOrderMonthISO(m) === liveM) sku.orderQty = 0;
+  } else {
+    // Fallback row: history me entry nahi, qty live orderQty se aa rahi hai
+    const q = Number(sku.orderQty || 0);
+    if (!(q > 0)) {
+      // qty-0 row = koi order nahi → pura record delete (confirm andar hai)
+      deleteSkuItem(bc);
+      return;
+    }
+    const ok = confirm('Delete this order?\n\nBarcode: ' + bc + '\n' +
+      'Qty: ' + q.toLocaleString() + '\n\n' +
+      'Record delete nahi hoga — sirf order hata diya jayega.');
+    if (!ok) return;
+    sku.orderQty = 0;
+  }
+  saveState();
+  recalculateAllFormulas();
+  renderAllViews();
+  if (typeof showToast === 'function') showToast('🗑️ Order entry deleted.');
 }
 
 // --- 2. Paper Stock Edit & Delete Functions ---
@@ -37586,7 +37663,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-26-1';
+const APP_VERSION = '2026-11-27-1';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
@@ -41148,7 +41225,14 @@ function daybookDeleteEntry(source, idx) {
           const _dm = orderMonthFromTxRef(raw.ref) || getSkuOrderMonthISO(sku);
           adjustSkuOrderHistoryQty(sku, _dm, -Number(det.orderQty || 0));
           const _lm = getSkuOrderMonthISO(sku);
-          if (_lm && Number(sku.orderQty || 0) > 0) upsertOrderHistoryEntry(sku, _lm, Number(sku.orderQty));
+          // Sirf MOJUUDA live entry sync karo (push nahi). Pehle yahan upsert
+          // tha → user ne delete ki hui entry wapas ban jati thi ("delete
+          // karne pe wapas chala jata hai").
+          if (_lm && Number(sku.orderQty || 0) > 0) {
+            const _he = (Array.isArray(sku.orderHistory) ? sku.orderHistory : [])
+              .find(e => String(e.month || '') === _lm);
+            if (_he) _he.qty = Number(sku.orderQty);
+          }
         } catch (_) {}
       }
     }
