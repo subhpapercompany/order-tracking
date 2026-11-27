@@ -33413,6 +33413,21 @@ function renderRanjitMakingBill() {
 
   let list = (state.ranjitMakingEntries || []).slice();
 
+  // PRODUCTION-KHALI AUTO-CLEAN (27 Nov bug): Agar Production Log me koi
+  // Production entry hi nahi hai to source='log' wali rows bill me nahi
+  // dikhni chahiye — production hi nahi hai to making charges kahan se.
+  // Manual rows safe. (Ye render ke andar saaf hota hai — existing pattern
+  // neeche `list.length===0` par bhi render hi rebuild karta hai.)
+  if (!(state.todayTransactions || []).some(t => String(t.type || '').indexOf('Production') >= 0)) {
+    const staleCount = list.filter(e => e && e.source === 'log').length;
+    if (staleCount > 0) {
+      list = list.filter(e => e && e.source !== 'log');
+      state.ranjitMakingEntries = list.slice();
+      saveRanjitMakingEntries();
+      saveState();
+    }
+  }
+
   // Bill khali hai to Production Log se asli dates wali rows bana do.
   // (Purane version me yahan aaj ki date + hardcoded 'Friday' + SKU ka
   //  cumulative production aata tha — isi se sab rows par ek hi date thi.)
@@ -33991,7 +34006,22 @@ function syncRanjitBillFromProductionLog() {
   const fresh = buildRanjitEntriesFromProductionLog();
 
   if (!fresh.length) {
-    showToast('⚠️ Production Log me koi Production entry nahi mili — pehle Daily Production Log me production darj karein.');
+    // PRODUCTION-KHALI CLEANUP (27 Nov bug): Production Log me entry hi
+    // nahi hai to purani auto ('log') rows bill me nahi rehni chahiye.
+    // PURANA BUG: yahan sirf toast hota tha aur stale rows hamesha bachi
+    // rehti thin (production delete karne ke baad bhi bill bhara dikhta tha).
+    state.ranjitMakingEntries = state.ranjitMakingEntries || [];
+    const manualOnly = state.ranjitMakingEntries.filter(e => e && e.source === 'manual');
+    const stale = state.ranjitMakingEntries.length - manualOnly.length;
+    if (stale > 0) {
+      state.ranjitMakingEntries = manualOnly;
+      saveRanjitMakingEntries();
+      saveState();
+      renderRanjitMakingBill();
+      showToast(`⚠️ Production Log khali hai — ${stale} purani auto Ranjit row hata di gayi. Manual entries safe.`);
+    } else {
+      showToast('⚠️ Production Log me koi Production entry nahi mili — pehle Daily Production Log me production darj karein.');
+    }
     return;
   }
 
@@ -37663,7 +37693,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-27-2';
+const APP_VERSION = '2026-11-27-3';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
