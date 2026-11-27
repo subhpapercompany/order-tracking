@@ -16263,12 +16263,16 @@ function calculateMrpRequirements(vendor = 'all') {
   }
   (state.skus || []).forEach(s => _pushPaperSpec(s && s.paperSpec, s && s.vendor));
 
-  const _seenBoardSpecs = new Set(boardSpecs);
+  // Dedup by COMPACT key ('45.5x91x190') — data sizes are compact while
+  // hardcoded defaults are spaced ('45.5 x 91 x 190'); exact-string dedup
+  // produced duplicate board rows with double-counted totals.
+  const _boardSpecKey = s => String(s || '').trim().replace(/\s+/g, '').toLowerCase();
+  const _seenBoardSpecs = new Set(boardSpecs.map(_boardSpecKey));
   const _pushBoardSpec = (size, entryVendor) => {
     const sp = String(size || '').trim();
-    if (!sp || _seenBoardSpecs.has(sp)) return;
+    if (!sp || _seenBoardSpecs.has(_boardSpecKey(sp))) return;
     if (!isBoardMatchingVendor(sp, String(entryVendor || ''), vendor)) return;
-    _seenBoardSpecs.add(sp);
+    _seenBoardSpecs.add(_boardSpecKey(sp));
     boardSpecs.push(sp);
   };
   (state.boardSummary || []).forEach(b => _pushBoardSpec(b && b.size, b && b.vendor));
@@ -16454,7 +16458,11 @@ function renderMaterialPlanningDashboard() {
         inStockPaper[spec]['Reel Form'] = reelVal;
       }
     }
-    if (specTotal === 0 && pItem) {
+    // specTotal abhi ledger credit se PEHLE calculate hua tha — ledger rulings
+    // add karne ke baad dobara check karo, warna Single Line me WIP dump hoke
+    // same kg double count hoga (e.g. 90x43x58 Unruled 1,828 + 1,828).
+    const currentTotal = rulings.reduce((sum, r) => sum + (inStockPaper[spec][r] || 0), 0);
+    if (currentTotal === 0 && pItem) {
       if (pItem.openingWipKg > 0 || pItem.wipKg > 0) {
         inStockPaper[spec]['Single Line'] = (pItem.openingWipKg || pItem.wipKg || 0);
       }
@@ -16506,8 +16514,11 @@ function renderMaterialPlanningDashboard() {
     let initialSheets = 0;
     if (boardItem && (boardItem.ourGodownSheets > 0 || boardItem.printerSheets > 0)) {
       initialSheets = (boardItem.ourGodownSheets || 0) + (boardItem.printerSheets || 0);
-    } else {
-      initialSheets = (savedStock.board && savedStock.board[spec]) || 0;
+    } else if (savedStock.board) {
+      // materialStock.board key COMPACT bhi ho sakti hai ('45.5x91x190') —
+      // exact lookup se chhod ke compact match karo, warna stock 0 reh jayega.
+      const msKey = Object.keys(savedStock.board).find(k => k.replace(/\s+/g, '').toLowerCase() === compactSpec);
+      initialSheets = msKey ? (savedStock.board[msKey] || 0) : 0;
     }
     inStockBoard[spec] = initialSheets;
   });
@@ -37706,7 +37717,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-27-4';
+const APP_VERSION = '2026-11-27-5';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
