@@ -27112,7 +27112,6 @@ function masterExportCurrentSheetToExcel() {
       { title: "Case Qty", align: "right", type: "num" },
       { title: "Order Qty", align: "right", type: "num" },
       { title: "Produced Qty", align: "right", type: "num" },
-      { title: "Due for Produced", align: "right", type: "num", bg: "#fef2f2" },
       { title: "Board GSM", align: "right", type: "num" },
       { title: "Sheet Width (cm)", align: "right", type: "dec" },
       { title: "Sheet Length (cm)", align: "right", type: "dec" },
@@ -27136,7 +27135,7 @@ function masterExportCurrentSheetToExcel() {
       { title: "Camlin Approved Rate", align: "right", type: "dec", bg: "#fdf2f8", fontBold: true }
     ];
 
-    let sumOrder = 0, sumProd = 0, sumDue = 0, sumVal = 0;
+    // Excel me sirf header + data rows — totals/summary row nahi (user rule: 28 Nov)
     const list = [];
     // Only include barcodes that actually have a PO Request (not every SKU)
     (state.skus || []).forEach(sku => {
@@ -27181,7 +27180,6 @@ function masterExportCurrentSheetToExcel() {
         parseFloat((sku && sku.production) || 0),
         parseFloat(r.producedQuantity || 0)
       );
-      const dueForProduced = Math.max(0, totalOrderQty - cumulativeProduced);
 
       // Board specs — stored-first (edit se aayi value), warna code-digit defaults
       let boardGsm = 190, sheetLengthCm = 91, sheetWidthCm = 45.5;
@@ -27234,11 +27232,6 @@ function masterExportCurrentSheetToExcel() {
       const conversionRate = (lookedUpConv !== null) ? lookedUpConv : (parseFloat(r.conversionRate || 2.50) || 2.50);
       const kclApprovedRate = parseFloat((perBookPaperCost + perBookBoardCost + conversionRate).toFixed(2));
 
-      sumOrder += totalOrderQty;
-      sumProd += cumulativeProduced;
-      sumDue += dueForProduced;
-      sumVal += (totalOrderQty * kclApprovedRate);
-
       return [
         r.requestDate || (sku && sku.date) || '2026-09-02',
         (sku && sku.binding) || cat.binding || r.bindingType || 'BACK PRESSED',
@@ -27252,7 +27245,6 @@ function masterExportCurrentSheetToExcel() {
         (sku && (sku.caseQty !== undefined ? sku.caseQty : sku.caseQuantity)) || cat.caseQty || r.caseQuantity || 120,
         totalOrderQty,
         cumulativeProduced,
-        dueForProduced,
         boardGsm,
         sheetWidthCm,
         sheetLengthCm,
@@ -27276,15 +27268,6 @@ function masterExportCurrentSheetToExcel() {
         kclApprovedRate
       ];
     });
-
-    totalsRow = [
-      "TOTAL / SUMMARY", "", "", "", `${list.length} Items`, "", "", "", "", "",
-      sumOrder, sumProd, sumDue,
-      "", "", "", "", "", "",
-      "", "", "", "", "", "", "", "", "", "",
-      "", "", "", "",
-      `Avg: ₹ ${(sumVal / (sumOrder || 1)).toFixed(2)}`
-    ];
 
   } else if (sheet === 'dashboard' || sheet === 'ordersheet') {
     reportSubtitle = `ORDER COMMITMENT & STATUS MASTER SHEET - ${vTag}`;
@@ -27678,6 +27661,31 @@ function masterExportCurrentSheetToExcel() {
       return `<td style="background-color:#e2e8f0; font-weight:bold; text-align:${align}; vertical-align:middle; border-top:2px solid #0f172a; border-bottom:3px double #0f172a; border-left:1px solid #cbd5e1; border-right:1px solid #cbd5e1; padding:6px 7px;">${displayVal}</td>`;
     }).join('');
     totalHtml = `<tr>${totalCells}</tr>`;
+  }
+
+  // PO REQUEST — SIRF header row + data rows (exact on-screen format).
+  // User rule (28 Nov): koi corporate heading, report title, meta/detail row,
+  // totals/summary row ya extra HTML (modal junk) Excel me nahi aana chahiye.
+  if (sheet === 'porequest') {
+    const plainDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><style>body{font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:10.5pt;} table{border-collapse:collapse;}</style></head>
+<body>
+<table>
+<tr>${headerCellsHtml}</tr>
+${bodyRowsHtml}
+</table>
+</body></html>`;
+    const plainBlob = new Blob(['\ufeff' + plainDoc], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const plainUrl = URL.createObjectURL(plainBlob);
+    const plainLink = document.createElement('a');
+    plainLink.setAttribute('href', plainUrl);
+    plainLink.setAttribute('download', `SUBH_${vTag}_${friendlyName.replace(/[^a-zA-Z0-9]/g, '_')}_${isoDate}.xls`);
+    document.body.appendChild(plainLink);
+    plainLink.click();
+    document.body.removeChild(plainLink);
+    URL.revokeObjectURL(plainUrl);
+    showToast(`📊 PO Request Excel downloaded — sirf header + ${dataRows.length} data rows`);
+    return;
   }
 
   // Construct complete Microsoft Excel HTML/XML Spreadsheet Document
@@ -37724,7 +37732,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-28-2';
+const APP_VERSION = '2026-11-28-3';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
