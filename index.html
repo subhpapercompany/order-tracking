@@ -37717,7 +37717,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-27-5';
+const APP_VERSION = '2026-11-28-1';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
@@ -43089,6 +43089,318 @@ function deleteHundiRegisterEntry(id) {
 <!-- Party-wise Board Stock Statement — screen par hidden, sirf print/PDF me -->
 <div id="partyStatementPrint"></div>
 <div id="detailedStockPrint"></div>
+
+<!-- ============ UNIVERSAL SEARCHABLE DROPDOWN (type-to-search) ============
+     Har <select> par search mode: click / Enter / Space / koi bhi letter
+     dabate hi search-popup khulta hai — type karo, options filter, Enter se
+     select. Cursor up/down ki zaroorat nahi. Document-level delegation hai:
+     app ke abhi ke 224 selects + aane wale dynamic selects sab cover.
+     Change event synthetic dispatch hota hai — inline onchange aur
+     addEventListener('change') dono chalte hain. -->
+<style>
+  #ssRoot { position: fixed; z-index: 2147483000; font-family: inherit; }
+  #ssRoot .ssBox { background: #fff; border: 1px solid #cbd5e1; border-radius: 10px;
+    box-shadow: 0 16px 48px rgba(2,6,23,.32); overflow: hidden; display: flex;
+    flex-direction: column; min-width: 260px; max-width: 94vw; }
+  #ssRoot .ssTop { display: flex; align-items: center; gap: 8px; padding: 9px 11px;
+    border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+  #ssRoot .ssInput { flex: 1; border: none; outline: none; background: transparent;
+    font-size: 14.5px; font-weight: 700; color: #0f172a; min-width: 0; }
+  #ssRoot .ssInput::placeholder { color: #94a3b8; font-weight: 600; }
+  #ssRoot .ssCount { font-size: 11px; font-weight: 800; color: #64748b; white-space: nowrap; }
+  #ssRoot .ssList { max-height: 290px; overflow-y: auto; overscroll-behavior: contain; }
+  #ssRoot .ssItem { padding: 8px 12px; font-size: 13.5px; color: #334155; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    -webkit-user-select: none; user-select: none; }
+  #ssRoot .ssItem b { color: #1d4ed8; font-weight: 800; }
+  #ssRoot .ssItem.ssActive { background: #2563eb; color: #fff; }
+  #ssRoot .ssItem.ssActive b { color: #fff; }
+  #ssRoot .ssItem.ssDisabled { color: #cbd5e1; cursor: not-allowed; }
+  #ssRoot .ssItem.ssSel { background: #eff6ff; }
+  #ssRoot .ssItem.ssSel.ssActive { background: #2563eb; }
+  #ssRoot .ssGroup { padding: 6px 12px 4px; font-size: 10.5px; font-weight: 800;
+    color: #64748b; text-transform: uppercase; letter-spacing: .4px; background: #f1f5f9;
+    border-top: 1px solid #e2e8f0; position: sticky; top: 0; }
+  #ssRoot .ssEmpty { padding: 16px 12px; font-size: 13px; color: #94a3b8;
+    text-align: center; font-weight: 600; }
+  #ssRoot .ssFoot { padding: 6px 11px; border-top: 1px solid #e2e8f0; background: #f8fafc;
+    font-size: 11px; font-weight: 700; color: #64748b; display: flex; gap: 14px; flex-wrap: wrap; }
+</style>
+<script>
+(function () {
+  'use strict';
+  let ssSel = null, ssRoot = null, ssInput = null, ssList = null, ssCount = null;
+  let ssActive = -1, ssOpenedAt = 0;
+
+  function ssEsc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // Matched letters ko bold dikhao (multi-word query bhi support)
+  function ssHighlight(text, words) {
+    if (!words.length) return ssEsc(text);
+    const lc = text.toLowerCase(), ranges = [];
+    words.forEach(w => { const p = lc.indexOf(w); if (p >= 0) ranges.push([p, p + w.length]); });
+    if (!ranges.length) return ssEsc(text);
+    ranges.sort((a, b) => a[0] - b[0]);
+    const merged = [ranges[0]];
+    for (let i = 1; i < ranges.length; i++) {
+      const last = merged[merged.length - 1];
+      if (ranges[i][0] <= last[1]) last[1] = Math.max(last[1], ranges[i][1]);
+      else merged.push(ranges[i]);
+    }
+    let html = '', pos = 0;
+    merged.forEach(r => {
+      html += ssEsc(text.slice(pos, r[0])) + '<b>' + ssEsc(text.slice(r[0], r[1])) + '</b>';
+      pos = r[1];
+    });
+    return html + ssEsc(text.slice(pos));
+  }
+
+  // Options ko query se filter karke list banao (optgroup headers ke saath)
+  function ssRender() {
+    if (!ssRoot || !ssSel) return;
+    const raw = (ssInput.value || '').trim();
+    const words = raw ? raw.toLowerCase().split(/\s+/) : [];
+    const opts = ssSel.options;
+    const frag = document.createDocumentFragment();
+    let vis = 0, curGroup = null;
+    const prevActive = ssActive;
+    let keepActive = false;
+    for (let i = 0; i < opts.length; i++) {
+      const o = opts[i];
+      const text = String(o.text || o.textContent || '').trim();
+      const lcText = text.toLowerCase();
+      let ok = true;
+      for (let w = 0; w < words.length; w++) {
+        if (lcText.indexOf(words[w]) < 0) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const gp = o.parentNode;
+      const gLabel = (gp && gp.tagName === 'OPTGROUP') ? String(gp.label || '') : null;
+      if (gLabel && gLabel !== curGroup) {
+        const h = document.createElement('div');
+        h.className = 'ssGroup';
+        h.textContent = gLabel;
+        frag.appendChild(h);
+        curGroup = gLabel;
+      } else if (!gLabel) {
+        curGroup = null;
+      }
+      const d = document.createElement('div');
+      d.className = 'ssItem';
+      d.dataset.i = String(i);
+      if (o.disabled) d.className += ' ssDisabled';
+      else if (i === ssSel.selectedIndex) d.className += ' ssSel';
+      d.innerHTML = ssHighlight(text, words);
+      frag.appendChild(d);
+      if (i === prevActive) keepActive = true;
+      vis++;
+    }
+    ssList.innerHTML = '';
+    if (vis === 0) {
+      const e = document.createElement('div');
+      e.className = 'ssEmpty';
+      e.textContent = raw ? '❌ "' + raw + '" ke liye koi option nahi' : 'Is dropdown me koi option nahi hai';
+      ssList.appendChild(e);
+      ssActive = -1;
+    } else {
+      ssList.appendChild(frag);
+      // Active row: purani wahi rahe agar abhi bhi visible hai, warna
+      // current selection (Enter = bina type kiye current value rehti hai)
+      if (!keepActive || ssActive < 0) {
+        const selEl = ssList.querySelector('.ssSel:not(.ssDisabled)') ||
+                      ssList.querySelector('.ssItem:not(.ssDisabled)');
+        ssActive = selEl ? parseInt(selEl.dataset.i, 10) : -1;
+      }
+      ssPaintActive();
+    }
+    if (ssCount) ssCount.textContent = vis + ' / ' + opts.length;
+  }
+
+  function ssPaintActive() {
+    if (!ssList) return;
+    const els = ssList.querySelectorAll('.ssItem.ssActive');
+    for (let i = 0; i < els.length; i++) els[i].classList.remove('ssActive');
+    if (ssActive < 0) return;
+    const el = ssList.querySelector('.ssItem[data-i="' + ssActive + '"]');
+    if (el) {
+      el.classList.add('ssActive');
+      try { el.scrollIntoView({ block: 'nearest' }); } catch (_) {}
+    }
+  }
+
+  function ssMove(dir) {
+    if (!ssList) return;
+    const items = Array.prototype.slice.call(ssList.querySelectorAll('.ssItem:not(.ssDisabled)'));
+    if (!items.length) return;
+    let idx = -1;
+    for (let i = 0; i < items.length; i++) {
+      if (parseInt(items[i].dataset.i, 10) === ssActive) { idx = i; break; }
+    }
+    idx = idx < 0 ? (dir > 0 ? 0 : items.length - 1) : idx + dir;
+    if (idx < 0) idx = items.length - 1;
+    if (idx >= items.length) idx = 0;
+    ssActive = parseInt(items[idx].dataset.i, 10);
+    ssPaintActive();
+  }
+
+  function ssPick() {
+    if (!ssSel || ssActive < 0) { ssClose(); return; }
+    const sel = ssSel;
+    const opt = sel.options[ssActive];
+    if (!opt || opt.disabled) { ssClose(); return; }
+    const before = sel.value;
+    sel.selectedIndex = ssActive;
+    ssClose();
+    // Native jaisa: value sach me badli tabhi change event fire
+    if (String(sel.value) !== String(before)) {
+      try {
+        sel.dispatchEvent(new Event('input', { bubbles: true }));
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (_) {}
+    }
+    try { sel.focus(); } catch (_) {}
+  }
+
+  function ssClose() {
+    if (!ssRoot) return;
+    const r = ssRoot;
+    ssRoot = null; ssInput = null; ssList = null; ssCount = null;
+    ssSel = null; ssActive = -1;
+    if (r.parentNode) r.parentNode.removeChild(r);
+  }
+
+  function ssOpen(sel, seed) {
+    if (!sel || sel.multiple || sel.disabled || Number(sel.size || 0) > 1) return;
+    if (ssSel === sel) { ssClose(); return; }   // dobara click = toggle (native jaisa)
+    ssClose();
+    ssSel = sel;
+    ssOpenedAt = Date.now();
+
+    const root = document.createElement('div');
+    root.id = 'ssRoot';
+    root.innerHTML =
+      '<div class="ssBox">' +
+        '<div class="ssTop">🔍<input class="ssInput" type="text" autocomplete="off" spellcheck="false" ' +
+        'placeholder="Type karo aur options search karo..."><span class="ssCount"></span></div>' +
+        '<div class="ssList"></div>' +
+        '<div class="ssFoot"><span>Type = search</span><span>&#8593;&#8595; move</span>' +
+        '<span>Enter = select</span><span>Esc = close</span></div>' +
+      '</div>';
+    document.body.appendChild(root);
+    ssRoot = root;
+    ssInput = root.querySelector('.ssInput');
+    ssList = root.querySelector('.ssList');
+    ssCount = root.querySelector('.ssCount');
+
+    // Position: select ke neeche, jagah na ho to upar, hamesha viewport me
+    const r = sel.getBoundingClientRect();
+    const box = root.querySelector('.ssBox');
+    box.style.width = Math.max(r.width, 260) + 'px';
+    root.style.visibility = 'hidden';
+    const h = root.offsetHeight, w = root.offsetWidth;
+    let top = r.bottom + 4;
+    if (top + h > window.innerHeight - 8 && r.top - h - 4 > 8) top = r.top - h - 4;
+    let left = r.left;
+    if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+    if (left < 8) left = 8;
+    if (top < 8) top = 8;
+    root.style.left = left + 'px';
+    root.style.top = top + 'px';
+    root.style.visibility = 'visible';
+
+    ssActive = -1;
+    ssRender();
+    if (seed) {
+      ssInput.value = seed;
+      ssRender();
+    }
+    // Input par click se focus/blur na ho (warna popup gir jayega)
+    root.addEventListener('mousedown', function (e) {
+      if (e.target !== ssInput) e.preventDefault();
+    });
+    root.addEventListener('click', function (e) {
+      const it = e.target && e.target.closest ? e.target.closest('.ssItem') : null;
+      if (!it || it.classList.contains('ssDisabled')) return;
+      ssActive = parseInt(it.dataset.i, 10);
+      ssPick();
+    });
+    ssList.addEventListener('mousemove', function (e) {
+      const it = e.target && e.target.closest ? e.target.closest('.ssItem') : null;
+      if (!it || it.classList.contains('ssDisabled')) return;
+      const i = parseInt(it.dataset.i, 10);
+      if (i !== ssActive) { ssActive = i; ssPaintActive(); }
+    });
+    ssInput.addEventListener('input', ssRender);
+    try { ssInput.focus(); } catch (_) {}
+    try { ssInput.setSelectionRange(ssInput.value.length, ssInput.value.length); } catch (_) {}
+  }
+
+  function ssHandleSelectDown(sel, e) {
+    if (sel.multiple || sel.disabled || Number(sel.size || 0) > 1) return;
+    if (e.preventDefault) e.preventDefault();   // native dropdown band + focus shift rok
+    if (ssRoot && ssSel === sel) {
+      if (Date.now() - ssOpenedAt < 300) return;  // touch ke emulated dup event
+      ssClose();                                  // dobara click = band
+      return;
+    }
+    ssOpen(sel, '');
+  }
+
+  // --- Mouse / Touch: select par mousedown = search popup ---
+  document.addEventListener('mousedown', function (e) {
+    const t = e.target;
+    if (!t) return;
+    if (ssRoot && ssRoot.contains(t)) return;
+    const sel = t.closest ? t.closest('select') : null;
+    if (sel) { ssHandleSelectDown(sel, e); return; }
+    if (ssRoot) ssClose();
+  }, true);
+
+  document.addEventListener('touchstart', function (e) {
+    const t = e.target;
+    if (!t) return;
+    if (ssRoot && ssRoot.contains(t)) return;
+    const sel = t.closest ? t.closest('select') : null;
+    if (sel) { ssHandleSelectDown(sel, e); return; }
+    if (ssRoot) ssClose();
+  }, { passive: false, capture: true });
+
+  // --- Keyboard: popup khula ho to uske keys; select focused ho to
+  //     Enter/Space/koi bhi letter = search mode (native typeahead ki jagah) ---
+  document.addEventListener('keydown', function (e) {
+    if (ssRoot) {
+      const k = e.key;
+      if (k === 'Escape' || k === 'Esc') { e.preventDefault(); e.stopPropagation(); ssClose(); return; }
+      if (k === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); ssMove(1); return; }
+      if (k === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); ssMove(-1); return; }
+      if (k === 'Enter') { e.preventDefault(); e.stopPropagation(); ssPick(); return; }
+      if (k === 'Tab') { ssClose(); return; }   // default focus move chalne do
+      return;
+    }
+    const ae = document.activeElement;
+    if (!ae || ae.tagName !== 'SELECT' || ae.disabled || ae.multiple) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key;
+    if (k === 'Enter' || k === ' ' || k === 'Spacebar') {
+      e.preventDefault(); e.stopPropagation(); ssOpen(ae, ''); return;
+    }
+    if (k.length === 1) {
+      e.preventDefault(); e.stopPropagation(); ssOpen(ae, k); return;
+    }
+  }, true);
+
+  // Page scroll ya resize ho to popup band (popup ka apna list-scroll chalta rahe)
+  document.addEventListener('scroll', function (e) {
+    if (!ssRoot) return;
+    const t = e.target;
+    if (t && ssRoot.contains(t)) return;
+    ssClose();
+  }, true);
+  window.addEventListener('resize', function () { if (ssRoot) ssClose(); });
+})();
+</script>
 
 </body>
 </html>
