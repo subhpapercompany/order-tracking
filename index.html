@@ -25680,7 +25680,9 @@ function handlePaperInwardProcessSubmit(e) {
   if (wipType === 'Med.Square' || wipType === 'Square' || wipType === 'MED. SQUARE' || wipType === 'Med Square') {
     wipType = 'Med. Square';
   }
-  const rate = Number(document.getElementById('epaper_rate').value || 77);
+  // RATE BY DEFAULT BLANK (user rule 28 Nov): cell khali hoti hai, user
+  // manual entry karega. Blank = 0 (koi hidden default 77 nahi).
+  let rate = Number(String(document.getElementById('epaper_rate').value || '').trim()) || 0;
 
   // Validation: prevent accidental 0 Kg entries
   if (inward <= 0 && processed <= 0) {
@@ -25705,6 +25707,10 @@ function handlePaperInwardProcessSubmit(e) {
     summary = { reelSize: spec, wipType, openingWipKg: 0, openingReelsKg: 0, inwardKg: 0, processedKg: 0, wastageKg: 0, wipKg: 0, reelsKg: 0, rate };
     state.papersSummary.push(summary);
   }
+  // Rate blank chhoda to default mat ghusao — purani summary rate preserve
+  // (agar pehli entry hai hi blank to 0 rahega; displays me wahi `|| 77`
+  // legacy fallback lagate hain).
+  if (rate <= 0) rate = Number(summary.rate) || 0;
 
   if (entryType === 'opening') {
     // OPENING BALANCE MODE
@@ -25800,7 +25806,8 @@ function handlePaperInwardProcessSubmit(e) {
     if (el) el.value = '';
   });
   if (document.getElementById('epaper_wastage')) document.getElementById('epaper_wastage').value = '0';
-  if (document.getElementById('epaper_rate')) document.getElementById('epaper_rate').value = '77';
+  // Rate cell by default BLANK — user agli entry me manually rate dalega
+  if (document.getElementById('epaper_rate')) document.getElementById('epaper_rate').value = '';
   // processed clear hone par WIP Type ka required flag bhi sync karo
   // (warna agli sirf-Reel-Inward entry native validation par block ho jaati)
   updateWipTypeRequirement();
@@ -37717,7 +37724,7 @@ if ('serviceWorker' in navigator &&
 //     (dono SAME hone chahiye). Warna toast ya toh aayega hi nahi ya har baar
 //     aayega. ***
 // ==============================================================================
-const APP_VERSION = '2026-11-28-1';
+const APP_VERSION = '2026-11-28-2';
 let _appUpdateToastShown = false;
 
 async function checkForAppUpdate() {
